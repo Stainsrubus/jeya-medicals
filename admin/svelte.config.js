@@ -7,8 +7,6 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			pages: 'public', // Output directory
-			assets: 'public', // Output directory
 			fallback: 'index.html'
 		}),
 		paths: {
