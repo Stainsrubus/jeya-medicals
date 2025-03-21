@@ -1,0 +1,1 @@
+import{k as c,a5 as i,x as s,h as r,i as h,y as p,q as d}from"./DUB8bsv0.js";function u(t,f,o){r&&h();var n=t,a,e;c(()=>{a!==(a=f())&&(e&&(p(e),e=null),a&&(e=s(()=>o(n,a))))},i),r&&(n=d)}export{u as c};
