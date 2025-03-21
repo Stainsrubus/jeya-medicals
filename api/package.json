@@ -4,8 +4,6 @@
   "scripts": {
     "start": "bun run main.ts",
     "dev": "bun --watch run main.ts",
-    "typecheck": "tsc",
-    "build": "tsc && bun build --compile --minify-whitespace --minify-syntax --target bun --outfile server ./main.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.1.18",
