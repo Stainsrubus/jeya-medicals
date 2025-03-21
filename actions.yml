@@ -1,0 +1,25 @@
+name: Something
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+
+jobs:
+  Get_OIDC_ID_token:
+    runs-on: ubuntu-latest
+    steps:
+      - id: "auth"
+        name: "Authenticate to GCP"
+        uses: "google-github-actions/auth@f1e2d3c4b5a6f7e8d9c0b1a2c3d4e5f6a7b8c9d0"
+        with:
+          create_credentials_file: "true"
+          workload_identity_provider: "https://iam.googleapis.com/projects/577557789465/locations/global/workloadIdentityPools/kingschic/providers/github"
+          service_account: "SERVICE-ACCOUNT"
+      - id: "gcloud"
+        name: "gcloud"
+        run: |-
+          gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
+          gcloud services list

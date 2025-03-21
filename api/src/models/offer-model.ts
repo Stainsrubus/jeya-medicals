@@ -1,0 +1,88 @@
+import { Schema, model } from "mongoose";
+
+const offerSchema = new Schema({
+    type: {
+        type: String,
+        required: true,
+        enum: ['flat', 'discount', 'negotiate', 'mrp']
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+offerSchema.pre('save', function (next) {
+    this.updatedAt = new Date();
+    next();
+});
+
+const flatOfferSchema = new Schema({
+    percentage: {
+        type: Number,
+        required: true
+    },
+    minPrd: {
+        type: Number,
+        required: true
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+});
+
+const negotiateOfferSchema = new Schema({
+    percentage: {
+        type: Number,
+        required: true
+    },
+    noOfAttempts: {
+        type: Number,
+        required: true
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+});
+
+const discountItemSchema = new Schema({
+    productId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+    },
+    discount: {
+        type: Number,
+        required: true
+    }
+});
+
+const discountOfferSchema = new Schema({
+    items: [discountItemSchema],
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+});
+
+const mrpOfferSchema = new Schema({
+    items: [discountItemSchema],
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+});
+
+const Offer = model('Offer', offerSchema);
+export const FlatOffer = Offer.discriminator('FlatOffer', flatOfferSchema);
+export const NegotiateOffer = Offer.discriminator('NegotiateOffer', negotiateOfferSchema);
+export const DiscountOffer = Offer.discriminator('DiscountOffer', discountOfferSchema);
+export const MRPOffer = Offer.discriminator('MRPOffer', mrpOfferSchema);
+
+export { Offer };

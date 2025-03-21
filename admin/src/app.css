@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+  --background: 210 100% 95%; /* Light blue background */
+  --foreground: 210 5% 0%; /* Dark text for contrast */
+  --card: 210 50% 90%; /* Light blue card background */
+  --card-foreground: 210 5% 10%; /* Dark text for cards */
+  --popover: 210 100% 95%; /* Light blue popover background */
+  --popover-foreground: 210 100% 0%; /* Dark text for popovers */
+  --primary: 210 86% 43%; /* Vibrant blue for primary elements */
+  --primary-foreground: 210 0% 100%; /* White text for primary elements */
+  --secondary: 210 30% 70%; /* Lighter blue for secondary elements */
+  --secondary-foreground: 210 0% 0%; /* Dark text for secondary elements */
+  --muted: 210 80% 87%; /* Neutral muted color (unchanged) */
+  --muted-foreground: 210 5% 35%; /* Darker text for muted elements */
+  --accent: 210 30% 80%; /* Very light blue for accents */
+  --accent-foreground: 210 5% 10%; /* Dark text for accents */
+  --destructive: 0 100% 30%; /* Red for destructive actions (unchanged) */
+  --destructive-foreground: 0 5% 90%; /* Light text for destructive actions (unchanged) */
+  --border: 210 30% 50%; /* Blue border color */
+  --input: 210 30% 18%; /* Dark blue for input fields */
+  --ring: 210 86% 43%; /* Vibrant blue for focus rings */
+  --radius: 0.5rem; /* Border radius (unchanged) */
+}
+.dark {
+  --background: 210 50% 5%; /* Dark blue background */
+  --foreground: 210 5% 90%; /* Light text for contrast */
+  --card: 210 50% 0%; /* Dark blue card background */
+  --card-foreground: 210 5% 90%; /* Light text for cards */
+  --popover: 210 50% 5%; /* Dark blue popover background */
+  --popover-foreground: 210 5% 90%; /* Light text for popovers */
+  --primary: 210 86% 43%; /* Vibrant blue for primary elements */
+  --primary-foreground: 210 0% 100%; /* White text for primary elements */
+  --secondary: 210 30% 10%; /* Darker blue for secondary elements */
+  --secondary-foreground: 210 0% 100%; /* Light text for secondary elements */
+  --muted: -38 30% 15%; /* Neutral muted color (unchanged) */
+  --muted-foreground: 210 5% 60%; /* Light text for muted elements */
+  --accent: 210 30% 15%; /* Dark blue for accents */
+  --accent-foreground: 210 5% 90%; /* Light text for accents */
+  --destructive: 0 100% 30%; /* Red for destructive actions (unchanged) */
+  --destructive-foreground: 0 5% 90%; /* Light text for destructive actions (unchanged) */
+  --border: 210 30% 18%; /* Dark blue border color */
+  --input: 210 30% 18%; /* Dark blue for input fields */
+  --ring: 210 86% 43%; /* Vibrant blue for focus rings */
+  --radius: 0.5rem; /* Border radius (unchanged) */
+}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}
+
+body {
+	font-family: 'Ubuntu', sans-serif !important;
+}
+
+.hidescrollbarthumb {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.hidescrollbarthumb::-webkit-scrollbar {
+	display: none;
+}
+
+.hidescrollbarthumb::-webkit-scrollbar-thumb {
+	display: none;
+}
+
+.hidescrollbarthumb::-webkit-scrollbar-track {
+	display: none;
+}
+
+label {
+	@apply text-zinc-700;
+}
