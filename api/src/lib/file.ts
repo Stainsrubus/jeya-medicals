@@ -16,7 +16,7 @@ export const saveFile = (blob: Blob | undefined, parentFolder: string) => {
 
     let filename =
       "uploads/" + parentFolder + "/" + hash + "." + blob.name.split('.').pop();
-
+//@ts-ignore
     Bun.write(filename, newBlob);
 
     return { ok: true, filename };

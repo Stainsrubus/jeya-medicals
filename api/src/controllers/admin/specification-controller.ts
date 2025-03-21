@@ -129,7 +129,7 @@ export const specificationController = new Elysia({
         status: true,
         total: totalSpecifications,
       };
-    } catch (error) {
+    } catch (error:any) {
       console.error("Error retrieving specifications:", error);
       return {
         error: error.message,

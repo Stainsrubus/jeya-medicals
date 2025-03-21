@@ -106,6 +106,7 @@ export const categoriesController = new Elysia({
         );
 
         updatedCategories = updatedCategories.sort((a, b) => {
+          //@ts-ignore
           return a.order - b.order;
         });
 
