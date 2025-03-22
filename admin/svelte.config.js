@@ -7,13 +7,13 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			fallback: 'index.html' // ✅ Correct fallback
+			fallback: 'index.html', // ✅ This is required for SPA routing
 		}),
 		paths: {
-			base: '' // ✅ Remove any base path for now
+			base: '' // ✅ Remove this if it's not needed
 		},
-		alias: {
-			'@/*': './src/lib/*' // ✅ Ensure correct path
+		prerender: {
+			handleMissingId: 'warn' // ✅ Ensures missing routes won't break the build
 		}
 	}
 };

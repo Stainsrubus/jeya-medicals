@@ -3,12 +3,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	base: '/', // ✅ Ensures correct paths for JS files
 	build: {
-		outDir: "build" // ✅ Make sure it matches Vercel's expected output
-	},
-	resolve: {
-		alias: {
-			$lib: '/src/lib'
-		}
+		outDir: "build"
 	}
 });
