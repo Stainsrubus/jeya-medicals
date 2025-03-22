@@ -7,13 +7,13 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			fallback: 'index.html'
+			fallback: 'index.html' // ✅ Correct fallback
 		}),
 		paths: {
-			base: '/hidden-admin-base-007'
+			base: '' // ✅ Remove any base path for now
 		},
 		alias: {
-			'@/*': './path/to/lib/*'
+			'@/*': './src/lib/*' // ✅ Ensure correct path
 		}
 	}
 };
