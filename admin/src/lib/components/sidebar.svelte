@@ -11,7 +11,7 @@ import logo from "$lib/assets/logo.png"
 		},
 		{
 			name: 'Order Statistics',
-			href: '/hidden-admin-base-007/dashboard/',
+			href: '/dashboard/',
 			icon: 'uil:analysis',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -22,28 +22,28 @@ import logo from "$lib/assets/logo.png"
 		},
 		{
 			name: 'Master',
-			href: '/hidden-admin-base-007/dashboard/master/',
+			href: '/dashboard/master/',
 			icon: 'material-symbols-light:dashboard',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Users',
-			href: '/hidden-admin-base-007/dashboard/users/',
+			href: '/dashboard/users/',
 			icon: 'meteor-icons:user',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Orders',
-			href: '/hidden-admin-base-007/dashboard/orders/',
+			href: '/dashboard/orders/',
 			icon: 'solar:cart-check-broken',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: "Today's Order",
-			href: "/hidden-admin-base-007/dashboard/todayorder/",
+			href: "/dashboard/todayorder/",
 			icon: 'hugeicons:shopping-cart-check-in-02',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -54,21 +54,21 @@ import logo from "$lib/assets/logo.png"
 		},
 		{
 			name: 'Brands',
-			href: '/hidden-admin-base-007/dashboard/brands/',
+			href: '/dashboard/brands/',
 			icon: 'solar:shield-star-linear',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Categories',
-			href: '/hidden-admin-base-007/dashboard/categories/',
+			href: '/dashboard/categories/',
 			icon: 'iconamoon:category',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Products',
-			href: '/hidden-admin-base-007/dashboard/products/',
+			href: '/dashboard/products/',
 			icon: 'simple-line-icons:chemistry',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -79,14 +79,14 @@ import logo from "$lib/assets/logo.png"
 		},
 		{
 			name: 'Combo Offers',
-			href: '/hidden-admin-base-007/dashboard/comboOffer/',
+			href: '/dashboard/comboOffer/',
 			icon: 'icon-park-outline:adjacent-item',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Offers',
-			href: '/hidden-admin-base-007/dashboard/offer/',
+			href: '/dashboard/offer/',
 			icon: 'icon-park-outline:adjacent-item',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -104,14 +104,14 @@ import logo from "$lib/assets/logo.png"
 		// },
 		{
 			name: 'Employees',
-			href: '/hidden-admin-base-007/dashboard/employees/',
+			href: '/dashboard/employees/',
 			icon: 'grommet-icons:user-manager',
 			subRoutes: '-',
 			canManagerAccess: false
 		},
 		{
 			name: 'Delivery Agent',
-			href: '/hidden-admin-base-007/dashboard/deliveryagent/',
+			href: '/dashboard/deliveryagent/',
 			icon: 'iconamoon:delivery-light',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -128,21 +128,21 @@ import logo from "$lib/assets/logo.png"
 		},
 		{
 			name: 'Coupons',
-			href: '/hidden-admin-base-007/dashboard/coupons/',
+			href: '/dashboard/coupons/',
 			icon: 'bxs:offer',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Privacy Policy',
-			href: '/hidden-admin-base-007/dashboard/privacy-policy/',
+			href: '/dashboard/privacy-policy/',
 			icon: 'ic:sharp-privacy-tip',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
 		{
 			name: 'Terms and Conditions',
-			href: '/hidden-admin-base-007/dashboard/terms-and-conditions/',
+			href: '/dashboard/terms-and-conditions/',
 			icon: 'raphael:book',
 			subRoutes: '-',
 			canManagerAccess: true
@@ -163,7 +163,7 @@ import logo from "$lib/assets/logo.png"
 	<div
 		class="flex flex-col justify-between h-[calc(100vh)] overflow-y-auto gap-2 hidescrollbarthumb"
 	>
-		<button onclick={() => goto('/hidden-admin-base-007/dashboard')}>
+		<button onclick={() => goto('/dashboard')}>
 			<div
 				class="shadow-xl min-h-[50px] cursor-pointer flex gap-2 justify-center items-center"
 			>
@@ -187,7 +187,7 @@ import logo from "$lib/assets/logo.png"
 							<div
 								class={`flex cursor-pointer items-center justify-start rounded-l-full p-2 group transition-all duration-300 hover:bg-zinc-100 hover:pl-6 hover:text-[#1e3a8a] ${
 									$page.url.pathname === route.href ||
-									(route.href !== '/hidden-admin-base-007/dashboard/' &&
+									(route.href !== '/dashboard/' &&
 										$page.url.pathname.startsWith(route.href ?? ''))
 										? 'bg-zinc-100 text-[#1e3a8a] font-bold pl-6'
 										: 'text-white'
@@ -197,7 +197,7 @@ import logo from "$lib/assets/logo.png"
 									icon={route.icon ?? ''}
 									class={`mr-2 h-6 w-6 ${
 										$page.url.pathname === route.href ||
-										(route.href !== '/hidden-admin-base-007/dashboard/' &&
+										(route.href !== '/dashboard/' &&
 											$page.url.pathname.startsWith(route.href ?? ''))
 											? 'text-[#1e3a8a]'
 											: 'text-white group-hover:text-[#1e3a8a]'

@@ -34,7 +34,7 @@
 			}
 
 			toast(data.message, {});
-			goto('/hidden-admin-base-007/dashboard');
+			goto('/dashboard');
 		},
 		onError(error, variables, context) {
 			console.error('onError', error, variables, context);

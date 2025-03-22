@@ -10,7 +10,7 @@
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 
-	const customSound = new Audio('/hidden-admin-base-007/tone.wav');
+	const customSound = new Audio('/tone.wav');
 
 	let ws: any;
 
@@ -63,7 +63,7 @@
 		// $writableGlobalStore.isManager = JSON.parse(localStorage.getItem('isManager') || 'false');
 
 		navigator.serviceWorker
-			.register('/hidden-admin-base-007/service-worker.js')
+			.register('/service-worker.js')
 			.then((registration) => {
 				console.log('Service Worker registered with scope:', registration.scope);
 				return Notification.requestPermission();

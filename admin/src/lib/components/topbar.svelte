@@ -24,7 +24,7 @@
 		onSuccess() {
 			localStorage.removeItem('restaurent');
 			localStorage.removeItem('isManager');
-			goto('/hidden-admin-base-007');
+			goto('/');
 		}
 	});
 
@@ -55,7 +55,7 @@
 					<DropdownMenu.Separator></DropdownMenu.Separator>
 					<DropdownMenu.Item
 						onclick={() => {
-							goto('/hidden-admin-base-007/dashboard/settings');
+							goto('/dashboard/settings');
 						}}>Settings</DropdownMenu.Item
 					>
 					<DropdownMenu.Item onclick={() => logout()}>Logout</DropdownMenu.Item>
