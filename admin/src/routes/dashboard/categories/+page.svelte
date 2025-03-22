@@ -16,7 +16,7 @@
 	value={$categoryStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/categories?mode=${value}`);
+		goto(`/dashboard/categories?mode=${value}`);
 		$categoryStore = {
 			code: 0,
 			name: '',

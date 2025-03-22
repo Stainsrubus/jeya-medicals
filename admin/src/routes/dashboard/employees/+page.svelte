@@ -16,7 +16,7 @@
 	value={$employeeStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/employees?mode=${value}`);
+		goto(`/dashboard/employees?mode=${value}`);
 		$employeeStore = {
 			mode: value,
 			id: '',

@@ -16,7 +16,7 @@
 	value={$managerStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/managers?mode=${value}`);
+		goto(`/dashboard/managers?mode=${value}`);
 		$managerStore = {
 			mode: value,
 			id: '',

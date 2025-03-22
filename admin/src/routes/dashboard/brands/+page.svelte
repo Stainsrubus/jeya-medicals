@@ -16,7 +16,7 @@
 	value={$brandStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/brands?mode=${value}`);
+		goto(`/dashboard/brands?mode=${value}`);
 		$brandStore = {
 			name: '',
 			id: '',

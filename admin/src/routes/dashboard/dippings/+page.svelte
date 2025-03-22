@@ -16,7 +16,7 @@
 	value={$dippingStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/dippings?mode=${value}`);
+		goto(`/dashboard/dippings?mode=${value}`);
 		$dippingStore = {
 			name: '',
 			id: '',

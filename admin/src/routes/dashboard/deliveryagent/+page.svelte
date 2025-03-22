@@ -16,7 +16,7 @@
 	value={$deliveryAgentStore.mode}
 	class="w-full p-4"
 	onValueChange={(value) => {
-		goto(`/hidden-admin-base-007/dashboard/deliveryagent?mode=${value}`);
+		goto(`/dashboard/deliveryagent?mode=${value}`);
 		$deliveryAgentStore = {
 			mode: value,
 			id: '',

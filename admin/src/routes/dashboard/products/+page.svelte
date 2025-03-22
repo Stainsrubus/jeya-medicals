@@ -44,7 +44,7 @@
 			$productEditStore.images = '';
 			$productEditStore.gst = '';
 		}
-		goto(`/hidden-admin-base-007/dashboard/products?mode=${value}`, { replaceState: true });
+		goto(`/dashboard/products?mode=${value}`, { replaceState: true });
 	}}
 >
 	<Tabs.List>
