@@ -87,7 +87,7 @@ import logo from "$lib/assets/logo.png"
 		{
 			name: 'Offers',
 			href: '/dashboard/offer/',
-			icon: 'icon-park-outline:adjacent-item',
+			icon: 'tabler:rosette-discount-filled',
 			subRoutes: '-',
 			canManagerAccess: true
 		},
