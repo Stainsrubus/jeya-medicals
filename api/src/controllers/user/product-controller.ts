@@ -11,208 +11,151 @@ export const productController = new Elysia({
     tags: ["User - Product"],
   },
 })
-  .get(
-    "/",
-    async ({ query }) => {
-      const { page, limit, q, topSeller, type, rating, userId, category } =
-        query;
+.get(
+  "/",
+  async ({ query }) => {
+    const { page, limit, q, rating, userId, category } = query;
 
-      const _limit = limit || 10;
-      const _page = page || 1;
+    const _limit = limit || 10;
+    const _page = page || 1;
 
-      let matchFilter: any = { active: true, isDeleted: false };
+    let matchFilter: any = { active: true, isDeleted: false };
 
-      if (q) {
-        matchFilter.$or = [{ productName: { $regex: q, $options: "i" } }];
-      }
-
-      if (type) {
-        matchFilter.type = type;
-      }
-
-      if (rating) {
-        const ratingNumber = parseInt(rating, 10);
-        if (ratingNumber >= 1 && ratingNumber <= 5) {
-          matchFilter.ratings = ratingNumber;
-        }
-      }
-
-      if (topSeller === "true") {
-        matchFilter.topSeller = true;
-      }
-
-      try {
-        let currentServerTime = format(new Date(), "HH:mm");
-
-        if (process.env.ENV === "PROD") {
-          const updatedTime = add(new Date(), { hours: 5, minutes: 30 });
-          currentServerTime = format(updatedTime, "HH:mm");
-        }
-
-        const totalPromise = Product.countDocuments(matchFilter);
-        const productsPromise = Product.aggregate([
-          {
-            $match: { ...matchFilter },
-          },
-          {
-            $lookup: {
-              from: "timings",
-              localField: "timing",
-              foreignField: "_id",
-              as: "timingDetails",
-            },
-          },
-          {
-            $unwind: "$timingDetails",
-          },
-          {
-            $addFields: {
-              isAvailable: {
-                $and: [
-                  { $lte: ["$timingDetails.startTime", currentServerTime] },
-                  { $gte: ["$timingDetails.endTime", currentServerTime] },
-                ],
-              },
-            },
-          },
-          {
-            $group: {
-              _id: {
-                productId: "$_id",
-                categoryId: "$category",
-              },
-              productName: { $first: "$productName" },
-              price: { $first: "$price" },
-              ratings: { $first: "$ratings" },
-              images: { $first: "$images" },
-              description: { $first: "$description" },
-              type: { $first: "$type" },
-              available: { $max: "$isAvailable" },
-              categoryId: { $first: "$category" },
-            },
-          },
-          {
-            $lookup: {
-              from: "productcategories",
-              localField: "categoryId",
-              foreignField: "_id",
-              as: "categoryDetails",
-            },
-          },
-          {
-            $unwind: "$categoryDetails",
-          },
-            {
-            $match: {
-              "categoryDetails.active": true, 
-            },
-          },
-          {
-            $addFields: {
-              priority: category
-                ? {
-                    $cond: [
-                      {
-                        $eq: [
-                          "$categoryDetails._id",
-                          new Types.ObjectId(category),
-                        ],
-                      },
-                      0,
-                      1,
-                    ],
-                  }
-                : 1,
-            },
-          },
-          {
-            $sort: { productName: 1 },
-          },
-          {
-            $group: {
-              _id: "$categoryDetails._id",
-              categoryName: { $first: "$categoryDetails.name" },
-              totalProducts: { $sum: 1 },
-              products: {
-                $push: {
-                  _id: "$_id.productId",
-                  productName: "$productName",
-                  price: "$price",
-                  ratings: "$ratings",
-                  images: "$images",
-                  description: "$description",
-                  type: "$type",
-                  available: "$available",
-                  favorite: "$favorite",
-                  categoryId: "$categoryDetails._id",
-                  categoryName: "$categoryDetails.name",
-                },
-              },
-              priority: { $first: "$priority" },
-            },
-          },
-          {
-            $sort: { priority: 1, categoryName: 1 },
-          },
-          {
-            $skip: (_page - 1) * _limit,
-          },
-          {
-            $limit: _limit,
-          },
-        ]);
-
-        const [total, products] = await Promise.all([
-          totalPromise,
-          productsPromise,
-        ]);
-        let userFavorites: String[] = [];
-
-        if (userId) {
-          const favorites = await Favorites.findOne({ user: userId });
-          userFavorites = favorites?.products || [];
-        }
-
-        const paginatedCategories = products.map((category: any) => ({
-          ...category,
-          products: category.products.map((product: any) => ({
-            ...product,
-            favorite: userFavorites.includes(product._id.toString()),
-          })),
-        }));
-
-        return {
-          data: paginatedCategories,
-          total,
-          page: _page,
-          limit: _limit,
-          status: true,
-        };
-      } catch (error) {
-        console.error(error);
-        return {
-          error,
-          status: false,
-          message: "Something went wrong",
-        };
-      }
-    },
-    {
-      detail: {
-        summary: "Get all products grouped by category with priority",
-      },
-      query: t.Object({
-        page: t.Optional(t.Number({ default: 1 })),
-        limit: t.Optional(t.Number({ default: 10 })),
-        q: t.Optional(t.String({ default: "" })),
-        topSeller: t.Optional(t.String()),
-        type: t.Optional(t.String()),
-        rating: t.Optional(t.String()),
-        userId: t.Optional(t.String()),
-        category: t.Optional(t.String()),
-      }),
+    if (q) {
+      matchFilter.$or = [{ productName: { $regex: q, $options: "i" } }];
     }
-  )
+
+    if (rating) {
+      const ratingNumber = parseInt(rating, 10);
+      if (ratingNumber >= 1 && ratingNumber <= 5) {
+        matchFilter.ratings = ratingNumber;
+      }
+    }
+
+    try {
+      const totalPromise = Product.countDocuments(matchFilter);
+      const productsPromise = Product.aggregate([
+        {
+          $match: matchFilter,
+        },
+        {
+          $lookup: {
+            from: "productcategories",
+            localField: "category",
+            foreignField: "_id",
+            as: "categoryDetails",
+          },
+        },
+        {
+          $unwind: "$categoryDetails",
+        },
+        {
+          $match: {
+            "categoryDetails.active": true,
+          },
+        },
+        {
+          $addFields: {
+            priority: category
+              ? {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$categoryDetails._id",
+                        new Types.ObjectId(category),
+                      ],
+                    },
+                    0,
+                    1,
+                  ],
+                }
+              : 1,
+          },
+        },
+        {
+          $sort: { productName: 1 },
+        },
+        {
+          $group: {
+            _id: "$categoryDetails._id",
+            categoryName: { $first: "$categoryDetails.name" },
+            totalProducts: { $sum: 1 },
+            products: {
+              $push: {
+                _id: "$_id",
+                productName: "$productName",
+                price: "$price",
+                ratings: "$ratings",
+                strikePrice:"$strikePrice",
+                images: "$images",
+                discount:"$discount",
+                onMRP:"$onMRP",
+                description: "$description",
+                categoryId: "$categoryDetails._id",
+                categoryName: "$categoryDetails.name",
+              },
+            },
+            priority: { $first: "$priority" },
+          },
+        },
+        {
+          $sort: { priority: 1, categoryName: 1 },
+        },
+        {
+          $skip: (_page - 1) * _limit,
+        },
+        {
+          $limit: _limit,
+        },
+      ]);
+
+      const [total, products] = await Promise.all([totalPromise, productsPromise]);
+      let userFavorites: String[] = [];
+
+      if (userId) {
+        const favorites = await Favorites.findOne({ user: userId });
+        userFavorites = favorites?.products || [];
+      }
+
+      const paginatedCategories = products.map((category: any) => ({
+        ...category,
+        products: category.products.map((product: any) => ({
+          ...product,
+          favorite: userFavorites.includes(product._id.toString()),
+        })),
+      }));
+
+      return {
+        data: paginatedCategories,
+        total,
+        page: _page,
+        limit: _limit,
+        status: true,
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        error,
+        status: false,
+        message: "Something went wrong",
+      };
+    }
+  },
+  {
+    detail: {
+      summary: "Get all active products grouped by category",
+    },
+    query: t.Object({
+      page: t.Optional(t.Number({ default: 1 })),
+      limit: t.Optional(t.Number({ default: 10 })),
+      q: t.Optional(t.String({ default: "" })),
+      rating: t.Optional(t.String()),
+      userId: t.Optional(t.String()),
+      category: t.Optional(t.String()),
+    }),
+  }
+)
+
   .get(
     "/topseller",
     async ({ query }) => {
@@ -357,16 +300,8 @@ export const productController = new Elysia({
             select: "name categoryNumber",
           })
           .populate({
-            path: "suggetions",
-            select: "name icon",
-          })
-          .populate({
-            path: "dippings",
-            select: "name price image",
-          })
-          .populate({
-            path: "foodsuggetions",
-            select: "_id productName price images",
+            path: "brand",
+            select: "name",
           })
           .exec();
 

@@ -27,7 +27,7 @@
 >
 	<Tabs.List>
 		<Tabs.Trigger value="list" class="flex items-center">
-			<Icon class="w-4 h-4" icon="fluent:food-pizza-20-filled" />
+			<Icon class="w-4 h-4" icon="material-symbols:fluid-med" />
 			<span class="ml-2">Brands List</span>
 		</Tabs.Trigger>
 		<Tabs.Trigger value="create">

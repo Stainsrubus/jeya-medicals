@@ -222,7 +222,7 @@
 						<span>Assigned</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger value="ready for delivery" class="flex items-center gap-2">
-						<Icon class="w-4 h-4" icon="material-symbols-light:lunch-dining-rounded" />
+						<Icon class="w-4 h-4" icon="bxs:thermometer" />
 						<span>Ready</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger value="picked" class="flex items-center gap-2">

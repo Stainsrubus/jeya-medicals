@@ -6,6 +6,10 @@ export const optionSchema = z.object({
 	title: z.string({ message: 'Option title is required' }),
 	values: z.array(z.string({ message: 'Option values are required' }))
 });
+export const specificationSchema = z.object({
+	name: z.string({ message: 'Specification name is required' }),
+	fields:  z.record(z.string(), z.string()),
+});
 
 // Define the main product schema
 export const _productsSchema = z.object({
@@ -39,7 +43,9 @@ export const _productsSchema = z.object({
 		message: 'Gst must be a numeric string'
 	}),
 	active: z.boolean(),
-	options: z.array(optionSchema).optional() // Options are optional
+	options: z.array(optionSchema).optional() ,
+	specifications: z.array(specificationSchema).optional() ,
+	
 });
 
 // Store for managing product-related UI states
@@ -61,7 +67,8 @@ export const productEditStore = writable({
 	images: '',
 	gst: '',
 	active: true, // Default to true
-	options: [] as Option[] // Array of options
+	options: [] as Option[], // Array of options
+	specifications:[] as Specifications[]
 });
 
 // Type definitions
@@ -81,4 +88,8 @@ export type TBrand = {
 export type Option = {
 	title: string;
 	values: string[];
+};
+export type Specifications = {
+	name: string;
+	fields: string[];
 };

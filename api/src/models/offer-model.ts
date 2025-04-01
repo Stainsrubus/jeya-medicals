@@ -62,6 +62,17 @@ const discountItemSchema = new Schema({
         required: true
     }
 });
+const mrpReductionSchema = new Schema({
+    productId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+    },
+    mrpReduction: {
+        type: Number,
+        required: true
+    }
+});
 
 const discountOfferSchema = new Schema({
     items: [discountItemSchema],
@@ -72,7 +83,7 @@ const discountOfferSchema = new Schema({
 });
 
 const mrpOfferSchema = new Schema({
-    items: [discountItemSchema],
+    items: [mrpReductionSchema],
     isActive: {
         type: Boolean,
         default: true

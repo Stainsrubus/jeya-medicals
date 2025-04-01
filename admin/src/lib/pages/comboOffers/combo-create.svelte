@@ -193,7 +193,7 @@ function updateProduct(index: number, value: number) {
 
 				cleanImage();
 
-				goto('/hidden-admin-base-007/dashboard/comboOffer');
+				goto('/dashboard/comboOffer');
 				toast(edit ? 'Combo Offer Updated ✅' : 'Combo Offer Created ✅');
 			} else {
 				toast.error(data.message);

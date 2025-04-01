@@ -27,25 +27,28 @@ export const saveFile = (blob: Blob | undefined, parentFolder: string) => {
 };
 
 
-  // export const deliverFile = (filename: any) => {
-  // return  `http://localhost:4000/view`;
-  // };
+  export const deliverFile = (filename: any) => {
+  return  `http://localhost:4000/view`;
+  };
 
-export const deleteFile = (filename: any) => {
-  try {
-    const parts = filename.split("/");
-    const parentFolder = parts[1];
-    const uploadedFileNameWithHash = parts[parts.length - 1];
-
-    const uploadedFileNameParts = uploadedFileNameWithHash.split(".");
-    const originalFileName = uploadedFileNameParts.slice(0, -2).join(".");
-    const hash = uploadedFileNameParts[uploadedFileNameParts.length - 2];
-
-    const reconstructedFilename = `uploads/${parentFolder}/${originalFileName}.${hash}.png`;
-
-    unlinkSync(reconstructedFilename);
-  } catch (error) {
-    console.error(error);
-  }
-};
+  export const deleteFile = async (filename: string, parentFolder: string) => {
+    try {
+      // The filename is already in the correct format: uploads/parentFolder/hash.extension
+      console.log(`Attempting to delete file: ${filename}`);
+      
+      // Verify that the parentFolder matches the filename's folder
+      const parts = filename.split('/');
+      if (parts.length !== 3 || parts[0] !== 'uploads' || parts[1] !== parentFolder) {
+        throw new Error(`Invalid filename format: ${filename}. Expected format: uploads/${parentFolder}/hash.extension`);
+      }
+  
+      // Use asynchronous unlink
+      await fs.unlink(filename);
+      console.log(`Successfully deleted file: ${filename}`);
+      return { ok: true };
+    } catch (error) {
+      console.error(`Error deleting file ${filename}:`, error);
+      return { ok: false };
+    }
+  };
 

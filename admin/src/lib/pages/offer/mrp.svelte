@@ -186,57 +186,59 @@
     }
   
     async function handleSubmit() {
-      if (localItems.length === 0) {
-        toast.error('Please add at least one product with an MRP reduction');
-        return;
-      }
-  
-      isSubmitting = true;
-      try {
-        const offerId = $offerStore.data?._id;
-        if (!offerId) {
-          toast.error('No offer ID found. Please save the offer first.');
-          return;
-        }
-  
-        const response = await _axios.patch(
-          `/offer/update-products`,
-          {
-            products: localItems.map((item) => ({
-              productId: item.productId,
-              mrpReduction: parseInt(item.mrpReduction),
-            })),
-          },
-          {
-            params: { id: offerId },
-          }
-        );
-  
-        if (response.data.status) {
-          updateOfferField('items', localItems.map((item) => ({
-            productId: item.productId,
-            mrpReduction: parseInt(item.mrpReduction),
-          })));
-  
-          updateOfferField('isActive', isActive);
-  
-          const saveResult = await saveOfferData();
-          if (saveResult && saveResult.status) {
-            await initializeOfferStore();
-            toast.success('MRP offer saved successfully');
-          } else {
-            toast.error('Failed to save MRP offer');
-          }
-        } else {
-          toast.error(response.data.message || 'Failed to update MRP reductions');
-        }
-      } catch (error) {
-        console.error('Error saving MRP offer:', error);
-        toast.error('An error occurred while saving');
-      } finally {
-        isSubmitting = false;
-      }
+  if (localItems.length === 0) {
+    toast.error('Please add at least one product with an MRP reduction');
+    return;
+  }
+
+  isSubmitting = true;
+  try {
+    const offerId = $offerStore.data?._id;
+    if (!offerId) {
+      toast.error('No offer ID found. Please save the offer first.');
+      return;
     }
+
+    // First update the products
+    const response = await _axios.patch(
+      `/offer/update-products`,
+      {
+        products: localItems.map((item) => ({
+          productId: item.productId,
+          mrpReduction: parseInt(item.mrpReduction),
+        })),
+      },
+      {
+        params: { id: offerId },
+      }
+    );
+
+    if (response.data.status) {
+      // Refresh the store with the latest data
+      await initializeOfferStore();
+      
+      // Now update just the isActive status if needed
+      if ($offerStore?.data.isActive !== isActive) {
+        updateOfferField('isActive', isActive);
+        const saveResult = await saveOfferData();
+        if (saveResult && saveResult.status) {
+          toast.success('MRP offer saved successfully');
+        } else {
+          toast.error('Failed to update active status');
+        }
+      } else {
+        toast.success('MRP offer saved successfully');
+      }
+    } else {
+      toast.error(response.data.message || 'Failed to update MRP reductions');
+    }
+  } catch (error) {
+    console.error('Error saving MRP offer:', error);
+    toast.error('An error occurred while saving');
+  } finally {
+    isSubmitting = false;
+  }
+}
   
     function handleProductSearch(event: { target: { value: any } }) {
       const term = event.target.value;

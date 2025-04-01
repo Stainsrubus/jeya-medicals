@@ -1,5 +1,5 @@
 import Elysia, { t } from "elysia";
-import { deleteFile, saveFile } from "../../lib/file-s3";
+import { deleteFile, saveFile } from "../../lib/file";
 import { Banner } from "../../models/banner-model";
 
 export const bannerController = new Elysia({

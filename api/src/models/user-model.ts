@@ -5,13 +5,13 @@ interface User {
   role: string;
   active: boolean;
   username: string;
-  prefferedCusine: string;
+  // prefferedCusine: string;
   profileImage: string;
   favorites: Types.ObjectId | null;
   email: string;
   fcmToken: string;
-  refCode: string;
-  referedBy: Types.ObjectId | null;
+  // refCode: string;
+  // referedBy: Types.ObjectId | null;
 }
 
 const userSchema = new Schema<User>(
@@ -25,10 +25,10 @@ const userSchema = new Schema<User>(
       type: String,
       default: "",
     },
-    prefferedCusine: {
-      type: String,
-      default: "",
-    },
+    // prefferedCusine: {
+    //   type: String,
+    //   default: "",
+    // },
     fcmToken: {
       type: String,
       default: "",
@@ -42,15 +42,15 @@ const userSchema = new Schema<User>(
       type: String,
       default: "",
     },
-    refCode: {
-      type: String,
-      unique: true,
-    },
-    referedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
+    // refCode: {
+    //   type: String,
+    //   unique: true,
+    // },
+    // referedBy: {
+    //   type: Schema.Types.ObjectId,
+    //   ref: "User",
+    //   default: null,
+    // },
     email: {
       type: String,
       default: "",

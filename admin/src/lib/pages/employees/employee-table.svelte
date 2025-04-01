@@ -48,7 +48,7 @@
 			queryClient.refetchQueries({
 				queryKey: ['employee fetch']
 			});
-			goto('/hidden-admin-base-007/dashboard/employees?mode=list');
+			goto('/dashboard/employees?mode=list');
 			toast(data?.message ?? 'Employee Edited');
 			modelOpen = false;
 		},

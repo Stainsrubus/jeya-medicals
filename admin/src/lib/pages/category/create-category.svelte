@@ -58,7 +58,7 @@
 
 				cleanImage('home');
 
-				goto('/hidden-admin-base-007/dashboard/categories?mode=list');
+				goto('/dashboard/categories?mode=list');
 				toast(edit ? 'Category Updated ✅' : 'Category Created ✅');
 			} else {
 				toast.error(data.message);

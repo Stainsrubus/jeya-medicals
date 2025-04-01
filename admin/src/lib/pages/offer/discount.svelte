@@ -35,7 +35,7 @@
         productId: product._id || item.productId,
         productName: product.productName || '',
         price: product.price || 0,
-        discount: item.discount.toString(),
+        discount: item.discount,
         strikePrice: product.strikePrice || 0
       };
     });

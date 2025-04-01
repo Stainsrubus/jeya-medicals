@@ -4,7 +4,10 @@ interface Option {
   title: string;
   values: string[]; 
 }
-
+interface Specification {
+  name: string;
+  fields: Record<string, string>;
+}
 interface ProductInterface {
   productName: string;
   category: Types.ObjectId;
@@ -24,6 +27,7 @@ interface ProductInterface {
   isDeleted: boolean;
   reEnabledAt: Date | null;
   options?: Option[];
+  specifications?: Specification[];
 }
 
 
@@ -96,6 +100,12 @@ const ProductSchema = new Schema<ProductInterface>(
       {
         title: { type: String, required: true },
         values: [{ type: String, required: true }],
+      },
+    ],
+    specifications: [
+      {
+        name: { type: String, required: true },
+        fields: { type: Map, of: String },
       },
     ],
   },

@@ -229,7 +229,7 @@
 									onclick={() => {
 										const newWindow = window.open();
 										if (newWindow) {
-											const imageHTML = `<img src="${imgUrl + category.image}" alt="${category.name}" />`;
+											const imageHTML = `<img src="${imgUrl}${category.image}" alt="${category.name}" />`;
 											newWindow.document.write(imageHTML);
 											newWindow.document.title = category.name;
 										}
@@ -287,7 +287,7 @@
 											description: category.description,
 											image:category.image
 										};
-										goto(`/hidden-admin-base-007/dashboard/categories?mode=create&id=${category._id}`);
+										goto(`/dashboard/categories?mode=create&id=${category._id}`);
 									}}
 								>
 									<Icon icon="basil:edit-outline" class="hover:text-red-500 text-xl" />

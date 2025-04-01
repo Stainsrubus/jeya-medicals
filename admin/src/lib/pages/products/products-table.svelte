@@ -327,7 +327,8 @@
 				images: product.images,
 				gst: product.gst.toString(),
 				active: product.active, // Add active status
-				options: product.options || [] // Add options if available
+				options: product.options || [], // Add options if available
+				specifications:product.specifications || []
 			};
 								}}
 							>

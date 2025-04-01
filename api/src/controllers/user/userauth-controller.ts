@@ -12,14 +12,14 @@ export const usersAuthController = new Elysia({
   .post(
     "/login",
     async ({ body }) => {
-      const { mobile, referCode } = body;
+      const { mobile} = body;
 
       try {
         let newUser = false;
         let user = await User.findOne({ mobile });
 
         if (!user) {
-          let refCode = generateReferCode();
+          // let refCode = generateReferCode();
 
           newUser = true;
           user = await User.create({
@@ -28,22 +28,21 @@ export const usersAuthController = new Elysia({
             username: "",
             favorites: null,
             email: "",
-            prefferedCusine: "",
             profileImage: "",
             role: "user",
-            refCode,
+            // refCode,
           });
 
-          if (referCode) {
-            const refree = await User.findOne({
-              refCode: referCode,
-            });
+          // if (referCode) {
+          //   const refree = await User.findOne({
+          //     refCode: referCode,
+          //   });
 
-            if (refree) {
-              user.referedBy = refree._id;
-              await user.save();
-            }
-          }
+          //   if (refree) {
+          //     user.referedBy = refree._id;
+          //     await user.save();
+          //   }
+          // }
         }
 
         const token = await PasetoUtil.encodePaseto({
@@ -62,7 +61,7 @@ export const usersAuthController = new Elysia({
               mobile: user.mobile,
               username: user.username,
               userId: user._id.toString(),
-              refCode: user.refCode,
+              // refCode: user.refCode,
             },
             newUser,
           },
@@ -82,11 +81,11 @@ export const usersAuthController = new Elysia({
           minLength: 10,
           maxLength: 10,
         }),
-        referCode: t.Optional(
-          t.String({
-            default: "",
-          })
-        ),
+        // referCode: t.Optional(
+        //   t.String({
+        //     default: "",
+        //   })
+        // ),
       }),
       detail: {
         summary: "Login the user to get token",

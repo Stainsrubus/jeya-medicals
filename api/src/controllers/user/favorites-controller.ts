@@ -76,12 +76,7 @@ export const favoritesController = new Elysia({
 
       let filter: any = { user: userId };
 
-      let currentServerTime = format(new Date(), "HH:mm");
 
-      if (process.env.ENV === "PROD") {
-        const updatedTime = add(new Date(), { hours: 5, minutes: 30 });
-        currentServerTime = format(updatedTime, "HH:mm");
-      }
 
       try {
         let _limit = limit || 10;
@@ -91,14 +86,10 @@ export const favoritesController = new Elysia({
           .populate({
             path: "products",
             match: type ? { type } : {},
-            select: "-dippings -foodsuggetions",
             populate: [
               {
-                path: "suggetions",
-                select: "name icon",
-              },
-              {
-                path: "timing",
+                path: "brand",
+                select: "name",
               },
               {
                 path: "category",
@@ -113,24 +104,7 @@ export const favoritesController = new Elysia({
 
         const updatedFavorites = favorites.map((favorite) => {
           favorite.products = favorite.products
-            .filter((product: any) => product.category?.active) // Filter based on active
-            .map((product: any) => {
-              const isAvailable = product?.timing.some((time: any) => {
-                const isWithinTimeRange =
-                  currentServerTime >= time.startTime &&
-                  currentServerTime <= time.endTime;
-                return isWithinTimeRange;
-              });
-
-              // Transform the category object to just the ID
-              const productWithId = {
-                ...product,
-                category: product.category._id, // Keep only the ID in response
-                available: isAvailable,
-              };
-
-              return productWithId;
-            });
+            .filter((product: any) => product.category?.active) 
           return favorite;
         });
 

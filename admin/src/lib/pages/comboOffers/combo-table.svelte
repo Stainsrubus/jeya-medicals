@@ -230,7 +230,7 @@
                 quantity: product.quantity 
             }))
 										};
-										goto(`/hidden-admin-base-007/dashboard/comboOffer?mode=create&id=${combo._id}`);
+										goto(`/dashboard/comboOffer?mode=create&id=${combo._id}`);
 									}}
 								>
 									<Icon icon="basil:edit-outline" class="hover:text-red-500 text-xl" />

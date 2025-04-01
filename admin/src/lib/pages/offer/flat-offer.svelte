@@ -66,6 +66,15 @@
   
   <div class="max-w-[50%] text-maintext mt-10 pl-[10%]">
     <form on:submit|preventDefault={handleSubmit} class="grid gap-4 py-4">
+ <div class="flex justify-between">
+  <div class="text-lg font-medium text-black">
+    Flat Discount
+  </div>
+  <div class="flex items-center space-x-2">
+    <Switch id="active-status" checked={isActive} onCheckedChange={(checked) => isActive = checked} />
+    <Label for="active-status">Active</Label>
+  </div>
+ </div>
       <!-- Discount Field -->
       <div>
         <Label for="discount">Discount (%)</Label>
@@ -95,10 +104,7 @@
       </div>
   
       <!-- Active Status -->
-      <div class="flex items-center space-x-2">
-        <Switch id="active-status" checked={isActive} onCheckedChange={(checked) => isActive = checked} />
-        <Label for="active-status">Active</Label>
-      </div>
+  
   
       <!-- Save Button -->
       <Button class="w-[100px]" type="submit" disabled={isSubmitting}>

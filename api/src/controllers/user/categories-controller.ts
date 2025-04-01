@@ -83,43 +83,44 @@ export const categoriesController = new Elysia({
             active: true,
             isDeleted: false,
           },
-          "name image colorCode searchImage iosColorCode"
+          "name image _id"
         )
           .sort({ order: 1 })
           .skip((_page - 1) * _limit)
           .limit(_limit)
           .exec();
 
-        const categoryPromises = categories.map(async (category) => {
-          const totalProducts = await Product.countDocuments({
-            category: category._id,
-            active: true,
-          });
+        // const categoryPromises = categories.map(async (category) => {
+        //   const totalProducts = await Product.countDocuments({
+        //     category: category._id,
+        //     active: true,
+        //   });
 
-          return totalProducts > 0
-            ? { ...category.toObject(), totalProducts }
-            : null;
-        });
+        //   return totalProducts > 0
+        //     ? { ...category.toObject(), totalProducts }
+        //     : null;
+        // });
 
-        let updatedCategories = (await Promise.all(categoryPromises)).filter(
-          (category) => category !== null
-        );
+        // let updatedCategories = (await Promise.all(categoryPromises)).filter(
+        //   (category) => category !== null
+        // );
 
-        updatedCategories = updatedCategories.sort((a, b) => {
-          //@ts-ignore
-          return a.order - b.order;
-        });
+        // updatedCategories = updatedCategories.sort((a, b) => {
+        //   //@ts-ignore
+        //   return a.order - b.order;
+        // });
 
         let reason = "";
 
         const config = await Config.findOne();
 
-        if (config && updatedCategories.length <= 0) {
-          reason = config.shopCloseReason ?? "";
-        }
+        // if (config && updatedCategories.length <= 0) {
+        //   reason = config.shopCloseReason ?? "";
+        // }
 
         return {
-          categories: updatedCategories,
+          // categories: updatedCategories,
+          categories,
           status: "success",
           showMessage: reason,
         };

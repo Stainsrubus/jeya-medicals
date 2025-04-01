@@ -44,10 +44,10 @@
         <Icon class="w-4 h-4" icon="tdesign:user-talk-1" />
         <span class="ml-2">Negotiable</span>
       </Tabs.Trigger>
-      <!-- <Tabs.Trigger value="mrp" class="flex items-center">
+      <Tabs.Trigger value="mrp" class="flex items-center">
         <Icon class="w-4 h-4" icon="material-symbols:currency-rupee-circle-outline" />
         <span class="ml-2">On MRP Purchase</span>
-      </Tabs.Trigger> -->
+      </Tabs.Trigger>
     </Tabs.List>
     <Tabs.Content value="flat">
       <Flat />

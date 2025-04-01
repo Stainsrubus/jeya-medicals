@@ -15,24 +15,11 @@ export const fileController = new Elysia({
       try {
         const { key } = query;
 
-        if (!key) {
-          set.status = 404;
-          return {
-            message: "File not found",
-            status: false,
-          };
-        }
+        
 
         const { data, ok } = await getAsBlob(key);
 
-        if (!ok) {
-          set.status = 404;
-          return {
-            message: "File not found",
-            status: false,
-          };
-        }
-
+    
         const mimeType = mime.lookup(key) || "application/octet-stream";
 
         set.headers = {

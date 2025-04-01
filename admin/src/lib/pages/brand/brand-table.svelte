@@ -156,7 +156,7 @@
                                         image:brand.image
 									};
 
-									goto(`/hidden-admin-base-007/dashboard/brands?mode=create&id=${brand._id}`);
+									goto(`/dashboard/brands?mode=create&id=${brand._id}`);
 								}}
 							>
 								<Icon icon={'basil:edit-outline'} class="hover:text-red-500 text-xl" />

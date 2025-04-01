@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import dayjs from "dayjs";
 import Elysia, { t } from "elysia";
 import * as xlsx from "xlsx";
-import { saveFile } from "../../lib/file-s3";
+import { deleteFile, saveFile } from "../../lib/file";
 import { Product } from "../../models/product";
 import { ProductCategory } from "../../models/product-category";
 import { Brand } from "@/models/brand-model";
@@ -32,6 +32,7 @@ export const productsController = new Elysia({
         topSeller,
         gst,
         options, 
+        specifications,
       } = body;
 
       const _category = await ProductCategory.findById(category);
@@ -54,7 +55,7 @@ export const productsController = new Elysia({
       }
 
       let _options = JSON.parse(options);
-
+      let _specifications = JSON.parse(specifications); 
       const product = await Product.create({
         productName,
         description,
@@ -69,6 +70,7 @@ export const productsController = new Elysia({
         topSeller: topSeller === "true",
         gst: +gst,
         options: _options, 
+        specifications: _specifications,
       });
 
       await product.save();
@@ -97,7 +99,8 @@ export const productsController = new Elysia({
       topSeller: t.String({ default: false }),
       gst: t.String({ default: 0 }),
       active: t.Boolean({ default: true }),
-      options: t.String({ examples: ['[{"title":"Size","values":["S","M","L"]}]'] })
+      options: t.String({ examples: ['[{"title":"Size","values":["S","M","L"]}]'] }),
+      specifications: t.String(),
     }),
     detail: { summary: "Create a new product" },
   }
@@ -585,13 +588,15 @@ export const productsController = new Elysia({
           price,
           strikePrice,
           active,
-          images,
+          images, // Can be a single File, an array of Files, or undefined
+          existingImages, // Array of existing image filenames (or stringified JSON)
           productCode,
           ratings,
           brand,
           topSeller,
           gst,
           options,
+          specifications,
         } = body;
   
         // Find the product by ID
@@ -613,6 +618,7 @@ export const productsController = new Elysia({
             return { message: "New brand not found", status: false };
           }
         }
+  
         // Check for duplicate product name or code (if provided)
         const existing = await Product.findOne({
           $or: [
@@ -629,32 +635,114 @@ export const productsController = new Elysia({
           };
         }
   
-        // Handle images (if provided)
+        // Handle images
         let _images = product.images ? [...product.images] : [];
+        console.log("Existing images in DB before update:", _images);
   
-        if (images) {
-          try {
-            if (Array.isArray(images)) {
-              for (const image of images) {
-                if (!image || typeof image.arrayBuffer !== "function") {
-                  console.error("Invalid image object:", image);
-                  continue;
+        // Define a maximum limit for total images (e.g., 5)
+        const MAX_IMAGES = 5;
+  
+        // Step 1: Handle existingImages (sync with DB)
+        if (existingImages !== undefined) {
+          // Parse existingImages: It might be a stringified JSON array or an actual array
+          let existingImagesArray: string[] = [];
+          if (typeof existingImages === "string") {
+            try {
+              // Parse the stringified JSON
+              const parsed = JSON.parse(existingImages);
+              existingImagesArray = Array.isArray(parsed) ? parsed : [parsed];
+            } catch (error) {
+              console.error("Failed to parse existingImages:", existingImages, error);
+              existingImagesArray = [existingImages];
+            }
+          } else if (Array.isArray(existingImages)) {
+            existingImagesArray = existingImages;
+          } else {
+            existingImagesArray = existingImages ? [existingImages] : [];
+          }
+  
+          console.log("Parsed existing images from payload:", existingImagesArray);
+  
+          // Case 1: If existingImages is empty, delete all images from DB
+          if (existingImagesArray.length === 0) {
+            console.log("existingImages is empty. Deleting all images from DB.");
+            if (_images.length > 0) {
+              for (const oldImage of _images) {
+                const { ok } = await deleteFile(oldImage, "product");
+                if (!ok) {
+                  console.warn(`Failed to delete old image: ${oldImage}`);
+                } else {
+                  console.log(`Deleted old image: ${oldImage}`);
                 }
-                const { filename, ok } = await saveFile(image, "product");
-                if (ok && filename) {
-                  _images.push(filename);
-                }
-              }
-            } else if (images.arrayBuffer) {
-              const { filename, ok } = await saveFile(images, "product");
-              if (ok && filename) {
-                _images.push(filename);
               }
             }
-          } catch (error) {
-            console.error("Error uploading new images:", error);
-            return { message: "Failed to upload new images", status: false };
+            _images = [];
+          } else {
+            // Case 2: Check for mismatch between DB images and existingImages
+            const imagesToRemove = _images.filter(
+              (img) => !existingImagesArray.includes(img)
+            );
+            console.log("Images to remove from DB:", imagesToRemove);
+  
+            if (imagesToRemove.length > 0) {
+              for (const oldImage of imagesToRemove) {
+                const { ok } = await deleteFile(oldImage, "product");
+                if (!ok) {
+                  console.warn(`Failed to delete old image: ${oldImage}`);
+                } else {
+                  console.log(`Deleted old image: ${oldImage}`);
+                }
+              }
+            }
+  
+            // Update _images to match existingImages from payload
+            _images = [...existingImagesArray];
+            console.log("Images after syncing with existingImages:", _images);
           }
+        } else {
+          console.log("No existingImages provided. Retaining DB images.");
+        }
+  
+        // Step 2: Process new images (if any)
+        let newImagesToUpload: any[] = [];
+        if (images) {
+          if (Array.isArray(images)) {
+            console.log("Processing new images array from payload:", images.length);
+            newImagesToUpload = images.filter(
+              (image) => image && typeof image.arrayBuffer === "function"
+            );
+          } else if (images && typeof images.arrayBuffer === "function") {
+            console.log("Processing a single new image from payload");
+            newImagesToUpload = [images];
+          } else {
+            console.error("Invalid images field:", images);
+            return { message: "Invalid images field", status: false };
+          }
+  
+          // Check total image count before adding new images
+          const totalImagesAfterAdding = _images.length + newImagesToUpload.length;
+          if (totalImagesAfterAdding > MAX_IMAGES) {
+            console.warn(
+              `Total images (${totalImagesAfterAdding}) exceed the maximum limit (${MAX_IMAGES}).`
+            );
+            return {
+              message: `Cannot add new images. Total images would exceed the maximum limit of ${MAX_IMAGES}.`,
+              status: false,
+            };
+          }
+  
+          // Upload new images
+          for (const image of newImagesToUpload) {
+            const { filename, ok } = await saveFile(image, "product");
+            if (ok && filename) {
+              _images.push(filename);
+              console.log(`Added new image: ${filename}`);
+            } else {
+              console.error("Failed to save new image:", image);
+            }
+          }
+        } else {
+          console.log("No new images provided in payload.");
         }
   
         // Ensure at least one image exists
@@ -665,6 +753,8 @@ export const productsController = new Elysia({
           };
         }
   
+        console.log("Final images array before update:", _images);
+  
         // Update the product
         const updatedProduct = await Product.findByIdAndUpdate(
           id,
@@ -673,7 +763,7 @@ export const productsController = new Elysia({
             description: description || product.description,
             price: price ? +price : product.price,
             strikePrice: strikePrice ? +strikePrice : product.strikePrice,
-            images: _images,
+            images: _images, // Ensure this is a flat array
             active: active !== undefined ? active : product.active,
             category: category || product.category,
             brand: brand || product.brand,
@@ -685,6 +775,7 @@ export const productsController = new Elysia({
                 : product.topSeller,
             gst: gst ? +gst : product.gst,
             options: options ? JSON.parse(options) : product.options,
+            specifications: specifications ? JSON.parse(specifications) : product.specifications,
           },
           { new: true }
         );
@@ -713,11 +804,13 @@ export const productsController = new Elysia({
         strikePrice: t.Optional(t.String()),
         active: t.Optional(t.Boolean()),
         images: t.Optional(t.Any()),
+        existingImages: t.Optional(t.Any()), // Can be a string (JSON) or array
         productCode: t.Optional(t.String()),
         ratings: t.Optional(t.String()),
         topSeller: t.Optional(t.String()),
         gst: t.Optional(t.String()),
         options: t.Optional(t.String()),
+        specifications: t.Optional(t.String()),
       }),
       params: t.Object({
         id: t.String(),

@@ -20,15 +20,19 @@ import { userController } from "./user-controller";
 import { privacyPolicyController } from "./user-privacypolicy-controller";
 import { termsandconditionsController } from "./user-termsandconditions";
 import { usersAuthController } from "./userauth-controller";
+import { brandController } from "./brand-controller";
+import { quoteController } from "./quote-controller";
 
 const userBaseController = new Elysia({
   prefix: "/user",
 })
   .use(usersAuthController)
   .use(bannerController)
+  .use(brandController)
   .use(productController)
   .use(categoriesController)
   .use(fileController)
+  .use(quoteController)
   .state("id", "")
   .state("mobile", "")
   .state("role", "")

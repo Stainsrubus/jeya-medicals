@@ -50,7 +50,7 @@
 			image = null;
 			existingImageUrl = null; // Clear existing image URL
 
-			goto('/hidden-admin-base-007/dashboard/brands?mode=list');
+			goto('/dashboard/brands?mode=list');
 			toast(edit ? 'Brand Updated ✅' : 'Brand Created ✅');
 		},
 		onError(error, variables, context) {
@@ -125,11 +125,11 @@
 		img.onload = () => {
 			const { width, height } = img;
 
-			if (type==='home'&&(width < 70 || height < 70)) {
-				toast.error('Image dimensions must be below 35x35 pixels.');
-                cleanImage(type);
-				return;
-			}
+			// if (type==='home'&&(width < 100 || height < 100)) {
+			// 	toast.error('Image dimensions must be below 35x35 pixels.');
+            //     cleanImage(type);
+			// 	return;
+			// }
 
 			if (type === 'home') {
 				image = file;
