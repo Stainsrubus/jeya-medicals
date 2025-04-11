@@ -239,7 +239,7 @@ export const adminOrderController = new Elysia({
     async ({ params, body }) => {
       try {
         const { id } = params;
-        const { status, preparationTime } = body;
+        const { status } = body;
 
         const order = await OrderModel.findById(id);
         if (!order) {
@@ -283,21 +283,17 @@ export const adminOrderController = new Elysia({
         }
 
         if (status == "accepted") {
-          if (!preparationTime) {
-            return { message: "Preparation time not specified", status: false };
-          }
-
-          order.preparationTime = +preparationTime;
+    
           order.preparedAt = new Date(Date.now());
 
           await order.save();
 
           await sendNotification(
             user.fcmToken,
-            "Preparing Your Order",
+            "Dispatching Your Order",
             "Your order " +
               order.orderId +
-              " is being prepared. We’ll notify you once it's ready."
+              " is being dispatched. We’ll notify you once it's out for delivery."
           );
         }
 
@@ -323,11 +319,6 @@ export const adminOrderController = new Elysia({
       }),
       body: t.Object({
         status: t.String(),
-        preparationTime: t.Optional(
-          t.String({
-            default: "",
-          })
-        ),
       }),
     }
   )
@@ -388,10 +379,7 @@ export const adminOrderController = new Elysia({
           "pending",
           "accepted",
           "rejected",
-          "assigned",
-          "preparing",
           "ready for delivery",
-          "picked",
           "cancelled",
           "delivered",
         ];

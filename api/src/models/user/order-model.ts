@@ -6,13 +6,6 @@ interface OrderProduct {
   totalAmount: number;
   customSuggestion?: string;
   suggestions?: Types.ObjectId[];
-  dips?: {
-    quantity: number;
-    productId: Types.ObjectId;
-    totalAmount: number;
-    name: string;
-    price: number;
-  }[];
   name: string;
   price: number;
 }
@@ -93,31 +86,6 @@ const OrderSchema = new Schema<Order>(
           {
             type: Schema.Types.ObjectId,
             ref: "Suggetions",
-          },
-        ],
-        dips: [
-          {
-            quantity: {
-              type: Number,
-              required: true,
-              min: [1, "Quantity must be at least 1"],
-            },
-            productId: {
-              type: Schema.Types.ObjectId,
-              ref: "Dipping",
-              required: true,
-            },
-            totalAmount: {
-              type: Number,
-              required: true,
-              min: [0, "Total amount cannot be negative"],
-            },
-            name: String,
-            price: {
-              type: Number,
-              required: true,
-              default: 0,
-            },
           },
         ],
         name: String,

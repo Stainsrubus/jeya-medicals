@@ -60,16 +60,10 @@ export function setBadgeColor(status: string) {
 			return 'bg-[#FFB74D] text-zinc-800';
 		case 'accepted':
 			return 'bg-[#66BB6A]';
-		case 'assigned':
-			return 'bg-[#42A5F5]';
 		case 'rejected':
 			return 'bg-[#EF5350]';
-		case 'preparing':
-			return 'bg-[#FFD54F]';
 		case 'ready for delivery':
-			return 'bg-[#26C6DA]';
-		case 'picked':
-			return 'bg-[#AB47BC]';
+			return 'bg-[#26C6DA]'
 		case 'delivered':
 			return 'bg-[#388E3C]';
 		case 'cancelled':
@@ -83,9 +77,7 @@ export const orderStatuses = [
 	'pending',
 	'accepted',
 	'rejected',
-	'assigned',
 	'ready for delivery',
-	'picked',
 	'cancelled',
 	'delivered'
 ];

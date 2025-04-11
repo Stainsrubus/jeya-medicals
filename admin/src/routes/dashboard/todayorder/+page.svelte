@@ -87,19 +87,14 @@
 
 		await updateOrderQuantities(orderdata?.order?._id, updatedProducts);
 	}
-	async function updatePrepTime(order: any) {
-		if (hasQuantityChanged()) {
-			await submitUpdatedQuantities();
-		}
-		let orderId = order?.order?._id;
+	async function updateOrder(order: any) {
+		let orderId = order?._id;
 		try {
 			await _axios.patch(`/orders/update-status/${orderId}`, {
-				preparationTime: preparationTime.toString(),
 				status: 'accepted'
 			});
 			toast.success('Order status updated successfully');
 			$query.refetch();
-			preparationTimeModel = false;
 		} catch {
 			console.log('error');
 		}
@@ -329,9 +324,10 @@
 										class="accept-button"
 										onclick={async () => {
 											try {
-												preparationTimeModel = true;
-												const orderData = await fetchOrder(order._id);
-												orderdata = orderData;
+										updateOrder(order)
+												// preparationTimeModel = true;
+												// const orderData = await fetchOrder(order._id);
+												// orderdata = orderData;
 											} catch (error) {
 												toast.error('Failed to fetch order details');
 											}
@@ -359,80 +355,6 @@
 				{/if}
 			</Table.Body>
 		</Table.Root>
-		<Dialog.Root onOpenChange={(e) => (preparationTimeModel = e)} open={preparationTimeModel}>
-			<Dialog.Content>
-				<Dialog.Header>
-					{@const order = orderdata}
-
-					<Dialog.Title>Order Items</Dialog.Title>
-					<Dialog.Description>
-						<Table.Root>
-							<Table.Header>
-								<Table.Row>
-									<Table.Head>Sl No.</Table.Head>
-									<Table.Head>Item</Table.Head>
-									<Table.Head>Quantity</Table.Head>
-									<Table.Head class="text-center">Action</Table.Head>
-								</Table.Row>
-							</Table.Header>
-							<Table.Body>
-								{#each order?.order?.products as product, index}
-									<Table.Row>
-										<Table.Cell>{index + 1}</Table.Cell>
-										<Table.Cell>
-											<p class="font-medium capitalize">{product.productId?.productName}</p>
-										</Table.Cell>
-										<Table.Cell>
-											<Input
-												type="number"
-												bind:value={product.quantity}
-												class="w-16 px-1 py-1 border border-black rounded-md text-center"
-												min="1"
-												max={product.quantity}
-												oninput={(e: Event) => {
-													const target = e.target as HTMLInputElement;
-													const newQuantity = parseInt(target.value, 10) || 1;
-													handleQuantityChange(product.productId._id, newQuantity);
-												}}
-												readonly={product.quantity === 1}
-											/>
-										</Table.Cell>
-										<Table.Cell class="flex justify-center items-center">
-											<Icon
-												onclick={() => removeProduct(product.productId._id, order)}
-												icon="gg:close-o"
-												class="w-6 h-6 mt-2 text-red-500 cursor-pointer font-bold"
-											/>
-										</Table.Cell>
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</Dialog.Description>
-				</Dialog.Header>
-
-				<Dialog.Header>
-					{@const order = orderdata}
-					<Dialog.Title>Dispatch Time</Dialog.Title>
-					<Dialog.Description>
-						<div class="flex flex-col gap-3 w-[300px] my-4">
-							<Label for="preparationTime">Minutes</Label>
-							<Input
-								type="number"
-								id="preparationTime"
-								placeholder="1"
-								step="5"
-								bind:value={preparationTime}
-								min="5"
-								max="60"
-							/>
-						</div>
-
-						<Button onclick={() => updatePrepTime(order)} class="">Update</Button>
-					</Dialog.Description>
-				</Dialog.Header>
-			</Dialog.Content>
-		</Dialog.Root>
 		<Dialog.Root
 			onOpenChange={(e) => (rejectConfirmationDialog = e)}
 			open={rejectConfirmationDialog}

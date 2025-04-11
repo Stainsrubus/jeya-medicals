@@ -44,7 +44,7 @@
 		}
 
 		if (newStatus == 'accepted') {
-			preparationTimeModel = true;
+updateOrder()
 			return;
 		}
 
@@ -133,18 +133,13 @@
 		}
 	}
 
-	async function updatePrepTime() {
-		if (hasQuantityChanged()) {
-			await submitUpdatedQuantities();
-		}
+	async function updateOrder() {
 		try {
 			await _axios.patch(`/orders/update-status/${$query.data?.order?._id}`, {
-				preparationTime: preparationTime.toString(),
 				status: 'accepted'
 			});
 			toast.success('Order status updated successfully');
 			$query.refetch();
-			preparationTimeModel = false;
 		} catch {
 			console.log('error');
 		}
@@ -490,7 +485,7 @@
 						/>
 					</div>
 
-					<Button onclick={updatePrepTime} class="">Update</Button>
+					<Button onclick={updateOrder} class="">Update</Button>
 				</Dialog.Description>
 			</Dialog.Header>
 		</Dialog.Content>
