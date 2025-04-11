@@ -159,13 +159,13 @@
               <ul class="space-y-2">
                 {#each categories as category}
                   <li>
-                    <a href={`/category/${category.name.toLowerCase().replace(' ', '-')}`} class="lg:text-xl md:text-lg text-base hover:underline text-[#4F585E]">
+                    <a href={`/`} class="lg:text-xl md:text-lg text-base hover:underline text-[#4F585E]">
                       {category.name}
                     </a>
                   </li>
                 {/each}
                 <li>
-                  <a href="/categories" class="md:text-lg text-base text-[#01A0E2] hover:underline">View More</a>
+                  <a href="/Products" class="md:text-lg text-base text-[#01A0E2] hover:underline">View More</a>
                 </li>
               </ul>
             {/if}
@@ -189,7 +189,7 @@
               <a href="/wishlist" class="lg:text-xl md:text-lg text-base hover:underline">Wishlist</a>
             </li>
             <li>
-              <a href="/notifications" class="lg:text-xl md:text-lg text-base hover:underline">Notification</a>
+              <a href="/" class="lg:text-xl md:text-lg text-base hover:underline">Notification</a>
             </li>
             <li>
               <a href="/cart" class="lg:text-xl md:text-lg text-base hover:underline">Cart</a>
@@ -202,7 +202,7 @@
           <h3 class="lg:text-3xl md:text-2xl text-xl text-[#30363C] font-bold mb-4">Contact Us</h3>
           <ul class="space-y-3">
             <li class="flex items-start gap-2">
-              <Icon icon="mynaui:location-selected" class="text-[#01A0E2] h-8 w-8 mt-1" />
+              <Icon icon="mynaui:location-selected" class="text-[#01A0E2] h-12 w-12 mt-1" />
               <span class="lg:text-lg text-base text-[#4F585E]">
                 12A Gandhi Street, Vadassery, Nagercoil, PIN Code - 629001
               </span>

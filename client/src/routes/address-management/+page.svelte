@@ -11,6 +11,7 @@
 	import { queryClient } from '$lib/query-client';
 	import { writableGlobalStore } from '$lib/stores/global-store';
 	import { goto } from '$app/navigation';
+  import Footer from '$lib/components/footer.svelte';
 
   interface Address {
     _id: string;
@@ -453,7 +454,7 @@
 </script>
 
 {#if isLoggedIn}
-<div class="max-w-2xl md:mx-auto mx-4  p-4 border my-10 rounded-lg shadow">
+<div class="max-w-2xl md:mx-auto mx-4  p-4 border my-20 rounded-lg shadow">
   <div class="flex justify-between items-center mb-4">
     <h2 class="text-3xl text-[#30363C] font-semibold">Address Management</h2>
     <Button onclick={openDialog} class="bg-[#01A0E2] hover:bg-[#01A0E2] text-white px-4 py-2 rounded-md hover:scale-105 transition-all duration-300">
@@ -588,4 +589,6 @@
 <p class="text-lg font-medium">Please login to Add Address</p>
 <button onclick={()=>{goto('/login')}} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
 </div>
+
 {/if}
+<Footer />
