@@ -109,13 +109,13 @@ import logo from "$lib/assets/logo.png"
 			subRoutes: '-',
 			canManagerAccess: false
 		},
-		{
-			name: 'Delivery Agent',
-			href: '/dashboard/deliveryagent/',
-			icon: 'iconamoon:delivery-light',
-			subRoutes: '-',
-			canManagerAccess: true
-		},
+		// {
+		// 	name: 'Delivery Agent',
+		// 	href: '/dashboard/deliveryagent/',
+		// 	icon: 'iconamoon:delivery-light',
+		// 	subRoutes: '-',
+		// 	canManagerAccess: true
+		// },
 		// {
 		// 	name: 'Restaurants',
 		// 	href: '/hidden-admin-base-007/dashboard/restaurents',
@@ -158,7 +158,7 @@ import logo from "$lib/assets/logo.png"
 </script>
 
 <div
-	class="hidden bg-gradient-to-bl from-[#1e3a8a] to-[#3b82f6] min-w-[300px] max-w-[300px]   md:block h-screen text-white font-pt hidescrollbarthumb"
+	class="hidden bg-gradient-to-bl from-[#01A0E2] to-[#22b2ff] min-w-[300px] max-w-[300px]   md:block h-screen text-white font-pt hidescrollbarthumb"
 >
 	<div
 		class="flex flex-col justify-between h-[calc(100vh)] overflow-y-auto gap-2 hidescrollbarthumb"
@@ -185,11 +185,11 @@ import logo from "$lib/assets/logo.png"
 							}}
 						>
 							<div
-								class={`flex cursor-pointer items-center justify-start rounded-l-full p-2 group transition-all duration-300 hover:bg-zinc-100 hover:pl-6 hover:text-[#1e3a8a] ${
+								class={`flex cursor-pointer items-center justify-start rounded-l-full p-2 pl-4 group transition-all duration-700 hover:bg-zinc-100 hover:scale-110 hover:text-black ${
 									$page.url.pathname === route.href ||
 									(route.href !== '/dashboard/' &&
 										$page.url.pathname.startsWith(route.href ?? ''))
-										? 'bg-zinc-100 text-[#1e3a8a] font-bold pl-6'
+										? 'bg-zinc-100 text-black font-bold pl-4'
 										: 'text-white'
 								}`}
 							>
@@ -199,8 +199,8 @@ import logo from "$lib/assets/logo.png"
 										$page.url.pathname === route.href ||
 										(route.href !== '/dashboard/' &&
 											$page.url.pathname.startsWith(route.href ?? ''))
-											? 'text-[#1e3a8a]'
-											: 'text-white group-hover:text-[#1e3a8a]'
+											? 'text-black'
+											: 'text-white group-hover:text-black'
 									}`}
 								/>
 								<p

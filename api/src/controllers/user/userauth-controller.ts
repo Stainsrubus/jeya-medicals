@@ -9,90 +9,174 @@ export const usersAuthController = new Elysia({
     tags: ["User - Auth"],
   },
 })
-  .post(
-    "/login",
-    async ({ body }) => {
-      const { mobile} = body;
+.post(
+  "/login",
+  async ({ body }) => {
+    const { mobile, referCode } = body;
 
-      try {
-        let newUser = false;
-        let user = await User.findOne({ mobile });
+    try {
+      let newUser = false;
+      let user = await User.findOne({ mobile });
 
-        if (!user) {
-          // let refCode = generateReferCode();
+      if (!user) {
+        let refCode = generateReferCode();
 
-          newUser = true;
-          user = await User.create({
-            mobile,
-            active: true,
-            username: "",
-            favorites: null,
-            email: "",
-            profileImage: "",
-            role: "user",
-            // refCode,
-          });
-
-          // if (referCode) {
-          //   const refree = await User.findOne({
-          //     refCode: referCode,
-          //   });
-
-          //   if (refree) {
-          //     user.referedBy = refree._id;
-          //     await user.save();
-          //   }
-          // }
-        }
-
-        const token = await PasetoUtil.encodePaseto({
-          mobile: user.mobile.toString(),
-          id: user._id.toString(),
+        newUser = true;
+        user = await User.create({
+          mobile,
+          active: true,
+          username: "",
+          favorites: null,
+          email: "",
+          profileImage: "",
           role: "user",
+          refCode,
         });
 
-        return {
-          message: "User processed successfully",
-          data: {
-            token,
-            userDetails: {
-              profileImage: user.profileImage,
-              email: user.email,
-              mobile: user.mobile,
-              username: user.username,
-              userId: user._id.toString(),
-              // refCode: user.refCode,
-            },
-            newUser,
-          },
-          status: true,
-        };
-      } catch (error) {
-        console.error(error);
-        return {
-          error,
-          status: false,
-        };
+        if (referCode) {
+          const refree = await User.findOne({
+            refCode: referCode,
+          });
+
+          if (refree) {
+            user.referedBy = refree._id;
+            await user.save();
+          }
+        }
       }
-    },
-    {
-      body: t.Object({
-        mobile: t.String({
-          minLength: 10,
-          maxLength: 10,
-        }),
-        // referCode: t.Optional(
-        //   t.String({
-        //     default: "",
-        //   })
-        // ),
-      }),
-      detail: {
-        summary: "Login the user to get token",
-        description: "Login the user to get token",
-      },
+
+      const token = await PasetoUtil.encodePaseto({
+        mobile: user.mobile.toString(),
+        id: user._id.toString(),
+        role: "user",
+      });
+
+      return {
+        message: "User processed successfully",
+        data: {
+          token,
+          userDetails: {
+            profileImage: user.profileImage,
+            email: user.email,
+            mobile: user.mobile,
+            username: user.username,
+            userId: user._id.toString(),
+            refCode: user.refCode,
+          },
+          newUser,
+        },
+        status: true,
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        error,
+        status: false,
+      };
     }
-  )
+  },
+  {
+    body: t.Object({
+      mobile: t.String({
+        minLength: 10,
+        maxLength: 10,
+      }),
+      referCode: t.Optional(
+        t.String({
+          default: "",
+        })
+      ),
+    }),
+    detail: {
+      summary: "Login the user to get token",
+      description: "Login the user to get token",
+    },
+  }
+)
+  // .post(
+  //   "/login",
+  //   async ({ body }) => {
+  //     const { mobile} = body;
+
+  //     try {
+  //       let newUser = false;
+  //       let user = await User.findOne({ mobile });
+
+  //       if (!user) {
+  //         // let refCode = generateReferCode();
+
+  //         newUser = true;
+  //         user = await User.create({
+  //           mobile,
+  //           active: true,
+  //           username: "",
+  //           favorites: null,
+  //           email: "",
+  //           profileImage: "",
+  //           role: "user",
+  //           // refCode,
+  //         });
+
+  //         // if (referCode) {
+  //         //   const refree = await User.findOne({
+  //         //     refCode: referCode,
+  //         //   });
+
+  //         //   if (refree) {
+  //         //     user.referedBy = refree._id;
+  //         //     await user.save();
+  //         //   }
+  //         // }
+  //       }
+
+  //       const token = await PasetoUtil.encodePaseto({
+  //         mobile: user.mobile.toString(),
+  //         id: user._id.toString(),
+  //         role: "user",
+  //       });
+
+  //       return {
+  //         message: "User processed successfully",
+  //         data: {
+  //           token,
+  //           userDetails: {
+  //             profileImage: user.profileImage,
+  //             email: user.email,
+  //             mobile: user.mobile,
+  //             username: user.username,
+  //             userId: user._id.toString(),
+  //             // refCode: user.refCode,
+  //           },
+  //           newUser,
+  //         },
+  //         status: true,
+  //       };
+  //     } catch (error) {
+  //       console.error(error);
+  //       return {
+  //         error,
+  //         status: false,
+  //       };
+  //     }
+  //   },
+  //   {
+  //     body: t.Object({
+  //       mobile: t.String({
+  //         minLength: 10,
+  //         maxLength: 10,
+  //       }),
+  //       // referCode: t.Optional(
+  //       //   t.String({
+  //       //     default: "",
+  //       //   })
+  //       // ),
+  //     }),
+  //     detail: {
+  //       summary: "Login the user to get token",
+  //       description: "Login the user to get token",
+  //     },
+  //   }
+  // )
   .post(
     "/decrypt-token",
     async ({ body }) => {

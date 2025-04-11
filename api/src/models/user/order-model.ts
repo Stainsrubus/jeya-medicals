@@ -23,7 +23,7 @@ interface Order {
   addressId: Types.ObjectId;
   deliveryAgent?: Types.ObjectId;
   deliveryTime?: Date;
-  restaurent?: Types.ObjectId;
+  store?: Types.ObjectId;
   deliverySeconds?: number;
   distance: string;
   coupon?: Types.ObjectId;
@@ -133,9 +133,9 @@ const OrderSchema = new Schema<Order>(
       ref: "Address",
       required: true,
     },
-    restaurent: {
+    store: {
       type: Schema.Types.ObjectId,
-      ref: "Restaurent",
+      ref: "Store",
       required: true,
     },
     deliveryAgent: {

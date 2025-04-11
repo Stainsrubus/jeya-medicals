@@ -67,35 +67,36 @@
     $: productsLoading = $productsQuery.isLoading;
     $: productsError = $productsQuery.error ? ($productsQuery.error as Error).message : null;
   </script>
-  
-  <section class="px-4 md:px-6 lg:px-8 py-10">
-    <div class="mt-10">
-      <div class="flex items-start justify-between">
-        <h2 class="text-3xl font-bold text-[#30363C] mb-6 text-left">New Products</h2>
-        <p on:click={()=>{goto('/Products')}} class="text-[#01A0E2] cursor-pointer font-bold text-2xl">View All</p>
-      </div>
-      {#if productsLoading || productsError}
-        <!-- Skeleton Loader for Product Cards -->
-        <div class="flex gap-6">
-          {#each Array(4) as _} <!-- Adjust number based on how many cards you want to show -->
-            <div class="w-64 bg-white rounded-xl shadow-md overflow-hidden">
-              <!-- Image Skeleton -->
-              <Skeleton class="h-48 w-full" />
-              <!-- Content Skeleton -->
-              <div class="px-4 py-2 space-y-2">
-                <Skeleton class="h-5 w-3/4" /> <!-- Name -->
-                <div class="flex items-center gap-2">
-                  <Skeleton class="h-4 w-12" /> <!-- MRP -->
-                  <Skeleton class="h-4 w-12" /> <!-- Strike Price -->
-                </div>
-                <Skeleton class="h-4 w-20" /> <!-- Savings -->
+
+<section class="pl-4 md:px-6 lg:px-8 py-10">
+  <div class="mt-10">
+    <div class="flex items-start justify-between">
+      <h2 class="lg:text-3xl text-xl  font-bold text-[#30363C] mb-6 text-left">New Products</h2>
+      <p onclick={()=>{goto('/Products')}} class="text-[#01A0E2] cursor-pointer font-bold lg:text-2xl text-base pr-4">View All</p>
+    </div>
+    {#if productsLoading || productsError}
+      <!-- Skeleton Loader for Product Cards -->
+      <div class="flex gap-6 overflow-x-auto">
+        {#each Array(4) as _} <!-- Adjust number based on how many cards you want to show -->
+          <div class="flex-shrink-0 w-64 bg-white rounded-xl shadow-md overflow-hidden">
+            <!-- Image Skeleton -->
+            <Skeleton class="h-48 w-full" />
+            <!-- Content Skeleton -->
+            <div class="px-4 py-2 space-y-2">
+              <Skeleton class="h-5 w-3/4" /> <!-- Name -->
+              <div class="flex items-center gap-2">
+                <Skeleton class="h-4 w-12" /> <!-- MRP -->
+                <Skeleton class="h-4 w-12" /> <!-- Strike Price -->
               </div>
+              <Skeleton class="h-4 w-20" /> <!-- Savings -->
             </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="flex gap-6">
-          {#each products as product (product.id)}
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <div class="flex md:gap-6 gap-4 overflow-x-auto">
+        {#each products as product (product.id)}
+          <div class="flex-shrink-0">
             <ProductCard
               id={product.id}
               image={product.image[0]}
@@ -105,8 +106,9 @@
               strikePrice={product.strikePrice}
               favorite={product.favorite}
             />
-          {/each}
-        </div>
-      {/if}
-    </div>
-  </section>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+</section>

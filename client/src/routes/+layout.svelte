@@ -24,7 +24,7 @@
     // });
 </script>
 
-<Toaster position="top-right" />
+<Toaster position="top-center" />
 <QueryClientProvider client={queryClient}>
 	<Topbar />
 	<Navbar />

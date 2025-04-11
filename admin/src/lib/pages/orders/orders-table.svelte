@@ -161,7 +161,7 @@
 								<button
 									class="capitalize underline underline-offset-2 text-primary font-bold cursor-pointer"
 									onclick={() =>
-										goto(`/hidden-admin-base-007/dashboard/users/${order?.userData._id}`)}
+										goto(`/dashboard/users/${order?.userData._id}`)}
 								>
 									{order?.userData.username}
 								</button></Table.Cell

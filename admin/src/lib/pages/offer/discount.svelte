@@ -53,13 +53,13 @@
 
     try {
       const currentPage = isLoadMore ? page : 1;
-      const response = await _axios.get(`/product/all?q=${term}&page=${currentPage}&limit=10`);
+      const response = await _axios.get(`/product/all?q=${term}`);
       const newProducts = response.data.products || [];
-
+      const filteredProducts = newProducts.filter(product => !(product.flat && product.flat > 0));
       if (isLoadMore) {
-        productResults = [...productResults, ...newProducts];
+        productResults = [...productResults, ...filteredProducts];
       } else {
-        productResults = newProducts;
+        productResults = filteredProducts;
       }
 
       hasMore = newProducts.length === 10;

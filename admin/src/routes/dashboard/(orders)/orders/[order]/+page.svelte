@@ -195,7 +195,7 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Select.Root
+				<!-- <Select.Root
 					type="single"
 					name="category"
 					bind:value={assignedDeliveryAgent}
@@ -214,7 +214,7 @@
 							{/each}
 						</Select.Group>
 					</Select.Content>
-				</Select.Root>
+				</Select.Root> -->
 
 				<Select.Root
 					type="single"
@@ -242,7 +242,7 @@
 		</div>
 
 		<div class="grid grid-cols-3 gap-4">
-			<Card.Root class="mt-4 col-span-1 bg-zinc-100 border-red-300 border-2 border-solid">
+			<Card.Root class="mt-4 col-span-1 bg-zinc-100 border-blue-300 border-2 border-solid">
 				<Card.Header>
 					<Card.Title>Customer Information</Card.Title>
 				</Card.Header>
@@ -268,7 +268,7 @@
 			</Card.Root>
 
 			<div>
-				<Card.Root class="mt-4 bg-zinc-100 border-red-300 border-2 border-solid">
+				<Card.Root class="mt-4 bg-zinc-100 border-blue-300 border-2 border-solid">
 					<Card.Header>
 						<Card.Title>Delivery Address</Card.Title>
 					</Card.Header>
@@ -307,7 +307,7 @@
 				</Card.Root>
 			</div>
 
-			<Card.Root class="mt-4 bg-zinc-100 border-red-300 border-2 border-solid">
+			<Card.Root class="mt-4 bg-zinc-100 border-blue-300 border-2 border-solid">
 				<Card.Header>
 					<Card.Title>Payment Information</Card.Title>
 				</Card.Header>
@@ -329,7 +329,7 @@
 				</Card.Content>
 			</Card.Root>
 		</div>
-		<Card.Root class="bg-zinc-100 border-red-300 border-2 border-solid">
+		<Card.Root class="bg-zinc-100 border-blue-300 border-2 border-solid">
 			<Card.Header>
 				<Card.Title>Order Items</Card.Title>
 			</Card.Header>
@@ -340,8 +340,7 @@
 							<Table.Head>Sl No.</Table.Head>
 							<Table.Head>Item</Table.Head>
 							<Table.Head>Quantity</Table.Head>
-							<Table.Head>Dips</Table.Head>
-							<Table.Head>Special Suggestion</Table.Head>
+							<!-- <Table.Head>Special Suggestion</Table.Head> -->
 
 							<Table.Head>Price</Table.Head>
 							<Table.Head>Total</Table.Head>
@@ -355,16 +354,8 @@
 									<p class="font-medium capitalize">{product.productId?.productName}</p>
 								</Table.Cell>
 								<Table.Cell>{product.quantity}</Table.Cell>
-								<Table.Cell>
-									{#if product.dips?.length > 0}
-										{#each product.dips as dip}
-											<p class="text-sm">{dip.name} x {dip.quantity} (₹{dip.totalAmount})</p>
-										{/each}
-									{:else}
-										<p class="text-sm text-muted-foreground">-</p>
-									{/if}
-								</Table.Cell>
-								<Table.Cell>
+								
+								<!-- <Table.Cell>
 									{#if product.suggestions?.length > 0}
 										<div class="flex gap-2 flex-wrap">
 											{#each product.suggestions as suggestion}
@@ -378,7 +369,7 @@
 									{:else}
 										<p class="text-sm text-muted-foreground">-</p>
 									{/if}
-								</Table.Cell>
+								</Table.Cell> -->
 
 								<Table.Cell>₹{product.price}</Table.Cell>
 								<Table.Cell>₹{product.totalAmount}</Table.Cell>
@@ -389,7 +380,7 @@
 			</Card.Content>
 		</Card.Root>
 
-		<Card.Root class="bg-zinc-100 border-red-300 border-2 border-solid">
+		<Card.Root class="bg-zinc-100 border-blue-300 border-2 border-solid">
 			<Card.Header>
 				<Card.Title>Order Summary</Card.Title>
 			</Card.Header>
@@ -484,7 +475,7 @@
 			</Dialog.Header>
 
 			<Dialog.Header>
-				<Dialog.Title>Preparation Time</Dialog.Title>
+				<Dialog.Title>Dispatch Time</Dialog.Title>
 				<Dialog.Description>
 					<div class="flex flex-col gap-3 w-[300px] my-4">
 						<Label for="preparationTime">Minutes</Label>

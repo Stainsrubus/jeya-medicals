@@ -16,7 +16,7 @@
     });
   
     // Handle tab change
-    function handleTabChange(value) {
+    function handleTabChange(value:any) {
       changeOfferMode(value);
     }
   </script>
@@ -25,11 +25,11 @@
     <title>Dashboard | Offers</title>
     <meta name="description" content="Offer management dashboard" />
   </svelte:head>
-  
   <Tabs.Root 
     class="w-full p-4" 
     value={$offerStore.mode} 
     onValueChange={handleTabChange}
+    
   >
     <Tabs.List>
       <Tabs.Trigger value="flat" class="flex items-center">

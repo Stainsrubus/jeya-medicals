@@ -7,6 +7,8 @@ export const offerSchema = z.object({
   mode: z.enum(['flat', 'negotiate', 'discount', 'mrp']),
   data: z.object({
     _id: z.string().optional(),
+    failurePercentage: z.number().optional(),
+    successPercentage: z.number().optional(),
     percentage: z.number().optional(),
     minPrd: z.number().optional(),
     noOfAttempts: z.number().optional(),
@@ -25,7 +27,7 @@ export type OfferStoreProps = z.infer<typeof offerSchema>;
 
 // Initialize the store with default values
 export const offerStore = writable<OfferStoreProps>({
-  mode: 'flat',
+  mode: "flat",
   data: {},
 });
 
@@ -39,13 +41,17 @@ function mapApiDataToStoreData(item: any, mode: string) {
         _id: item._id,
         percentage: item.percentage,
         minPrd: item.minPrd,
+        products:item.products,
         isActive: item.isActive !== undefined ? item.isActive : true,
       };
     case 'negotiate':
       return {
         _id: item._id,
-        percentage: item.percentage,
-        noOfAttempts: item.noOfAttempts,
+        items: item.items?.map((i: any) => ({
+        productId: i.productId,
+        successPercentage: i.successPercentage,
+        failurePercentage:i.failurePercentage
+        })) || [],
         isActive: item.isActive !== undefined ? item.isActive : true,
       };
     case 'discount':
@@ -152,14 +158,13 @@ export async function saveOfferData() {
         break;
 
       case 'negotiate':
-        if (!data.percentage || !data.noOfAttempts) {
+        if (!data.successPercentage||!data.failurePercentage || !data.noOfAttempts) {
           console.error('Missing required fields for negotiate offer');
           return null;
         }
         payload = {
           type: mode,
-          percentage: data.percentage,
-          noOfAttempts: data.noOfAttempts,
+          items:data.items,
           isActive: data.isActive !== undefined ? data.isActive : true,
         };
         break;

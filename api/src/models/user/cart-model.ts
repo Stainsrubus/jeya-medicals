@@ -12,9 +12,7 @@ interface CartProduct {
   productId: Types.ObjectId;
   quantity: number;
   totalAmount: number;
-  customSuggestion?: string;
-  suggestions: String[];
-  dips: Dip[];
+  options?: { [key: string]: any }; // Dynamic options object
   name?: string;
   price: number;
 }
@@ -37,29 +35,6 @@ interface Cart {
   tempDeliveryFee?: number;
 }
 
-const DipSchema = new Schema<Dip>({
-  quantity: {
-    type: Number,
-    required: true,
-    min: [1, "Quantity must be at least 1"],
-  },
-  productId: {
-    type: Schema.Types.ObjectId,
-    ref: "Dipping",
-    required: true,
-  },
-  totalAmount: {
-    type: Number,
-    required: true,
-    min: [0, "Total amount cannot be negative"],
-  },
-  name: String,
-  price: {
-    type: Number,
-    required: true,
-    default: 0,
-  },
-});
 
 const CartProductSchema = new Schema<CartProduct>({
   productId: {
@@ -77,17 +52,12 @@ const CartProductSchema = new Schema<CartProduct>({
     required: true,
     min: [0, "Total amount cannot be negative"],
   },
-  customSuggestion: {
-    type: String,
-    trim: true,
-  },
-  suggestions: [
+  options: [
     {
-      type: Schema.Types.ObjectId,
-      ref: "Suggestion",
+      title: String,
+      value: String,
     },
   ],
-  dips: [DipSchema],
   name: String,
   price: {
     type: Number,

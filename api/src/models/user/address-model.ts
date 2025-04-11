@@ -10,6 +10,7 @@ interface Address {
   latitude: string;
   longitude: string;
   active: boolean;
+  isPrimary: boolean;
   addressType?: string;
   userId: Schema.Types.ObjectId;
   totalDistance?: number;
@@ -41,6 +42,10 @@ const addressSchema = new Schema<Address>(
       type: Boolean,
       default: true,
     },
+    isPrimary: {
+      type: Boolean,
+      default: false,
+    },
     area: {
       type: String,
       required: true,
@@ -51,7 +56,7 @@ const addressSchema = new Schema<Address>(
     },
     addressString: {
       type: String,
-      required: true,
+      // required: true,
     },
     addressType: {
       type: String,

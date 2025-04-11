@@ -32,7 +32,8 @@
           ...store,
           userDetails: {
             profileImage: data.data.userDetails.profileImage || '',
-            userName: data.data.userDetails.userName || ''
+            userName: data.data.userDetails.userName || '',
+            mobile: data.data.userDetails.mobile || ''
           },
           isLogedIn: true
         }));
@@ -137,7 +138,7 @@
   ></script>
 </svelte:head>
 
-<section class="flex justify-center items-center w-full h-screen">
+<section class="flex justify-center items-center w-full h-[85vh]">
   <div id="otpless-login-page"></div>
 </section>
 
@@ -153,8 +154,5 @@
   }
   .w-full {
     width: 100%;
-  }
-  .h-screen {
-    height: 100vh;
   }
 </style>

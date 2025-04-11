@@ -19,7 +19,7 @@ const config: Config = {
 			colors: {
 				mainbg: 'bg-zinc-900',
 				maintext: '#d7d7d7',
-				primary:'[#2688cd]',
+				// primary:'[#01A0E2]',
 				border: 'hsl(var(--border) / <alpha-value>)',
 				input: 'hsl(var(--input) / <alpha-value>)',
 				ring: 'hsl(var(--ring) / <alpha-value>)',

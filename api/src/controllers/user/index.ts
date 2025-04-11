@@ -22,6 +22,8 @@ import { termsandconditionsController } from "./user-termsandconditions";
 import { usersAuthController } from "./userauth-controller";
 import { brandController } from "./brand-controller";
 import { quoteController } from "./quote-controller";
+import { demandController } from "./demand-controller";
+import { userOfferController } from "./offer-controller";
 
 const userBaseController = new Elysia({
   prefix: "/user",
@@ -68,6 +70,7 @@ const userBaseController = new Elysia({
   .use(deliveryAgentReviewController)
   .use(notificationController)
   .use(couponController)
-  .use(termsandconditionsController);
-
+  .use(termsandconditionsController)
+.use(demandController)
+.use(userOfferController)
 export { userBaseController };

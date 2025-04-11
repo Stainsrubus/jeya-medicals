@@ -1,7 +1,7 @@
 import { PasetoUtil } from "@/lib/paseto";
 import { Admin } from "@/models/admin-model";
 import { Manager } from "@/models/manager-model";
-import { RestaurentModel } from "@/models/restaurent-model";
+import {StoreModel } from "@/models/store-model";
 import Elysia, { t } from "elysia";
 
 const authController = new Elysia({
@@ -86,7 +86,7 @@ const authController = new Elysia({
             true
           );
 
-          // const restaurent = await RestaurentModel.findOne();
+          // const restaurent = await StoreModel.findOne();
 
           // const restaurentWithBase64 = {
           //   restaurentName: restaurent!.restaurentName,

@@ -3,7 +3,7 @@ import { razor } from "@/lib/razorpay";
 import { generateRandomString } from "@/lib/util";
 import { broadcastMessage } from "@/lib/ws-store";
 import { CouponModel } from "@/models/coupon-model";
-import { RestaurentModel } from "@/models/restaurent-model";
+import { StoreModel } from "@/models/store-model";
 import { User } from "@/models/user-model";
 import { Address } from "@/models/user/address-model";
 import { CartModel } from "@/models/user/cart-model";
@@ -61,7 +61,7 @@ export const newuserOrderController = new Elysia({
 
         let orderId = generateRandomString(6, "KCS");
 
-        let restaurent = await RestaurentModel.findOne({});
+        let restaurent = await StoreModel.findOne({});
 
         const razorPayRes = JSON.parse(
           razorPayResponse ? razorPayResponse : "{}",
@@ -205,7 +205,7 @@ export const newuserOrderController = new Elysia({
           return { message: "Order not found", status: false };
         }
 
-        const restaurent = await RestaurentModel.findOne({});
+        const restaurent = await StoreModel.findOne({});
 
         if (!restaurent) {
           set.status = 404;

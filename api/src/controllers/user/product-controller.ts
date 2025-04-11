@@ -4,6 +4,8 @@ import Elysia, { t } from "elysia";
 import { Types } from "mongoose";
 import { Product } from "../../models/product";
 import { Favorites } from "../../models/user/favorites-model";
+import { NegotiateOffer } from "@/models/offer-model";
+import { User } from "@/models/user-model";
 
 export const productController = new Elysia({
   prefix: "/products",
@@ -14,17 +16,19 @@ export const productController = new Elysia({
 .get(
   "/",
   async ({ query }) => {
-    const { page, limit, q, rating, userId, category } = query;
+    const { page, limit, q, rating, userId, category, brand, minPrice, maxPrice } = query;
 
     const _limit = limit || 10;
     const _page = page || 1;
 
     let matchFilter: any = { active: true, isDeleted: false };
 
+    // Search filter
     if (q) {
       matchFilter.$or = [{ productName: { $regex: q, $options: "i" } }];
     }
 
+    // Rating filter
     if (rating) {
       const ratingNumber = parseInt(rating, 10);
       if (ratingNumber >= 1 && ratingNumber <= 5) {
@@ -32,12 +36,30 @@ export const productController = new Elysia({
       }
     }
 
+    // Price range filter
+    if (minPrice || maxPrice) {
+      matchFilter.price = {};
+      if (minPrice) matchFilter.price.$gte = parseFloat(minPrice);
+      if (maxPrice) matchFilter.price.$lte = parseFloat(maxPrice);
+    }
+
     try {
+      // Convert category and brand to arrays if they're comma-separated strings
+      const categoryIds = category 
+        ? category.split(',').map((id: string) => new Types.ObjectId(id.trim()))
+        : [];
+      
+      const brandIds = brand 
+        ? brand.split(',').map((id: string) => new Types.ObjectId(id.trim()))
+        : [];
+
       const totalPromise = Product.countDocuments(matchFilter);
-      const productsPromise = Product.aggregate([
+      
+      const aggregationPipeline: any[] = [
         {
           $match: matchFilter,
         },
+        // Lookup for categories
         {
           $lookup: {
             from: "productcategories",
@@ -52,29 +74,62 @@ export const productController = new Elysia({
         {
           $match: {
             "categoryDetails.active": true,
+            ...(categoryIds.length > 0 ? { "categoryDetails._id": { $in: categoryIds } } : {})
           },
         },
+        // Lookup for brands
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brand",
+            foreignField: "_id",
+            as: "brandDetails",
+          },
+        },
+        {
+          $unwind: "$brandDetails",
+        },
+        {
+          $match: {
+            "brandDetails.active": true,
+            ...(brandIds.length > 0 ? { "brandDetails._id": { $in: brandIds } } : {})
+          },
+        },
+        // Add priority fields for sorting
         {
           $addFields: {
-            priority: category
-              ? {
-                  $cond: [
-                    {
-                      $eq: [
-                        "$categoryDetails._id",
-                        new Types.ObjectId(category),
-                      ],
-                    },
-                    0,
-                    1,
-                  ],
-                }
-              : 1,
+            categoryPriority: {
+              $cond: [
+                { $in: ["$categoryDetails._id", categoryIds] },
+                0, // Higher priority for selected categories
+                1
+              ]
+            },
+            brandPriority: {
+              $cond: [
+                { $in: ["$brandDetails._id", brandIds] },
+                0, // Higher priority for selected brands
+                1
+              ]
+            },
+            // Add a combined priority field
+            combinedPriority: {
+              $add: [
+                { $cond: [{ $in: ["$categoryDetails._id", categoryIds] }, 0, 1] },
+                { $cond: [{ $in: ["$brandDetails._id", brandIds] }, 0, 1] }
+              ]
+            }
           },
         },
         {
-          $sort: { productName: 1 },
+          $sort: { 
+            combinedPriority: 1, // Sort by combined priority first
+            categoryPriority: 1, 
+            brandPriority: 1, 
+            productName: 1 
+          },
         },
+        // Group by category
         {
           $group: {
             _id: "$categoryDetails._id",
@@ -86,35 +141,47 @@ export const productController = new Elysia({
                 productName: "$productName",
                 price: "$price",
                 ratings: "$ratings",
-                strikePrice:"$strikePrice",
+                strikePrice: "$strikePrice",
                 images: "$images",
-                discount:"$discount",
-                onMRP:"$onMRP",
+                discount: "$discount",
+                onMRP: "$onMRP",
                 description: "$description",
                 categoryId: "$categoryDetails._id",
                 categoryName: "$categoryDetails.name",
+                brandId: "$brandDetails._id",
+                brandName: "$brandDetails.name",
               },
             },
-            priority: { $first: "$priority" },
+            categoryPriority: { $first: "$categoryPriority" },
+            brandPriority: { $first: "$brandPriority" },
           },
         },
         {
-          $sort: { priority: 1, categoryName: 1 },
+          $sort: { 
+            categoryPriority: 1, 
+            brandPriority: 1, 
+            categoryName: 1 
+          },
         },
+        // Pagination at the category level
         {
           $skip: (_page - 1) * _limit,
         },
         {
           $limit: _limit,
         },
+      ];
+
+      const [total, products] = await Promise.all([
+        totalPromise, 
+        Product.aggregate(aggregationPipeline)
       ]);
 
-      const [total, products] = await Promise.all([totalPromise, productsPromise]);
-      let userFavorites: String[] = [];
+      let userFavorites: string[] = [];
 
       if (userId) {
         const favorites = await Favorites.findOne({ user: userId });
-        userFavorites = favorites?.products || [];
+        userFavorites = favorites?.products?.map((p: any) => p.toString()) || [];
       }
 
       const paginatedCategories = products.map((category: any) => ({
@@ -143,7 +210,8 @@ export const productController = new Elysia({
   },
   {
     detail: {
-      summary: "Get all active products grouped by category",
+      summary: "Get all active products grouped by category with filters",
+      description: "Supports filtering by multiple categories, brands, price ranges, and ratings. Categories and brands can be comma-separated for multiple values."
     },
     query: t.Object({
       page: t.Optional(t.Number({ default: 1 })),
@@ -151,7 +219,10 @@ export const productController = new Elysia({
       q: t.Optional(t.String({ default: "" })),
       rating: t.Optional(t.String()),
       userId: t.Optional(t.String()),
-      category: t.Optional(t.String()),
+      category: t.Optional(t.String({ description: "Comma-separated category IDs" })),
+      brand: t.Optional(t.String({ description: "Comma-separated brand IDs" })),
+      minPrice: t.Optional(t.String()),
+      maxPrice: t.Optional(t.String()),
     }),
   }
 )
@@ -389,25 +460,6 @@ export const productController = new Elysia({
         let productsPromise = Product.aggregate([
           { $match: mergedFilter },
           {
-            $lookup: {
-              from: "timings",
-              localField: "timing",
-              foreignField: "_id",
-              as: "timingDetails",
-            },
-          },
-          { $unwind: "$timingDetails" },
-          {
-            $addFields: {
-              isAvailable: {
-                $and: [
-                  { $lte: ["$timingDetails.startTime", currentServerTime] },
-                  { $gte: ["$timingDetails.endTime", currentServerTime] },
-                ],
-              },
-            },
-          },
-          {
             $addFields: {
               favorite: {
                 $in: ["$_id", userFavorites],
@@ -420,14 +472,6 @@ export const productController = new Elysia({
               productDetails: {
                 $first: "$$ROOT", // Get the first product document
               },
-              isAvailable: {
-                $max: "$isAvailable", // Aggregate availability to ensure any true value is retained
-              },
-            },
-          },
-          {
-            $addFields: {
-              "productDetails.available": "$isAvailable", // Assign aggregated availability back to productDetails
             },
           },
           {
@@ -438,11 +482,10 @@ export const productController = new Elysia({
               productName: 1,
               price: 1,
               ratings: 1,
+              strikePrice:1,
               images: 1,
               description: 1,
-              type: 1,
               favorite: 1,
-              available: 1, // Include the corrected availability field
             },
           },
           { $skip: (_page - 1) * _limit },
@@ -481,4 +524,171 @@ export const productController = new Elysia({
         q: t.Optional(t.String({ default: "" })),
       }),
     }
+  )
+  .get(
+    "/negotiate",
+    async ({ query,store }) => {
+      const {productId, amount } = query;
+      const userId = (store as StoreType)["id"];
+      if (!productId) {
+        return { status: false, message: "Missing required query params (userId or productId)" };
+      }
+  
+      try {
+        const user = await User.findById(userId);
+        if (!user) {
+          return { status: false, message: "User not found" };
+        }
+  
+        const product = await Product.findById(productId);
+        if (!product) {
+          return { status: false, message: "Product not found" };
+        }
+  
+        const offer = await NegotiateOffer.findOne({ isActive: true });
+        if (!offer) {
+          return { status: false, message: "No negotiate offer configured" };
+        }
+  
+        const maxAttempts = offer.noOfAttempts;
+        let existingAttempt = user.attempts.find(attempt => attempt.productId === productId);
+  
+        let currentAttempts = 0;
+        if (existingAttempt) {
+          currentAttempts = existingAttempt.attempts.length;
+        }
+  
+        // Return attempt info if no amount provided
+        if (!amount) {
+          return {
+            status: true,
+            message: "Negotiation status info",
+            maxAttempts,
+            attemptsCount: currentAttempts,
+            attempts: existingAttempt ? existingAttempt.attempts : [],
+          };
+        }
+  
+        if (currentAttempts >= maxAttempts) {
+          return {
+            status: false,
+            message: "Negotiation attempt limit reached",
+            maxAttempts,
+            attemptsCount: currentAttempts,
+            attempts: existingAttempt ? existingAttempt.attempts : [],
+          };
+        }
+  
+        const userAmount = parseFloat(amount);
+        const limit = product.negotiateLimit;
+        const mrp = product.price;
+        //@ts-ignore
+        const matchedItem = offer.items.find(item => item.productId.toString() === productId);
+
+        if (!matchedItem) {
+          return {
+            status: false,
+            message: "No negotiation config found for this product"
+          };
+        }
+        
+        const successPercentage = matchedItem.successPercentage;
+        const failurePercentage = matchedItem.failurePercentage;
+        
+  
+        let negotiatedPrice = mrp;
+        let message = "";
+        let isSuccess = userAmount >= limit;
+  
+        // First attempt logic
+        if (currentAttempts === 0) {
+          if (isSuccess) {
+            message = userAmount === limit
+              ? "Negotiation successful (equal to limit)"
+              : "Negotiation successful (above limit)";
+            negotiatedPrice = Math.max(
+              limit,
+              mrp - (mrp * successPercentage / 100) // Apply success % to MRP
+            );
+          } else {
+            message = "Negotiation failed (below limit)";
+            negotiatedPrice = Math.max(
+              limit,
+              mrp - (mrp * failurePercentage / 100) // Apply failure % to MRP
+            );
+          }
+        }
+        // Subsequent attempts
+        else {
+          const lastPrice = existingAttempt.attempts[currentAttempts - 1].amount;
+  
+          if (isSuccess) {
+            message = userAmount === limit
+              ? "Negotiation successful (equal to limit)"
+              : "Negotiation successful (above limit)";
+            negotiatedPrice = Math.max(
+              limit,
+              lastPrice - (lastPrice * successPercentage / 100)
+            );
+          } else {
+            message = "Negotiation failed (below limit)";
+            negotiatedPrice = Math.max(
+              limit,
+              lastPrice - (lastPrice * failurePercentage / 100)
+            );
+          }
+        }
+  
+        // Record the attempt
+        if (existingAttempt) {
+          existingAttempt.attempts.push({
+            amount: negotiatedPrice,
+            attemptNumber: currentAttempts + 1,
+          });
+        } else {
+          user.attempts.push({
+            productId: productId,
+            attempts: [
+              {
+                amount: negotiatedPrice,
+                attemptNumber: 1,
+              }
+            ]
+          });
+        }
+  
+        await user.save();
+  
+        // Ensure the response includes the updated attempts
+        return {
+          status: true,
+          message,
+          negotiatedPrice: parseFloat(negotiatedPrice.toFixed(2)),
+          attemptsCount: currentAttempts + 1,
+          maxAttempts,
+          attempts: existingAttempt ? existingAttempt.attempts : user.attempts.find(attempt => attempt.productId === productId)?.attempts || [],
+        };
+  
+      } catch (error) {
+        console.error(error);
+        return {
+          status: false,
+          message: "Negotiation failed",
+          error: error.message,
+        };
+      }
+    },
+    {
+      query: t.Object({
+        productId: t.String(),
+        amount: t.Optional(t.String())
+      }),
+      detail: {
+        summary: "Negotiate price or fetch negotiation status",
+      },
+    }
   );
+  
+  
+  
+  

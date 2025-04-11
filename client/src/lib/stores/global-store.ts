@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 type userDetails = {
     profileImage: string;
     userName: string;
+    mobile:string;
 };
 
 export type GlobalStore = {
@@ -19,7 +20,8 @@ const getInitialState = (): GlobalStore => {
         return {
             userDetails: userData ? JSON.parse(userData) : {
                 profileImage: '',
-                userName: ''
+                userName: '',
+                mobile:''
             },
             isLogedIn: !!token
         };
@@ -27,7 +29,8 @@ const getInitialState = (): GlobalStore => {
     return {
         userDetails: {
             profileImage: '',
-            userName: ''
+            userName: '',
+            mobile:''
         },
         isLogedIn: false
     };

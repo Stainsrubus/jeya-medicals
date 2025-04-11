@@ -36,7 +36,7 @@
 	});
 
 	function viewOrder(orderId: string) {
-		goto(`/hidden-admin-base-007/dashboard/orders/${orderId}`);
+		goto(`/dashboard/orders/${orderId}`);
 	}
 </script>
 

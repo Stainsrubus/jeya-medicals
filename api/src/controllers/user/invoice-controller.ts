@@ -1,5 +1,5 @@
 import { generateInvoiceId } from "@/lib/util";
-import { RestaurentModel } from "@/models/restaurent-model";
+import { StoreModel } from "@/models/store-model";
 import { OrderModel } from "@/models/user/order-model";
 import { StoreType } from "@/types";
 import Elysia, { t } from "elysia";
@@ -41,7 +41,7 @@ export const invoiceController = new Elysia({
         };
       }
 
-      const restaurent = await RestaurentModel.findOne({});
+      const restaurent = await StoreModel.findOne({});
 
       if (!order || !restaurent) {
         set.status = 404;

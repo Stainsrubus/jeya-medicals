@@ -15,7 +15,7 @@ import { adminOrderController } from "./order-controller";
 import { privacyPolicyController } from "./privacypolicy-controller";
 import { productsController } from "./products-controller";
 import { reportController } from "./report-controller";
-import { adminRestaurentController } from "./restaurent-controller";
+import { adminRestaurentController } from "./store-controller";
 import { suggetionsController } from "./suggestions-controller";
 import { termsAndConditionsController } from "./termsandconditions-controller";
 import { specificationController } from "./specification-controller";

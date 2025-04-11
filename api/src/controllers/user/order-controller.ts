@@ -3,7 +3,7 @@ import { sendNotification } from "@/lib/firebase";
 import { generateRandomString } from "@/lib/util";
 import { broadcastMessage } from "@/lib/ws-store";
 import { CouponModel } from "@/models/coupon-model";
-import { RestaurentModel } from "@/models/restaurent-model";
+import { StoreModel } from "@/models/store-model";
 import { User } from "@/models/user-model";
 import { Address } from "@/models/user/address-model";
 import { CartModel } from "@/models/user/cart-model";
@@ -24,6 +24,143 @@ export const userOrderController = new Elysia({
     ],
   },
 })
+.post(
+  "/order",
+  async ({ set, store, body }) => {
+    const userId = (store as StoreType)["id"];
+    const { addressId, couponId } = body;
+
+    try {
+      const cart = await CartModel.findOne({
+        user: new mongoose.Types.ObjectId(userId),
+        status: "active",
+      });
+
+      const user = await User.findById(userId);
+
+      if (!cart) {
+        set.status = 404;
+        return { message: "No active cart found", status: false };
+      }
+
+      if (!user) {
+        set.status = 404;
+        return { message: "User not found", status: false };
+      }
+
+      const address = await Address.findById(addressId);
+
+      if (!address) {
+        set.status = 404;
+        return { message: "Address not found", status: false };
+      }
+
+      let Estore = await StoreModel.findOne({});
+      let orderId = generateRandomString(6, "JME");
+
+      const order = new OrderModel({
+        user: cart.user,
+        store: Estore?._id,
+        products: cart.products,
+        addressId: address._id,
+        deliveryAgent: null,
+        deliveryTime: null,
+        deliverySeconds: cart.deliverySeconds,
+        distance: cart.totalDistance,
+        platformFee: cart.platformFee || 0,
+        deliveryPrice: cart.deliveryFee || 0,
+        subtotal: cart.subtotal,
+        tax: cart.tax,
+        totalPrice: cart.totalPrice,
+        status: "pending",
+        preparationTime: 0,
+        paymentMethod: "Cash on Delivery",
+        paymentStatus: "pending",
+        orderId,
+      });
+
+      // Apply coupon if provided
+      if (couponId) {
+        const coupon = await CouponModel.findById(couponId);
+        if (coupon) {
+          const discountAmount = (coupon.discount / 100) * cart.totalPrice;
+          order.couponDiscount = discountAmount;
+          order.coupon = coupon._id;
+          order.couponCode = coupon.code;
+          order.totalPrice = cart.totalPrice - discountAmount;
+        }
+      }
+
+      // Get map directions if not already available
+      if (!address.mapPloygonResponse) {
+        const response = await axios.get(
+          `https://maps.googleapis.com/maps/api/directions/json?origin=${Estore?.latitude},${Estore?.longitude}&destination=${address.latitude},${address.longitude}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+        );
+        address.mapPloygonResponse = JSON.stringify(response.data);
+        order.mapPloygonResponse = JSON.stringify(response.data);
+        await address.save();
+      }
+
+      // Save the order
+      await order.save();
+
+      // Remove negotiation attempts for products in the cart
+      const productIds = cart.products.map(product => product.productId._id.toString());
+      user.attempts = user.attempts.filter(attempt => !productIds.includes(attempt.productId));
+
+      // Broadcast and notify
+      broadcastMessage(
+        `New Order with Order ID: ${orderId} is placed by ${user.username}`
+      );
+      await sendNotification(
+        user.fcmToken,
+        "Order Placed!",
+        `Your order #${orderId} has been placed successfully.`
+      );
+
+      // Clear the cart
+      cart.products = [];
+      cart.subtotal = 0;
+      cart.tax = 0;
+      cart.totalPrice = 0;
+      cart.deliveryFee = 0;
+      cart.deliverySeconds = 0;
+      cart.platformFee = 0;
+      cart.totalDistance = 0;
+      await cart.save();
+
+      // Save the updated user with attempts removed
+      await user.save();
+
+      return {
+        message: "Order created successfully",
+        status: true,
+        order,
+        paymentRequired: false
+      };
+    } catch (error) {
+      set.status = 500;
+      return {
+        message: "Failed to create order",
+        status: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+  {
+    body: t.Object({
+      addressId: t.String({
+        pattern: `^[a-fA-F0-9]{24}$`,
+      }),
+      couponId: t.Optional(t.String()),
+    }),
+    detail: {
+      summary: "Create order (without payment)",
+      description: "Create a new order from the user's cart without payment processing",
+    },
+  }
+)
+
   // .post(
   //   "/order",
   //   async ({ set, store, body }) => {
@@ -56,7 +193,7 @@ export const userOrderController = new Elysia({
   //         return { message: "Address not found", status: false };
   //       }
 
-  //       let restaurent = await RestaurentModel.findOne({});
+  //       let restaurent = await StoreModel.findOne({});
 
   //       let orderId = generateRandomString(6, "KCS");
 
@@ -198,7 +335,7 @@ export const userOrderController = new Elysia({
           return { message: "Order not found", status: false };
         }
 
-        const restaurent = await RestaurentModel.findOne({});
+        const restaurent = await StoreModel.findOne({});
 
         if (!restaurent) {
           set.status = 404;
@@ -450,18 +587,22 @@ export const userOrderController = new Elysia({
         const { id } = params;
 
         const product = await OrderModel.findById(id)
-          .populate({
-            path: "restaurent",
-            select: "restaurentName restaurentAddress restaurentImage",
-          })
+          // .populate({
+          //   path: "restaurent",
+          //   select: "restaurentName restaurentAddress restaurentImage",
+          // })
           .populate({
             path: "addressId",
             select: "receiverName landmark area flatorHouseno receiverMobile",
           })
           .populate({
             path: "products.productId",
-            select: "images productName",
-          });
+            select: "images productName brand",
+            populate: {
+              path: "brand",
+              select: "name ", 
+            },
+          })
 
         return {
           message: "Order Fetched Successfully",

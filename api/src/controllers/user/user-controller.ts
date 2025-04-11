@@ -1,4 +1,4 @@
-import { deleteFile, saveFile } from "@/lib/file-s3";
+import { deleteFile, saveFile } from "@/lib/file";
 import Elysia, { t } from "elysia";
 import { User } from "../../models/user-model";
 
@@ -7,14 +7,15 @@ export const userController = new Elysia({
   detail: {
     tags: ["User - Profile"],
   },
-}).put(
+})
+.put(
   "/",
   async ({ body, store, set }) => {
     try {
       let _store: any = store;
       let id = _store?.id ?? "";
 
-      const { name, email, preferredCusine, image, fcmToken } = body;
+      const { username, profileImage } = body;
 
       const user = await User.findById(id);
 
@@ -25,8 +26,8 @@ export const userController = new Elysia({
         };
       }
 
-      if (image) {
-        const { filename, ok } = await saveFile(image, "profile-images");
+      if (profileImage) {
+        const { filename, ok } = await saveFile(profileImage, "profile-images");
 
         if (!ok) {
           set.status = 400;
@@ -42,13 +43,7 @@ export const userController = new Elysia({
         user.profileImage = filename;
       }
 
-      user.username = name || user.username;
-      user.prefferedCusine = preferredCusine || user.prefferedCusine;
-      user.email = email || user.email;
-
-      if (fcmToken) {
-        user.fcmToken = fcmToken;
-      }
+      user.username = username || user.username;
 
       await user.save();
 
@@ -67,23 +62,12 @@ export const userController = new Elysia({
   },
   {
     body: t.Object({
-      name: t.Optional(
+      username: t.Optional(
         t.String({
           default: "",
         })
       ),
-      image: t.Optional(t.Any()),
-      email: t.Optional(
-        t.String({
-          default: "",
-        })
-      ),
-      preferredCusine: t.String({
-        default: "",
-      }),
-      fcmToken: t.String({
-        default: "",
-      }),
+      profileImage: t.Optional(t.Any()),
     }),
     detail: {
       summary: "Update a user by id",

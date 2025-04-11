@@ -5,13 +5,21 @@ interface User {
   role: string;
   active: boolean;
   username: string;
-  // prefferedCusine: string;
   profileImage: string;
   favorites: Types.ObjectId | null;
   email: string;
   fcmToken: string;
-  // refCode: string;
-  // referedBy: Types.ObjectId | null;
+  attempts: Attempt[];
+    refCode: string;
+  referedBy: Types.ObjectId | null;
+}
+
+interface Attempt {
+  productId: string;
+  attempts: {
+    amount: number;
+    attemptNumber: number;
+  }[];
 }
 
 const userSchema = new Schema<User>(
@@ -25,10 +33,6 @@ const userSchema = new Schema<User>(
       type: String,
       default: "",
     },
-    // prefferedCusine: {
-    //   type: String,
-    //   default: "",
-    // },
     fcmToken: {
       type: String,
       default: "",
@@ -42,15 +46,15 @@ const userSchema = new Schema<User>(
       type: String,
       default: "",
     },
-    // refCode: {
-    //   type: String,
-    //   unique: true,
-    // },
-    // referedBy: {
-    //   type: Schema.Types.ObjectId,
-    //   ref: "User",
-    //   default: null,
-    // },
+    refCode: {
+      type: String,
+      unique: true,
+    },
+    referedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     email: {
       type: String,
       default: "",
@@ -64,13 +68,23 @@ const userSchema = new Schema<User>(
       ref: "Favorites",
       default: null,
     },
+    attempts: [
+      {
+        productId: { type: String, required: true },
+        attempts: [
+          {
+            amount: { type: Number, required: true },
+            attemptNumber: { type: Number, required: true },
+          },
+        ],
+      },
+    ],
   },
   {
     timestamps: true,
-    autoIndex: true,
   }
 );
 
-const User = model<User>("User", userSchema);
+const User = model("User", userSchema);
 
 export { User };

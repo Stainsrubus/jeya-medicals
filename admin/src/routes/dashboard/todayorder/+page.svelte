@@ -169,7 +169,7 @@
 	});
 
 	function viewOrder(orderId: string) {
-		goto(`/hidden-admin-base-007/dashboard/orders/${orderId}`);
+		goto(`/dashboard/orders/${orderId}`);
 	}
 
 	function onTabChange(
@@ -226,8 +226,8 @@
 						<span>Ready</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger value="picked" class="flex items-center gap-2">
-						<Icon class="w-4 h-4" icon="mdi:delivery-dining" />
-						<span>Picked</span>
+						<Icon class="w-4 h-4" icon="lucide:truck" />
+						<span>On the way</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger value="delivered" class="flex items-center gap-2">
 						<Icon class="w-4 h-4" icon="mdi:success-circle" />
@@ -312,7 +312,7 @@
 								<button
 									class="capitalize underline underline-offset-2 text-[#f15d5d] font-bold cursor-pointer"
 									onclick={() =>
-										goto(`/hidden-admin-base-007/dashboard/users/${order?.userData._id}`)}
+										goto(`/dashboard/users/${order?.userData._id}`)}
 								>
 									{order?.userData.username}
 								</button></Table.Cell
@@ -413,7 +413,7 @@
 
 				<Dialog.Header>
 					{@const order = orderdata}
-					<Dialog.Title>Preparation Time</Dialog.Title>
+					<Dialog.Title>Dispatch Time</Dialog.Title>
 					<Dialog.Description>
 						<div class="flex flex-col gap-3 w-[300px] my-4">
 							<Label for="preparationTime">Minutes</Label>

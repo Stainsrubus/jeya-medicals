@@ -98,11 +98,11 @@
   <footer class="text-[#30363C] py-10 bg-footer-gradient">
     <!-- Trusted Brand Partners Section -->
     <div class="px-4 md:px-6 lg:px-8">
-      <h2 class="text-3xl font-bold text-[#30363C] text-center">Trusted Brand Partners</h2>
-      <div class="flex justify-center gap-20 my-14">
+      <h2 class="md:text-3xl text-2xl font-bold text-[#30363C] text-center">Trusted Brand Partners</h2>
+      <div class="flex justify-center lg:gap-20 md:gap-12 gap-5 md:my-14 my-8">
         {#if brandsLoading || brandsError}
           <!-- Skeleton Loader for Brands -->
-          <div class="flex justify-center gap-20">
+          <div class="flex justify-center lg:gap-20 md:gap-12 gap-5">
             {#each Array(5) as _} <!-- Adjust based on typical number of brands -->
               <Skeleton class="h-32 w-32 rounded-full" />
             {/each}
@@ -115,7 +115,7 @@
               <img
                 src={imgUrl + brand.image}
                 alt={brand.name}
-                class="max-h-20 object-contain"
+                class="lg:max-h-20 md:max-h-14 max-h-8 object-contain"
               />
             {/each}
           {/if}
@@ -124,7 +124,7 @@
     </div>
   
     <!-- Main Footer Section -->
-    <div class="px-4 md:px-6 lg:px-8 mt-20">
+    <div class="px-4 md:px-6 lg:px-8 lg:mt-20 md:mt-14 mt-10 ">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
         <!-- Column 1: Company Description -->
         <div>
@@ -132,17 +132,17 @@
             <img
               src="/logo.png"
               alt="Jeya Medical Enterprises"
-              class="h-28"
+              class="lg:h-28 md:h-20 h-16"
             />
           </div>
-          <p class="text-xl text-[#4F585E] leading-relaxed">
+          <p class="lg:text-xl md:text-lg text-base text-[#4F585E] leading-relaxed">
             Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
           </p>
         </div>
   
         <!-- Column 2: Categories -->
-        <div class="pl-32">
-          <h3 class="text-3xl text-[#30363C] font-bold mb-4">Categories</h3>
+        <div class="lg:pl-32">
+          <h3 class="lg:text-3xl md:text-2xl text-xl text-[#30363C] font-bold mb-4">Categories</h3>
           {#if categoriesLoading || categoriesError}
             <!-- Skeleton Loader for Categories -->
             <ul class="space-y-2">
@@ -159,13 +159,13 @@
               <ul class="space-y-2">
                 {#each categories as category}
                   <li>
-                    <a href={`/category/${category.name.toLowerCase().replace(' ', '-')}`} class="text-xl hover:underline text-[#4F585E]">
+                    <a href={`/category/${category.name.toLowerCase().replace(' ', '-')}`} class="lg:text-xl md:text-lg text-base hover:underline text-[#4F585E]">
                       {category.name}
                     </a>
                   </li>
                 {/each}
                 <li>
-                  <a href="/categories" class="text-lg text-[#01A0E2] hover:underline">View More</a>
+                  <a href="/categories" class="md:text-lg text-base text-[#01A0E2] hover:underline">View More</a>
                 </li>
               </ul>
             {/if}
@@ -173,47 +173,47 @@
         </div>
   
         <!-- Column 3: Quick Links -->
-        <div class="pl-10">
-          <h3 class="text-3xl text-[#30363C] font-bold mb-4">Quick Links</h3>
+        <div class="lg:pl-10">
+          <h3 class="lg:text-3xl md:text-2xl text-xl text-[#30363C] font-bold mb-4">Quick Links</h3>
           <ul class="space-y-2 text-[#4F585E]">
             <li>
-              <a href="/address-management" class="text-xl hover:underline">Address Management</a>
+              <a href="/address-management" class="lg:text-xl md:text-lg text-base hover:underline">Address Management</a>
             </li>
             <li>
-              <a href="/order-history" class="text-xl hover:underline">Order History</a>
+              <a href="/order-history" class="lg:text-xl md:text-lg text-base hover:underline">Order History</a>
             </li>
             <li>
-              <a href="/demand-products" class="text-xl hover:underline">Demand Products</a>
+              <a href="/demand-products" class="lg:text-xl md:text-lg text-base hover:underline">Demand Products</a>
             </li>
             <li>
-              <a href="/wishlist" class="text-xl hover:underline">Wishlist</a>
+              <a href="/wishlist" class="lg:text-xl md:text-lg text-base hover:underline">Wishlist</a>
             </li>
             <li>
-              <a href="/notifications" class="text-xl hover:underline">Notification</a>
+              <a href="/notifications" class="lg:text-xl md:text-lg text-base hover:underline">Notification</a>
             </li>
             <li>
-              <a href="/cart" class="text-xl hover:underline">Cart</a>
+              <a href="/cart" class="lg:text-xl md:text-lg text-base hover:underline">Cart</a>
             </li>
           </ul>
         </div>
   
         <!-- Column 4: Contact Us -->
         <div class="pr-10">
-          <h3 class="text-3xl text-[#30363C] font-bold mb-4">Contact Us</h3>
+          <h3 class="lg:text-3xl md:text-2xl text-xl text-[#30363C] font-bold mb-4">Contact Us</h3>
           <ul class="space-y-3">
             <li class="flex items-start gap-2">
               <Icon icon="mynaui:location-selected" class="text-[#01A0E2] h-8 w-8 mt-1" />
-              <span class="text-lg text-[#4F585E]">
+              <span class="lg:text-lg text-base text-[#4F585E]">
                 12A Gandhi Street, Vadassery, Nagercoil, PIN Code - 629001
               </span>
             </li>
             <li class="flex items-center gap-2">
               <Icon icon="mynaui:telephone-call" class="text-[#01A0E2] h-7 w-7" />
-              <span class="text-lg text-[#4F585E]">+91 8873958948</span>
+              <span class="lg:text-lg text-base text-[#4F585E]">+91 8873958948</span>
             </li>
             <li class="flex items-center gap-2">
               <Icon icon="iconoir:mail" class="text-[#01A0E2] h-7 w-7" />
-              <a href="mailto:jeyamedical@gmail.com" class="text-lg text-[#4F585E] hover:underline">
+              <a href="mailto:jeyamedical@gmail.com" class="lg:text-lg text-base text-[#4F585E] hover:underline">
                 jeyamedical@gmail.com
               </a>
             </li>

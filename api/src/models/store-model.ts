@@ -1,12 +1,12 @@
 import { model, Schema } from "mongoose";
 
-interface Restaurent {
-  restaurentName: string;
-  restaurentAddress: string;
-  restaurentPhone: string;
-  restaurentEmail: string;
-  restaurentDescription: string;
-  restaurentImage: string;
+interface Store {
+  storeName: string;
+  storeAddress: string;
+  storePhone: string;
+  storeEmail: string;
+  storeDescription: string;
+  storeImage: string;
   latitude: string;
   longitude: string;
   gstNumber: string;
@@ -16,25 +16,25 @@ interface Restaurent {
   isDeleted: boolean;
 }
 
-const RestaurentSchema = new Schema<Restaurent>(
+const StoreSchema = new Schema<Store>(
   {
-    restaurentName: {
+    storeName: {
       type: String,
       required: true,
     },
-    restaurentAddress: {
+    storeAddress: {
       type: String,
     },
 
-    restaurentPhone: {
+    storePhone: {
       type: String,
     },
 
-    restaurentEmail: {
+    storeEmail: {
       type: String,
     },
 
-    restaurentDescription: {
+    storeDescription: {
       type: String,
     },
     latitude: {
@@ -43,7 +43,7 @@ const RestaurentSchema = new Schema<Restaurent>(
     longitude: {
       type: String,
     },
-    restaurentImage: {
+    storeImage: {
       type: String,
     },
     gstNumber: {
@@ -69,7 +69,7 @@ const RestaurentSchema = new Schema<Restaurent>(
   }
 );
 
-export const RestaurentModel = model<Restaurent>(
-  "Restaurent",
-  RestaurentSchema
+export const StoreModel = model<Store>(
+  "Store",
+  StoreSchema
 );

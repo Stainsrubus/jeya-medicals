@@ -6,6 +6,7 @@
     import { toast } from 'svelte-sonner'; // Optional: For showing toast notifications
 	import { writableGlobalStore } from '$lib/stores/global-store';
 	import { queryClient } from '$lib/query-client';
+	import { createMutation } from '@tanstack/svelte-query';
   
     // Props for the product card
     export let image: string;
@@ -70,15 +71,59 @@
       }
     }
   
-    // Handle add to cart
-    function handleAddToCart() {
-      console.log(`Added product with ID: ${id} to cart`);
-      // Add logic to add the product to the cart (e.g., API call or store update)
-    }
+    const addToCartMutation = createMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !$writableGlobalStore.isLogedIn) {
+        throw new Error('Please log in to add to cart');
+      }
+
+      const response = await _axios.post(
+        '/cart/update',
+        {
+          products: [
+            {
+              productId: id,
+              quantity: 1,
+            },
+          ],
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.data.status) {
+        throw new Error(response.data.message || 'Failed to add to cart');
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+             //@ts-ignore
+      queryClient.invalidateQueries(['cart']);
+      toast.success('Product added to cart successfully!');
+    },
+    onError: (error: any) => {
+      if (error.message === 'Please log in to add to cart') {
+        toast.error(error.message);
+        goto('/login');
+      } else {
+        toast.error(error.message || 'An error occurred while adding to cart');
+      }
+    },
+  });
+
+  // Handle add to cart
+  function handleAddToCart() {
+    $addToCartMutation.mutate();
+  }
   </script>
   
   <div
-    class="relative bg-white rounded-xl shadow-md overflow-hidden w-64 transition-transform duration-200 cursor-pointer group"
+    class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-44 transition-transform duration-200 cursor-pointer group"
     on:click={handleClick}
     role="button"
     tabindex="0"
@@ -87,14 +132,14 @@
     <!-- Discount Badge -->
     {#if discount}
       <div
-        class="absolute top-0 right-0 bg-[#FA8232] text-white text-sm font-semibold font-HostGrotesk rounded-bl-xl px-4 py-2 z-10"
+        class="absolute top-0 right-0 bg-[#FA8232] text-white md:text-sm text-xs font-semibold font-HostGrotesk rounded-bl-xl md:px-4 md:py-2 py-1 px-2 z-10"
       >
         {discount}% <br />OFF
       </div>
     {/if}
   
     <!-- Product Image with Overlay and Icons -->
-    <div class="relative h-48 bg-gray-100 flex justify-center items-center">
+    <div class="relative md:h-48 h-40 bg-gray-100 flex justify-center items-center">
       <img
         class="object-cover max-h-full max-w-full"
         src={imgUrl + image}
@@ -122,29 +167,30 @@
           on:click|stopPropagation={handleAddToCart}
           aria-label="Add to cart"
         >
-          <img class="p-2" src="/svg/cart.svg" alt="Cart" />
+        <img class="p-2" src="/svg/cart.svg" alt="Cart" />
+
         </button>
       </div>
     </div>
   
     <!-- Product Details -->
-    <div class="px-4">
+    <div class="md:px-4 px-2">
       <!-- Product Name -->
-      <h3 class="font-medium text-base text-[#222222] overflow-hidden text-ellipsis whitespace-nowrap">
+      <h3 class="font-medium md:text-base text-sm text-[#222222] overflow-hidden text-ellipsis whitespace-nowrap">
         {name}
       </h3>
   
       <!-- Price Section -->
       <div class="flex items-center gap-2 mt-1">
-        <span class="text-[#222222] text-base">₹{MRP}</span>
+        <span class="text-[#222222] md:text-base text-sm">₹{MRP}</span>
         {#if strikePrice > MRP}
-          <span class="text-[#222222] text-base line-through">₹{strikePrice}</span>
+          <span class="text-[#222222] md:text-base text-sm line-through">₹{strikePrice}</span>
         {/if}
       </div>
   
       <!-- Savings Section -->
       {#if savings > 0}
-        <div class="mt-1 pt-2 border-t border-[#EDEDED] text-base text-[#249B3E]">
+        <div class="mt-1 py-2 border-t border-[#EDEDED] md:text-base text-sm text-[#249B3E]">
           Save - ₹{savings}
         </div>
       {/if}

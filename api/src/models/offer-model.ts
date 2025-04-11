@@ -33,14 +33,31 @@ const flatOfferSchema = new Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+    products: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+    }]
 });
-
-const negotiateOfferSchema = new Schema({
-    percentage: {
+const negotiateItemSchema=new Schema({
+    productId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+    },
+    successPercentage: {
         type: Number,
         required: true
     },
+    failurePercentage: {
+        type: Number,
+        required: true
+    },
+})
+
+const negotiateOfferSchema = new Schema({
+    items: [negotiateItemSchema],
     noOfAttempts: {
         type: Number,
         required: true

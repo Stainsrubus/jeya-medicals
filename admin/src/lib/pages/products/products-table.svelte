@@ -320,6 +320,7 @@
 				description: product.description,
 				productName: product.productName,
 				price: product.price.toString(),
+				negotiationLimit:product.negotiateLimit.toString(),
 				strikePrice: product.strikePrice.toString(),
 				// rating: product.ratings.toString(),
 				productCode: product.productCode,

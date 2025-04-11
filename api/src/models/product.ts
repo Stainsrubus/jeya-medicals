@@ -22,12 +22,15 @@ interface ProductInterface {
   gst: number;
   discount: number;
   onMRP: number;
+  flat:number;
   brand:Types.ObjectId;
   active: boolean;
   isDeleted: boolean;
   reEnabledAt: Date | null;
   options?: Option[];
   specifications?: Specification[];
+  negotiateLimit:number;
+  negotiate:boolean;
 }
 
 
@@ -52,7 +55,18 @@ const ProductSchema = new Schema<ProductInterface>(
       type: Number,
       required: true,
     },
-    strikePrice: {
+    negotiateLimit:{
+      type:Number,
+      required:true,
+    },
+    negotiate:{
+type:Boolean,
+default:false
+    },
+    flat:{
+      type:Number,
+    },
+        strikePrice: {
       type: Number,
       required: true,
     },

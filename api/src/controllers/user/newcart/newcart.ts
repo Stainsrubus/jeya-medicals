@@ -3,7 +3,7 @@ import { Config } from "@/models/config-model";
 import { CouponModel } from "@/models/coupon-model";
 import { Dipping } from "@/models/dippings-model";
 import { Product } from "@/models/product";
-import { RestaurentModel } from "@/models/restaurent-model";
+import { StoreModel } from "@/models/store-model";
 import { User } from "@/models/user-model";
 import { Address } from "@/models/user/address-model";
 import { CartModel } from "@/models/user/cart-model";
@@ -116,7 +116,7 @@ export const newuserCartController = new Elysia({
           maxPrice: { $gte: cart.totalPrice },
         }).sort({ discount: -1 });
 
-        let restaurent = await RestaurentModel.findOne({});
+        let restaurent = await StoreModel.findOne({});
         let restaurentCords = {
           lat: restaurent?.latitude || "8.176293718844061",
           long: restaurent?.longitude || "8.176293718844061",

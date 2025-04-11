@@ -67,6 +67,7 @@
         $form.description = $productEditStore.description || '';
         $form.productName = $productEditStore.productName || '';
         $form.price = $productEditStore.price || '';
+		$form.negotiationLimit=$productEditStore.negotiationLimit||'';
         $form.strikePrice = $productEditStore.strikePrice || '';
         $form.productCode = $productEditStore.productCode || '';
         $form.topSeller = $productEditStore.topSeller || false;
@@ -133,6 +134,7 @@
 					$productEditStore.description = '';
 					$productEditStore.productName = '';
 					$productEditStore.price = '';
+					$productEditStore.negotiationLimit='';
 					$productEditStore.strikePrice = '';
 					$productEditStore.productCode = '';
 					$productEditStore.topSeller = false;
@@ -191,6 +193,7 @@
 				formdata.append('category', $form.category.split(' -&- ')[0]);
 				formdata.append('brand', $form.brand.split(' -&- ')[0]);
 				formdata.append('price', $form.price);
+				formdata.append('negotiateLimit',$form.negotiationLimit);
 				formdata.append('strikePrice', $form.strikePrice);
 				formdata.append('productCode', $form.productCode);
 				formdata.append('description', $form.description);
@@ -392,6 +395,22 @@
 			/>
 			{#if $errors.strikePrice}
 				<span class="invalid text-xs text-red-500">{$errors.strikePrice}</span>
+			{/if}
+		</div>
+		<div>
+			<Label for="negotiationLimit">Negotiation Limit</Label>
+			<Input
+				id="negotiationLimit"
+				min="1"
+				type="text"
+				class="pr-10 mt-1"
+				placeholder="Ex: 200"
+				aria-invalid={$errors.negotiationLimit ? 'true' : undefined}
+				bind:value={$form.negotiationLimit}
+				{...$constraints.negotiationLimit}
+			/>
+			{#if $errors.negotiationLimit}
+				<span class="invalid text-xs text-red-500">{$errors.negotiationLimit}</span>
 			{/if}
 		</div>
 		<div>

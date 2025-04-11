@@ -4,7 +4,7 @@ import { Favorites } from "@/models/user/favorites-model";
 import { StoreType } from "@/types";
 import { add, format } from "date-fns";
 import Elysia, { t } from "elysia";
-import { isValidObjectId } from "mongoose";
+import { Types, isValidObjectId } from "mongoose";
 
 export const favoritesController = new Elysia({
   prefix: "/favorites",
@@ -72,20 +72,34 @@ export const favoritesController = new Elysia({
     "/getfavorites",
     async ({ store, query }) => {
       const userId = (store as StoreType)["id"];
-      const { page, limit, type } = query;
-
+      const { page, limit, search, category, brand, minPrice, maxPrice } = query;
+  
       let filter: any = { user: userId };
-
-
-
+  
+      // Convert comma-separated values to arrays
+      const categoryIds = category ? category.split(",").map((id) => new Types.ObjectId(id)) : [];
+      const brandIds = brand ? brand.split(",").map((id) => new Types.ObjectId(id)) : [];
+  
       try {
-        let _limit = limit || 10;
-        let _page = page || 1;
-
-        const favorites = await Favorites.find(filter)
+        const _limit = limit || 10;
+        const _page = page || 1;
+  
+        const favorites = await Favorites.find({ user: userId }) // Only filter by user initially
           .populate({
             path: "products",
-            match: type ? { type } : {},
+            match: {
+              ...(search && { productName: { $regex: search, $options: "i" } }),
+              ...(categoryIds.length > 0 && { category: { $in: categoryIds } }),
+              ...(brandIds.length > 0 && { brand: { $in: brandIds } }),
+              ...(minPrice || maxPrice
+                ? {
+                    price: {
+                      ...(minPrice ? { $gte: parseFloat(minPrice) } : {}),
+                      ...(maxPrice ? { $lte: parseFloat(maxPrice) } : {}),
+                    },
+                  }
+                : {}),
+            },
             populate: [
               {
                 path: "brand",
@@ -93,7 +107,7 @@ export const favoritesController = new Elysia({
               },
               {
                 path: "category",
-                select: "_id active", // Keep active for filtering but transform later
+                select: "_id active",
               },
             ],
           })
@@ -101,13 +115,12 @@ export const favoritesController = new Elysia({
           .limit(_limit)
           .lean()
           .exec();
-
+  
         const updatedFavorites = favorites.map((favorite) => {
-          favorite.products = favorite.products
-            .filter((product: any) => product.category?.active) 
+          favorite.products = favorite.products.filter((product: any) => product.category?.active);
           return favorite;
         });
-
+  
         return {
           message: "Favorites fetched successfully",
           status: true,
@@ -115,7 +128,6 @@ export const favoritesController = new Elysia({
         };
       } catch (error) {
         console.error(error);
-
         return {
           error: error instanceof Error ? error.message : "Unknown error",
           status: false,
@@ -124,20 +136,23 @@ export const favoritesController = new Elysia({
     },
     {
       detail: {
-        summary: "Get user's favorites",
-        description: "Get user's favorites",
+        summary: "Get user's favorites with filters",
+        description: "Get user's favorites with optional filtering by category, brand, and price range",
       },
       query: t.Object({
-        page: t.Number({
-          default: 1,
-        }),
-        limit: t.Number({
-          default: 10,
-        }),
-        type: t.Optional(t.String()),
+        page: t.Optional(t.Number({ default: 1 })),
+        limit: t.Optional(t.Number({ default: 10 })),
+        search: t.Optional(t.String()),
+        category: t.Optional(t.String()), // Can be comma-separated
+        brand: t.Optional(t.String()), // Can be comma-separated
+        minPrice: t.Optional(t.String()),
+        maxPrice: t.Optional(t.String()),
       }),
     }
   );
+  
+  
+  
   // .get(
   //   "/getfavorites",
   //   async ({ store, query }) => {

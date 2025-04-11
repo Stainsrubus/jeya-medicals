@@ -33,7 +33,7 @@
 </script>
 
 <div class="pt-10 px-4 md:px-6 lg:px-8">
-  <div class="bg-[#F5FAF9] rounded-lg relative py-10">
+  <div class="bg-[#F5FAF9] rounded-lg relative md:py-10 py-6">
     <!-- Decorative Elements -->
     <div class="absolute left-0 top-0 h-full">
       <img
@@ -59,13 +59,13 @@
     <div class="absolute right-0 top-0">
       <img
         src="/svg/curve.svg"
-        class="h-[30%] w-auto"
+        class="!lg:h-[30%] !h-[10%] w-auto"
         alt="Decorative Curve"
       />
     </div>
 
     <!-- Quote Content -->
-    <div class="w-1/2 mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="lg:w-1/2 md:w-3/4 w-5/6  mx-auto px-4 sm:px-6 lg:px-8">
       {#if $quoteQuery.isLoading || $quoteQuery.isError}
         <!-- Skeleton Loader -->
         <div class="space-y-2">
@@ -74,12 +74,12 @@
           <span class="!font-bizGothic text-[#52827F] text-6xl flex justify-end">"</span>
         </div>
       {:else if $quoteQuery.data && $quoteQuery.data.data.length > 0}
-        <div class="text-xl md:text-2xl text-gray-800">
+        <div class=" text-gray-800">
           <p class="relative">
-            <span class="!font-bizGothic text-[#52827F] text-6xl inline-block !rotate-180 absolute -top-12 -left-12">"</span>
-            <span class="relative">
+            <span class="!font-bizGothic text-[#52827F] md:text-6xl text-4xl inline-block !rotate-180 absolute md:-top-12 md:-left-12 -top-6 -left-6">"</span>
+            <span class="relative lg:text-2xl md:text-xl text-base">
               {$quoteQuery.data.data[0].quote}
-              <span class="!font-bizGothic text-[#52827F] text-6xl absolute -bottom-12 px-3">"</span>
+              <span class="!font-bizGothic text-[#52827F] md:text-6xl text-4xl absolute md:-bottom-12 -bottom-7 md:px-3 px-1">"</span>
             </span>
           </p>
         </div>

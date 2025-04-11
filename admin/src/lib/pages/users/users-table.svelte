@@ -154,7 +154,7 @@
 							<button
 								class="cursor-pointer capitalize underline underline-offset-4 text-primary font-bold"
 								onclick={() => {
-									goto(`/hidden-admin-base-007/dashboard/users/${user._id}`);
+									goto(`/dashboard/users/${user._id}`);
 								}}
 							>
 								{user.username}
