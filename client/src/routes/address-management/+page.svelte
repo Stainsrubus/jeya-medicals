@@ -454,7 +454,7 @@
 </script>
 
 {#if isLoggedIn}
-<div class="max-w-2xl md:mx-auto mx-4  p-4 border my-20 rounded-lg shadow">
+<div class="max-w-2xl md:mx-auto mx-4  p-4 border my-20 rounded-lg shadow scrollbar-hide">
   <div class="flex justify-between items-center mb-4">
     <h2 class="text-3xl text-[#30363C] font-semibold">Address Management</h2>
     <Button onclick={openDialog} class="bg-[#01A0E2] hover:bg-[#01A0E2] text-white px-4 py-2 rounded-md hover:scale-105 transition-all duration-300">
@@ -505,72 +505,76 @@
   {/if}
 
   <div  class={`fixed inset-0 bg-black/50 flex justify-end z-50 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-    <div class="w-full md:w-2/3 lg:w-1/3 h-full bg-white p-6 transform transition-transform duration-300 ease-in-out translate-x-full" style="transform: translateX({isOpen ? '0' : '100%'});">
-      <button class="absolute top-4 right-4 text-gray-500 hover:text-gray-700" onclick={closeDialog}>
+    <div class="w-full md:w-2/3  lg:w-1/3 h-full bg-white p-6 transform transition-transform duration-300 ease-in-out translate-x-full" style="transform: translateX({isOpen ? '0' : '100%'});">
+      <!-- <button class="absolute top-4 right-4 text-gray-500 hover:text-gray-700" onclick={closeDialog}>
         ✕
-      </button>
+      </button> -->
   
-      <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><Icon onclick={closeDialog} icon="lucide:arrow-left" class="w-5 h-5 text-[#4F585E] cursor-pointer]"  /> {selectedAddress ? 'Edit Address' : 'Add Address'}</h2>
-      <div class="mt-4 space-y-4">
-        <div id="map" bind:this={mapContainer} class="h-64 w-full mb-4 border rounded-md"></div>
-        <div class="flex space-x-2">
-          {#each ['Home', 'Work', 'Other'] as option}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <p
-              onclick={() => (newAddress.addressType = option)}
-              class="w-full p-2 border rounded-md cursor-pointer text-center transition-colors duration-200
-                     {newAddress.addressType === option ? 'border-[#01A0E2] text-[#01A0E2] bg-[#ACDEF247]' : 'border-[#A6AEB4] text-[#A6AEB4] hover:bg-gray-100'}"
-            >
-              {option}
-            </p>
-          {/each}
-        </div>
-        <div>
-          <label for="area" class="text-[#30363C] font-semibold text-xl">Area / Sector / Locality</label>
-          <input type="text" bind:value={newAddress.area} placeholder="Enter area" class="w-full p-2 border rounded-md" required />
-        </div>
-        <div>
-          <label for="flat" class="text-[#30363C] font-semibold text-xl">Flat / House no / Floor / Building</label>
-          <input type="text" bind:value={newAddress.flatorHouseno} placeholder="Enter Flat / House no" class="w-full p-2 border rounded-md" required />
-        </div>
-        <div>
-          <label for="landmark" class="text-[#30363C] font-semibold text-xl">Nearby landmark</label>
-          <input type="text" bind:value={newAddress.landmark} placeholder="Enter landmark" class="w-full p-2 border rounded-md" />
-        </div>
-        <div class="space-y-4">
-          <p class="text-[#4F585E] font-medium text-2xl">Receiver Detail</p>
-          <div>
-            <label for="name" class="text-[#30363C] font-semibold text-xl">Name</label>
-            <input type="text" bind:value={newAddress.receiverName} placeholder="Enter receiver name" class="w-full p-2 border rounded-md" required />
-          </div>
-          <div>
-            <label for="mobile" class="text-[#30363C] font-semibold text-xl">Mobile Number</label>
-            <input
-              type="tel"
-              bind:value={newAddress.receiverMobile}
-              placeholder="Enter mobile number"
-              class="w-full p-2 border rounded-md"
-              required
-              pattern="[0-9]{10}"
-              maxlength="10"
-              oninput={(e) => filterNumericInput(e)}
-              onblur={() => validateMobile(newAddress.receiverMobile)}
-            />
-            {#if mobileError}
-              <p class="text-red-500 text-sm mt-1">{mobileError}</p>
-            {/if}
-          </div>
-        </div>
+<div class="z-50">
+  <h2 class="text-lg z-50 font-semibold mb-4 sticky top-0 flex items-center gap-2"><Icon onclick={closeDialog} icon="lucide:arrow-left" class="w-5 h-5 text-[#4F585E] cursor-pointer]"  /> {selectedAddress ? 'Edit Address' : 'Add Address'}</h2>
+</div>  
+   <div class="overflow-y-auto h-[95%] scrollbar-hide">
+    <div class=" space-y-4">
+      <div id="map" bind:this={mapContainer} class="h-64 w-full mb-4 border rounded-md"></div>
+      <div class="flex space-x-2">
+        {#each ['Home', 'Work', 'Other'] as option}
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <p
+            onclick={() => (newAddress.addressType = option)}
+            class="w-full p-2 border rounded-md cursor-pointer text-center transition-colors duration-200
+                   {newAddress.addressType === option ? 'border-[#01A0E2] text-[#01A0E2] bg-[#ACDEF247]' : 'border-[#A6AEB4] text-[#A6AEB4] hover:bg-gray-100'}"
+          >
+            {option}
+          </p>
+        {/each}
       </div>
-      <div class="mt-6">
-        <Button onclick={handleSaveAddress} disabled={$addAddressMutation.isPending || $updateAddressMutation.isPending} class="w-full">
-          {#if $addAddressMutation.isPending || $updateAddressMutation.isPending}
-            Saving...
-          {:else}
-            {selectedAddress ? 'Update Address' : 'Save Address'}
+      <div>
+        <label for="area" class="text-[#30363C] font-semibold text-xl">Area / Sector / Locality</label>
+        <input type="text" bind:value={newAddress.area} placeholder="Enter area" class="w-full p-2 border rounded-md" required />
+      </div>
+      <div>
+        <label for="flat" class="text-[#30363C] font-semibold text-xl">Flat / House no / Floor / Building</label>
+        <input type="text" bind:value={newAddress.flatorHouseno} placeholder="Enter Flat / House no" class="w-full p-2 border rounded-md" required />
+      </div>
+      <div>
+        <label for="landmark" class="text-[#30363C] font-semibold text-xl">Nearby landmark</label>
+        <input type="text" bind:value={newAddress.landmark} placeholder="Enter landmark" class="w-full p-2 border rounded-md" />
+      </div>
+      <div class="space-y-4">
+        <p class="text-[#4F585E] font-medium text-2xl">Receiver Detail</p>
+        <div>
+          <label for="name" class="text-[#30363C] font-semibold text-xl">Name</label>
+          <input type="text" bind:value={newAddress.receiverName} placeholder="Enter receiver name" class="w-full p-2 border rounded-md" required />
+        </div>
+        <div>
+          <label for="mobile" class="text-[#30363C] font-semibold text-xl">Mobile Number</label>
+          <input
+            type="tel"
+            bind:value={newAddress.receiverMobile}
+            placeholder="Enter mobile number"
+            class="w-full p-2 border rounded-md"
+            required
+            pattern="[0-9]{10}"
+            maxlength="10"
+            oninput={(e) => filterNumericInput(e)}
+            onblur={() => validateMobile(newAddress.receiverMobile)}
+          />
+          {#if mobileError}
+            <p class="text-red-500 text-sm mt-1">{mobileError}</p>
           {/if}
-        </Button>
+        </div>
       </div>
+    </div>
+    <div class="mt-6">
+      <Button onclick={handleSaveAddress} disabled={$addAddressMutation.isPending || $updateAddressMutation.isPending} class="w-full">
+        {#if $addAddressMutation.isPending || $updateAddressMutation.isPending}
+          Saving...
+        {:else}
+          {selectedAddress ? 'Update Address' : 'Save Address'}
+        {/if}
+      </Button>
+    </div>
+   </div>
     </div>
   </div>
   <div class={`fixed inset-0 bg-black/50 flex justify-center items-center z-50 ${isDeleteConfirmOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>

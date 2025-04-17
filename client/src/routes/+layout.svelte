@@ -30,7 +30,7 @@
     <Topbar />
 	<Navbar />
 </div>
-<div class="pt-[120px]">
+<div class="pt-[120px] scrollbar-hide">
 {@render children()}
 </div>
 </QueryClientProvider>
