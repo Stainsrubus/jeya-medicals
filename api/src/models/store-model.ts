@@ -49,9 +49,6 @@ const StoreSchema = new Schema<Store>(
     gstNumber: {
       type: String,
     },
-    fssaiNumber: {
-      type: String,
-    },
     legalEntityName: {
       type: String,
     },

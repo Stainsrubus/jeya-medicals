@@ -315,9 +315,9 @@
   </aside>
 
   <!-- Main Content -->
-  <main class="flex-1 lg:p-6 p-0">
+  <main class="flex-1 lg:px-3 py-0 p-0">
     <!-- Active Filters -->
-    <aside class="lg:hidden block mb-4">
+    <aside class="lg:hidden block mb-1">
       <button
         on:click={toggleMobileSidebar}
         class="bg-[#008ECC] w-fit text-white text-base px-6 py-2 rounded-full flex items-center"
@@ -417,7 +417,7 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
   <!-- Apply Button -->
   <button
     on:click={toggleMobileSidebar}
-    class="mt-6 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium"
+    class="mt-2 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium"
   >
     Apply Filters
   </button>
@@ -425,7 +425,7 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
 </div>
     </aside>
     {#if activeFilters.length > 0}
-      <div class="mb-4 flex flex-wrap gap-2">
+      <div class="mb-1 flex flex-wrap gap-2">
         <span class="bg-[#008ECC] hidden text-white text-base px-6 py-2 rounded-full lg:flex items-center">
           Active filters
           <button
@@ -458,22 +458,22 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
     {/if}
 
     <!-- Header -->
-    <div class="flex items-center mb-6">
+    <div class="flex items-center mb-1">
       <div class="w-1/2 md:block hidden">
         <!-- <h1 class="text-2xl font-bold text-[#30363C]">Products</h1> -->
       </div>
       <div class="md:w-1/2 w-full flex">
         <div class="lg:w-1/3 w-1/6 md:block hidden"></div>
-        <div class="border py-7 flex lg:w-2/3 w-full  rounded-full bg-white p-1">
+        <div class="border md:py-7 py-5 flex lg:w-2/3 w-full  rounded-full bg-white md:p-1 p-0.5">
           <div class="relative w-full">
             <input
               type="text"
               placeholder="Search medical products"
-              class="w-full absolute top-1/2 transform -translate-y-1/2 text-xl pl-16 rounded-full focus:outline-none focus:ring-0 text-gray-700"
+              class="w-full absolute top-1/2 transform -translate-y-1/2 lg:text-xl text-base md:pl-16 pl-10 rounded-full focus:outline-none focus:ring-0 text-gray-700"
               on:input={handleSearch}
             />
             <img
-              class="absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-400"
+              class="absolute left-1 md:w-[45px] w-[32px]   top-1/2 transform -translate-y-1/2 text-gray-400"
               src="/svg/search.svg"
               alt="search"
             />
@@ -483,7 +483,7 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
     </div>
 
     <!-- Product Grid -->
-    <div class="mb-4 text-right text-[#4F585E]">
+    <div class="mb-1 text-right text-xs md:text-sm text-[#4F585E]">
       {#if productsLoading}
         {products.length} results found
       {:else if productsError}
@@ -518,7 +518,8 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
         <p class="text-lg text-[#4F585E]">No products found</p>
       </div>
     {:else}
-      <div class="flex flex-wrap lg:gap-10 gap-5">
+    <div class="">
+      <div class="card  md:flex  md:flex-wrap grid grid-cols-2 justify-center md:justify-normal lg:gap-10 gap-3">
         {#each products as product (product.id)}
           <ProductCard
             id={product.id}
@@ -531,49 +532,19 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
           />
         {/each}
       </div>
+    </div>
     {/if}
   </main>
 </div>
 <Footer />
 <style>
-  .sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 10;
-    display: none;
-  }
 
-  .sidebar-open .sidebar-overlay {
-    display: block;
-  }
 
-  .sidebar {
-    transition: transform 0.3s ease;
-    transform: translateX(-100%);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 80%;
-    max-width: 300px;
-    height: 100%;
-    background: white;
-    z-index: 20;
-    overflow-y: auto;
+@media (max-width: 768px) and (min-width: 500px) {
+  .card {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem; 
   }
-
-  .sidebar-open .sidebar {
-    transform: translateX(0);
-  }
-
-  @media (min-width: 768px) {
-    .sidebar {
-      transform: translateX(0);
-      position: static;
-      width: 250px;
-    }
-  }
+}
 </style>

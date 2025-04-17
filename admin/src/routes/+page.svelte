@@ -32,7 +32,7 @@
 				toast(data.message, {});
 				return;
 			}
-
+			localStorage.setItem('storeId', data.data.id);
 			toast(data.message, {});
 			goto('/dashboard');
 		},

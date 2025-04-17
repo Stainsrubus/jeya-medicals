@@ -6,7 +6,8 @@ import { User } from "@/models/user-model";
 import { OrderModel } from "@/models/user/order-model";
 import dayjs from "dayjs";
 import Elysia, { t } from "elysia";
-import { ObjectId } from "mongodb";
+import  ComboOffer  from "@/models/combo-model";
+
 export const adminOrderController = new Elysia({
   prefix: "/orders",
   detail: {
@@ -202,21 +203,73 @@ export const adminOrderController = new Elysia({
     async ({ query }) => {
       try {
         const { orderId } = query;
+  
+        // Step 1: Fetch order without productId populated
         const order = await OrderModel.findById(orderId)
           .populate("user")
           .populate("addressId")
-          .populate("products.productId")
-          .populate("products.suggestions")
-          .populate("deliveryAgent")
-          .lean()
-          .exec();
+          // .populate("deliveryAgent")
+          .lean();
+  
         if (!order) {
           return { message: "Order not found", status: "error" };
         }
+  
+        // Step 2: Manually populate products from either ProductModel or ComboOffer
+        const populatedProducts = await Promise.all(
+          order.products.map(async (item) => {
+            // Try normal product
+            const normal = await Product.findById(item.productId)
+              .select("productName brand images")
+              .populate("brand", "name")
+              .lean();
+  
+            if (normal) {
+              return {
+                ...item,
+                productId: {
+                  _id: normal._id,
+                  productName: normal.productName,
+                  brand: normal.brand,
+                  images: normal.images,
+                  isCombo: false,
+                },
+              };
+            }
+  
+            // Try combo product
+            const combo = await ComboOffer.findById(item.productId)
+              .select("comboName image comboPrice")
+              .lean();
+  
+            if (combo) {
+              return {
+                ...item,
+                productId: {
+                  _id: combo._id,
+                  productName: combo.comboName,
+                  brand: { name: "Combo Offer" },
+                  images: [combo.image],
+                  isCombo: true,
+                },
+              };
+            }
+  
+            // Not found
+            return {
+              ...item,
+              productId: null,
+            };
+          })
+        );
+  
         return {
           message: "Order Fetched Successfully",
           status: "success",
-          order,
+          order: {
+            ...order,
+            products: populatedProducts,
+          },
         };
       } catch (error) {
         console.error(error);
@@ -234,6 +287,7 @@ export const adminOrderController = new Elysia({
       },
     }
   )
+
   .patch(
     "/update-status/:id",
     async ({ params, body }) => {
@@ -252,16 +306,16 @@ export const adminOrderController = new Elysia({
         }
 
         if (status == "cancelled" || status == "rejected") {
-          const refund = razor.payments.refund(order.razorPayId, {
-            amount: order.totalPrice * 100,
-            notes: {
-              reason: "Order Cancelled",
-            },
-            receipt: order.orderId,
-            speed: "normal",
-          });
+          // const refund = razor.payments.refund(order.razorPayId, {
+          //   amount: order.totalPrice * 100,
+          //   notes: {
+          //     reason: "Order Cancelled",
+          //   },
+          //   receipt: order.orderId,
+          //   speed: "normal",
+          // });
 
-          console.log(refund);
+          // console.log(refund);
 
           await sendNotification(
             user.fcmToken,
@@ -322,55 +376,55 @@ export const adminOrderController = new Elysia({
       }),
     }
   )
-  .patch(
-    "/assign-agent/:id",
-    async ({ params, body }) => {
-      try {
-        const { id } = params;
-        const { agentId } = body;
+  // .patch(
+  //   "/assign-agent/:id",
+  //   async ({ params, body }) => {
+  //     try {
+  //       const { id } = params;
+  //       const { agentId } = body;
 
-        const order = await OrderModel.findById(id);
-        if (!order) {
-          return { message: "Order not found", status: "error" };
-        }
+  //       const order = await OrderModel.findById(id);
+  //       if (!order) {
+  //         return { message: "Order not found", status: "error" };
+  //       }
 
-        const agent = await DeliveryAgent.findById(agentId);
+  //       const agent = await DeliveryAgent.findById(agentId);
 
-        if (!agent) {
-          return { message: "Something not found", status: "error" };
-        }
+  //       if (!agent) {
+  //         return { message: "Something not found", status: "error" };
+  //       }
 
-        await sendNotification(
-          agent.fcmToken,
-          `A New Order assigned to you.`,
-          "Order ID: " + order.orderId + " is assigned to you"
-        );
+  //       await sendNotification(
+  //         agent.fcmToken,
+  //         `A New Order assigned to you.`,
+  //         "Order ID: " + order.orderId + " is assigned to you"
+  //       );
 
-        order.deliveryAgent = new ObjectId(agentId);
-        await order.save();
+  //       order.deliveryAgent = new ObjectId(agentId);
+  //       await order.save();
 
-        return {
-          message: "Delivery agent assigned successfully",
-          status: "success",
-          order,
-        };
-      } catch (error) {
-        return {
-          message: "Failed to assign delivery agent",
-          status: "error",
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        agentId: t.String(),
-      }),
-    }
-  )
+  //       return {
+  //         message: "Delivery agent assigned successfully",
+  //         status: "success",
+  //         order,
+  //       };
+  //     } catch (error) {
+  //       return {
+  //         message: "Failed to assign delivery agent",
+  //         status: "error",
+  //         error: error instanceof Error ? error.message : "Unknown error",
+  //       };
+  //     }
+  //   },
+  //   {
+  //     params: t.Object({
+  //       id: t.String(),
+  //     }),
+  //     body: t.Object({
+  //       agentId: t.String(),
+  //     }),
+  //   }
+  // )
   .get(
     "/ordercount",
     async ({ query }) => {

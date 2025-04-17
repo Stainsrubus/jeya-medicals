@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { Elysia } from "elysia";
 import { connect } from "mongoose";
 import { baseRouter } from "./src/controllers";
+import { User } from "@/models/user-model";
 
 const app = new Elysia();
 
@@ -57,19 +58,19 @@ app.use(baseRouter);
 
 app.use(
   cron({
-    name: "heartbeat",
-    pattern: "*/1 * * * *",
+    name: "clear-attempts-daily",
+    // Run at 12:00 AM every day
+    pattern: "0 0 * * *",
     async run() {
-      const now = dayjs().toDate();
+      try {
+        const result = await User.updateMany({}, { $set: { attempts: [] } });
 
-      await ProductCategory.updateMany(
-        { reEnabledAt: { $lte: now } },
-        { $set: { reEnabledAt: null, active: true } }
-      );
-      await Product.updateMany(
-        { reEnabledAt: { $lte: now } },
-        { $set: { reEnabledAt: null, active: true } }
-      );
+        console.log(
+          `✅ Cleared attempts for ${result.modifiedCount} users at ${dayjs().format()}`
+        );
+      } catch (error) {
+        console.error("❌ Error clearing attempts:", error);
+      }
     },
   })
 );

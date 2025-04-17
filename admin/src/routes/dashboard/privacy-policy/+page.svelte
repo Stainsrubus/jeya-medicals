@@ -54,7 +54,7 @@
 
 <svelte:head>
 	<title>Dashboard | Manager - Manage Privacy Policy</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 	<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
 </svelte:head>
 

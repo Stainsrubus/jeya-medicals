@@ -687,8 +687,210 @@ export const productController = new Elysia({
         summary: "Negotiate price or fetch negotiation status",
       },
     }
-  );
+  )
+
+  .get(
+    "/complementary",
+    async ({ query }) => {
+      const { page, limit, q } = query;
   
+      const _limit = limit || 10;
+      const _page = page || 1;
   
+      let matchFilter: any = { active: true, isDeleted: false };
+  
+      // Filter by max MRP (onMRP <= q)
+      if (q) {
+        const maxMRP = parseFloat(q);
+        if (!isNaN(maxMRP)) {
+          matchFilter.price = { $lte: maxMRP };
+        }
+      }
+  
+      try {
+        const totalPromise = Product.countDocuments(matchFilter);
+  
+        const aggregationPipeline: any[] = [
+          {
+            $match: matchFilter,
+          },
+          {
+            $lookup: {
+              from: "productcategories",
+              localField: "category",
+              foreignField: "_id",
+              as: "categoryDetails",
+            },
+          },
+          {
+            $unwind: "$categoryDetails",
+          },
+          {
+            $match: {
+              "categoryDetails.active": true,
+            },
+          },
+          {
+            $lookup: {
+              from: "brands",
+              localField: "brand",
+              foreignField: "_id",
+              as: "brandDetails",
+            },
+          },
+          {
+            $unwind: "$brandDetails",
+          },
+          {
+            $match: {
+              "brandDetails.active": true,
+            },
+          },
+          {
+            $sort: {
+              productName: 1,
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              productName: 1,
+              price: 1,
+              ratings: 1,
+              strikePrice: 1,
+              images: 1,
+              discount: 1,
+              onMRP: 1,
+              description: 1,
+              categoryId: "$categoryDetails._id",
+              categoryName: "$categoryDetails.name",
+              brandId: "$brandDetails._id",
+              brandName: "$brandDetails.name",
+            },
+          },
+          {
+            $skip: (_page - 1) * _limit,
+          },
+          {
+            $limit: _limit,
+          },
+        ];
+  
+        const [total, products] = await Promise.all([
+          totalPromise,
+          Product.aggregate(aggregationPipeline),
+        ]);
+  
+        return {
+          data: products, // Now a flat array
+          total,
+          page: _page,
+          limit: _limit,
+          status: true,
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: false,
+          message: "Something went wrong",
+        };
+      }
+    },
+    {
+      detail: {
+        summary: "Get active products filtered by onMRP (max price)",
+        description: "If `q` is passed, it returns products with `price <= q`.",
+      },
+      query: t.Object({
+        page: t.Optional(t.Number({ default: 1 })),
+        limit: t.Optional(t.Number({ default: 10 })),
+        q: t.Optional(t.String({ description: "Max MRP filter" })),
+      }),
+    }
+  )
+  .get(
+    "/flat-discount",
+    async ({ query }) => {
+      const { userId, productId } = query;
+  
+      let filter: any = { active: true, flat: { $gt: 0 } };
+  
+      // Add exclusion if excludeProductId is provided
+      if (productId) {
+        filter._id = { $ne: new Types.ObjectId(productId) };
+      }
+  
+      try {
+        let userFavorites: String[] = [];
+  
+        if (userId) {
+          const favorites = await Favorites.findOne({ user: userId });
+          userFavorites = favorites?.products || [];
+        }
+  
+        const products = await Product.aggregate([
+          { $match: filter },
+          {
+            $lookup: {
+              from: "productcategories",
+              localField: "category",
+              foreignField: "_id",
+              as: "categoryDetails",
+            },
+          },
+          { $unwind: "$categoryDetails" },
+          {
+            $match: {
+              "categoryDetails.active": true,
+            },
+          },
+          {
+            $addFields: {
+              favorite: {
+                $in: ["$_id", userFavorites],
+              },
+            },
+          },
+          {
+            $project: {
+              productName: 1,
+              price: 1,
+              flat: 1,
+              strikePrice: 1,
+              ratings: 1,
+              images: 1,
+              description: 1,
+              type: 1,
+              favorite: 1,
+            },
+          },
+        ]);
+  
+        const total = await Product.countDocuments(filter);
+        return {
+          data: products,
+          total,
+          status: true,
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: false,
+          message: "Something went wrong",
+        };
+      }
+    },
+    {
+      detail: {
+        summary: "Get products with flat discounts (optionally exclude one product)",
+      },
+      query: t.Object({
+        userId: t.Optional(t.String()),
+        productId: t.Optional(t.String()),
+      }),
+    }
+  )
   
   

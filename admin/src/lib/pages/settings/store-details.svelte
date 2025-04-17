@@ -7,19 +7,26 @@
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
 	import { imgUrl } from '$lib/config';
 	import { createMutation, createQuery } from '@tanstack/svelte-query';
+	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 
 	let avatarImage = $state<null | File>(null);
+		let storeId = null;
+		onMount(() => {
+		if (typeof window !== 'undefined') {
+			storeId = localStorage.getItem('storeId');
+		}
+	});
 
 	export const _settingsSchema = z.object({
-		restaurentName: z.string({
-			message: 'Restaurent Name is required'
+		storeName: z.string({
+			message: 'store Name is required'
 		}),
-		restaurentAddress: z.string({
-			message: 'Restaurent Address is required'
+		storeAddress: z.string({
+			message: 'store Address is required'
 		}),
 
 		latitude: z
@@ -38,33 +45,20 @@
 				message: 'Longitude must be a valid number'
 			}),
 
-		restaurentPhone: z.string({
-			message: 'Restaurent Phone is required'
+		storePhone: z.string({
+			message: 'store Phone is required'
 		}),
-		restaurentDescription: z.string({
-			message: 'Restaurent Description is required'
+		storeDescription: z.string({
+			message: 'store Description is required'
 		}),
 		gstNumber: z.string({
 			message: 'GST Number is required'
 		}),
-		fssaiNumber: z
-			.string({
-				message: 'FSSAI Number is required'
-			})
-			.min(14, {
-				message: 'FSSAI Number must be 14 digits'
-			})
-			.max(14, {
-				message: 'FSSAI Number must be 14 digits'
-			})
-			.refine((val) => /^\d+$/.test(val), {
-				message: 'FSSAI Number must be a valid number'
-			}),
 		legalEntityName: z.string({
 			message: 'Legal Entity Name is required'
 		}),
-		restaurentEmail: z.string({
-			message: 'Restaurent Email is required'
+		storeEmail: z.string({
+			message: 'store Email is required'
 		})
 	});
 
@@ -83,44 +77,43 @@
 				});
 
 				if (!valid) return toast.error('Please fill all the fields');
-				if (!$query.data?.restaurent?.restaurentImage && !avatarImage)
-					return toast.error('Please upload restaurent image');
+				if (!$query.data?.store?.storeImage && !avatarImage)
+					return toast.error('Please upload store image');
 
 				let _data: any = new FormData();
-				_data.append('restaurentName', $form.restaurentName);
-				_data.append('restaurentAddress', $form.restaurentAddress);
+				_data.append('storeName', $form.storeName);
+				_data.append('storeAddress', $form.storeAddress);
 
-				_data.append('restaurentPhone', $form.restaurentPhone);
-				_data.append('restaurentDescription', $form.restaurentDescription);
+				_data.append('storePhone', $form.storePhone);
+				_data.append('storeDescription', $form.storeDescription);
 
 				_data.append('latitude', $form.latitude);
 				_data.append('longitude', $form.longitude);
 
 				_data.append('gstNumber', $form.gstNumber);
-				_data.append('fssaiNumber', $form.fssaiNumber);
 				_data.append('legalEntityName', $form.legalEntityName);
 
-				_data.append('restaurentEmail', $form.restaurentEmail);
+				_data.append('storeEmail', $form.storeEmail);
 
-				if (avatarImage) _data.append('restaurentImage', avatarImage);
+				if (avatarImage) _data.append('storeImage', avatarImage);
 
-				$restaurentUpdateMutation.mutate(_data);
+				$storeUpdateMutation.mutate(_data);
 			}
 		}
 	);
 
 	const query = createQuery({
-		queryKey: ['restaurent fetch'],
-		queryFn: () => _axios.get('/restaurent'),
+		queryKey: ['store fetch'],
+		queryFn: () => _axios.get(`/store/67ecbdcf9caf259ca5a81b8b`),
 		select(data) {
 			return data.data;
 		}
 	});
 
-	const restaurentUpdateMutation = createMutation({
-		mutationFn: (data: any) => _axios.post('/restaurent/update', data),
+	const storeUpdateMutation = createMutation({
+		mutationFn: (data: any) => _axios.put('/store/update/67ecbdcf9caf259ca5a81b8b', data),
 		onSuccess({}) {
-			toast('Restaurent Updated ✅');
+			toast('store Updated ✅');
 		},
 		onError(error, variables, context) {
 			console.error('onError', error, variables, context);
@@ -128,22 +121,22 @@
 	});
 
 	$effect(() => {
-		$form.restaurentName =
-			$query.data?.restaurent?.restaurentName || 'King’s Chic Signature Restaurant';
-		$form.restaurentAddress =
-			$query.data?.restaurent?.restaurentAddress ||
-			'No 147, Kottar-Parvathipuram Rd, Ramavarmapuram, Nagercoil, Tamil Nadu 629001';
-		$form.restaurentPhone = $query.data?.restaurent?.restaurentPhone || '9994433764';
-		$form.restaurentEmail = $query.data?.restaurent?.restaurentEmail || 'info@kingschic.com';
-		$form.restaurentDescription =
-			$query.data?.restaurent?.restaurentDescription ||
-			`Best Multi-Cuisine Family Restaurant in Nagercoil. We offer a wide variety of delicious dishes, from traditional Tamil dishes to international cuisines. Our restaurant is a perfect place to enjoy a meal with your loved ones.`;
-		$form.latitude = $query.data?.restaurent?.latitude || '8.734295046362766';
-		$form.longitude = $query.data?.restaurent?.longitude || '77.72244331166014';
-		$form.gstNumber = $query.data?.restaurent?.gstNumber || '33AAABC1234D';
-		$form.fssaiNumber = $query.data?.restaurent?.fssaiNumber || '12345678901234';
+		$form.storeName =
+			$query.data?.store?.storeName || 'Jeya Medical Enterprises';
+		$form.storeAddress =
+			$query.data?.store?.storeAddress ||
+			'No 111, xy Rd, y city,  600000';
+		$form.storePhone = $query.data?.store?.storePhone || '9994433764';
+		$form.storeEmail = $query.data?.store?.storeEmail || 'info@Jeyamedicals.com';
+		$form.storeDescription =
+			$query.data?.store?.storeDescription ||
+			`Description.................`;
+		$form.latitude = $query.data?.store?.latitude || '8.734295046362766';
+		$form.longitude = $query.data?.store?.longitude || '77.72244331166014';
+		$form.gstNumber = $query.data?.store?.gstNumber || '33AAABC1234D';
+		// $form.fssaiNumber = $query.data?.store?.fssaiNumber || '12345678901234';
 		$form.legalEntityName =
-			$query.data?.restaurent?.legalEntityName || 'King’s Chic Signature Restaurant';
+			$query.data?.store?.legalEntityName || 'Jeya Medical Enterprises';
 	});
 </script>
 
@@ -162,66 +155,66 @@
 				<Avatar.Image
 					src={avatarImage
 						? URL.createObjectURL(avatarImage)
-						: $query.data?.restaurent?.restaurentImage
-							? `${imgUrl + $query.data.restaurent.restaurentImage}`
+						: $query.data?.store?.storeImage
+							? `${imgUrl + $query.data.store.storeImage}`
 							: 'https://github.com/shadcn.png'}
 					alt="Restaurant Avatar"
 					class="w-[100px] h-[100px] rounded-full cursor-pointer object-cover"
 				/>
 				<Avatar.Fallback class="text-white text-2xl"
-					>{$form.restaurentName
-						? $form.restaurentName.charAt(0).toUpperCase()
+					>{$form.storeName
+						? $form.storeName.charAt(0).toUpperCase()
 						: 'KC'}</Avatar.Fallback
 				>
 			</Avatar.Root>
 		</div>
 		<div>
-			<Label for="restaurentName">Restaurent Name</Label>
+			<Label for="storeName">store Name</Label>
 			<Input
-				id="restaurentName"
+				id="storeName"
 				class="pr-10 mt-1"
 				disabled
 				placeholder="King’s Chic Signature Restaurant"
-				aria-invalid={$errors.restaurentName ? 'true' : undefined}
-				bind:value={$form.restaurentName}
-				{...$constraints.restaurentName}
+				aria-invalid={$errors.storeName ? 'true' : undefined}
+				bind:value={$form.storeName}
+				{...$constraints.storeName}
 			/>
 
-			{#if $errors.restaurentName}<span class="invalid text-xs text-red-500"
-					>{$errors.restaurentName}</span
+			{#if $errors.storeName}<span class="invalid text-xs text-red-500"
+					>{$errors.storeName}</span
 				>{/if}
 		</div>
 
 		<div>
-			<Label for="restaurentPhone">Restaurent Phone</Label>
+			<Label for="storePhone">store Phone</Label>
 			<Input
-				id="restaurentPhone"
+				id="storePhone"
 				class="pr-10 mt-1"
 				placeholder="Ex: 0000999988"
-				aria-invalid={$errors.restaurentPhone ? 'true' : undefined}
-				bind:value={$form.restaurentPhone}
-				{...$constraints.restaurentPhone}
+				aria-invalid={$errors.storePhone ? 'true' : undefined}
+				bind:value={$form.storePhone}
+				{...$constraints.storePhone}
 			/>
 
-			{#if $errors.restaurentPhone}<span class="invalid text-xs text-red-500"
-					>{$errors.restaurentPhone}</span
+			{#if $errors.storePhone}<span class="invalid text-xs text-red-500"
+					>{$errors.storePhone}</span
 				>{/if}
 		</div>
 
 		<div>
-			<Label for="restaurentEmail">Restaurent Email</Label>
+			<Label for="storeEmail">store Email</Label>
 			<Input
-				id="restaurentEmail"
+				id="storeEmail"
 				class="pr-10 mt-1"
 				type="email"
 				placeholder="Ex: 0000999988"
-				aria-invalid={$errors.restaurentEmail ? 'true' : undefined}
-				bind:value={$form.restaurentEmail}
-				{...$constraints.restaurentEmail}
+				aria-invalid={$errors.storeEmail ? 'true' : undefined}
+				bind:value={$form.storeEmail}
+				{...$constraints.storeEmail}
 			/>
 
-			{#if $errors.restaurentEmail}<span class="invalid text-xs text-red-500"
-					>{$errors.restaurentEmail}</span
+			{#if $errors.storeEmail}<span class="invalid text-xs text-red-500"
+					>{$errors.storeEmail}</span
 				>{/if}
 		</div>
 
@@ -270,21 +263,7 @@
 				>{/if}
 		</div>
 
-		<div>
-			<Label for="fssaiNumber">FSSAI Number</Label>
-			<Input
-				id="fssaiNumber"
-				class="pr-10 mt-1"
-				placeholder="Ex: 100190110000123"
-				aria-invalid={$errors.fssaiNumber ? 'true' : undefined}
-				bind:value={$form.fssaiNumber}
-				{...$constraints.fssaiNumber}
-			/>
-
-			{#if $errors.fssaiNumber}<span class="invalid text-xs text-red-500"
-					>{$errors.fssaiNumber}</span
-				>{/if}
-		</div>
+		
 
 		<div class="">
 			<Label for="legalEntityName">Legal Entity Name</Label>
@@ -303,39 +282,39 @@
 		</div>
 
 		<div class="col-span-2">
-			<Label for="restaurentAddress">Restaurent Address</Label>
+			<Label for="storeAddress">store Address</Label>
 			<Textarea
-				id="restaurentAddress"
+				id="storeAddress"
 				class="pr-10 mt-1"
 				placeholder="No 147, Kottar-Parvathipuram Rd, Ramavarmapuram, Nagercoil, Tamil Nadu 629001"
-				aria-invalid={$errors.restaurentAddress ? 'true' : undefined}
-				bind:value={$form.restaurentAddress}
-				{...$constraints.restaurentAddress}
+				aria-invalid={$errors.storeAddress ? 'true' : undefined}
+				bind:value={$form.storeAddress}
+				{...$constraints.storeAddress}
 			/>
 
-			{#if $errors.restaurentAddress}<span class="invalid text-xs text-red-500"
-					>{$errors.restaurentAddress}</span
+			{#if $errors.storeAddress}<span class="invalid text-xs text-red-500"
+					>{$errors.storeAddress}</span
 				>{/if}
 		</div>
 
 		<div class="col-span-2">
-			<Label for="restaurentDescription">Restaurent Description</Label>
+			<Label for="storeDescription">store Description</Label>
 			<Textarea
-				id="restaurentDescription"
+				id="storeDescription"
 				class="pr-10 mt-1"
 				placeholder="Ex: New York"
-				aria-invalid={$errors.restaurentDescription ? 'true' : undefined}
-				bind:value={$form.restaurentDescription}
-				{...$constraints.restaurentDescription}
+				aria-invalid={$errors.storeDescription ? 'true' : undefined}
+				bind:value={$form.storeDescription}
+				{...$constraints.storeDescription}
 			/>
 
-			{#if $errors.restaurentDescription}<span class="invalid text-xs text-red-500"
-					>{$errors.restaurentDescription}</span
+			{#if $errors.storeDescription}<span class="invalid text-xs text-red-500"
+					>{$errors.storeDescription}</span
 				>{/if}
 		</div>
 
-		<Button disabled={$restaurentUpdateMutation.isPending} class="w-[100px]" type="submit"
-			>{$restaurentUpdateMutation.isPending ? 'Updating...' : 'Update'}</Button
+		<Button disabled={$storeUpdateMutation.isPending} class="w-[100px]" type="submit"
+			>{$storeUpdateMutation.isPending ? 'Updating...' : 'Update'}</Button
 		>
 	</form>
 

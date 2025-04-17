@@ -20,7 +20,7 @@
 
 <svelte:head>
 	<title>Dashboard | Manager - Notification</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <div class="">

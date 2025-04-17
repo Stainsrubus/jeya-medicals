@@ -7,7 +7,7 @@
 
 <svelte:head>
 	<title>Dashboard | Orders</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <OrdersTable />

@@ -9,7 +9,7 @@
 
 <svelte:head>
 	<title>Dashboard | Manager - Manage Dippings</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <Tabs.Root

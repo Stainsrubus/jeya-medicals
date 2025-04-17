@@ -140,18 +140,18 @@ export const addressController = new Elysia({
           long: EStore?.longitude || config.long,
         };
   
-        let calculatedDistance: number;
-        let calculatedDuration: number;
+        // let calculatedDistance: number;
+        // let calculatedDuration: number;
         try {
-          const distanceResult: DistanceResult = await calculateRoadDistance(
-            Number(EStoreCords.lat),
-            Number(EStoreCords.long),
-            Number(address.latitude),
-            Number(address.longitude),
-            []
-          );
-          calculatedDistance = distanceResult.distance.value;
-          calculatedDuration = distanceResult.duration.value;
+          // const distanceResult: DistanceResult = await calculateRoadDistance(
+          //   Number(EStoreCords.lat),
+          //   Number(EStoreCords.long),
+          //   Number(address.latitude),
+          //   Number(address.longitude),
+          //   []
+          // );
+          // calculatedDistance = distanceResult.distance.value;
+          // calculatedDuration = distanceResult.duration.value;
         } catch (error) {
           console.error("Distance calculation error:", error);
           return {
@@ -160,26 +160,26 @@ export const addressController = new Elysia({
           };
         }
   
-        let distanceInKm = calculatedDistance / 1000;
+        // let distanceInKm = calculatedDistance / 1000;
         let limit = 12;
   
-        if (distanceInKm > limit) {
-          return {
-            message: "Address must be within 12 km of the restaurant.",
-            subMessage: "You can Place Order through Call.",
-            buttonText: "Call",
-            EStoreNumber: EStore.storePhone,
-            status: false,
-          };
-        }
+        // if (distanceInKm > limit) {
+        //   return {
+        //     message: "Address must be within 12 km of the restaurant.",
+        //     subMessage: "You can Place Order through Call.",
+        //     buttonText: "Call",
+        //     EStoreNumber: EStore.storePhone,
+        //     status: false,
+        //   };
+        // }
   
         const response = await axios.get(
           `https://maps.googleapis.com/maps/api/directions/json?origin=${EStoreCords.lat},${EStoreCords.long}&destination=${address.latitude},${address.longitude}&key=${process.env.GOOGLE_MAPS_API_KEY}`
         );
   
-        address.deliveryFee = Math.ceil((calculatedDistance / 1000) * 5);
-        address.totalDistance = calculatedDistance;
-        address.deliverySeconds = calculatedDuration;
+        // address.deliveryFee = Math.ceil((calculatedDistance / 1000) * 5);
+        // address.totalDistance = calculatedDistance;
+        // address.deliverySeconds = calculatedDuration;
         address.mapPloygonResponse = JSON.stringify(response.data);
   
         const ordersForUser = await OrderModel.find({

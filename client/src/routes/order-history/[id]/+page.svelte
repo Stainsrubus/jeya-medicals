@@ -1,11 +1,12 @@
 <script lang="ts">
-    import { createQuery } from '@tanstack/svelte-query';
+    import { createMutation, createQuery } from '@tanstack/svelte-query';
     import { _axios } from '$lib/_axios';
     import { toast } from 'svelte-sonner';
     import { Skeleton } from "$lib/components/ui/skeleton/index.js";
     import { imgUrl } from '$lib/config';
     import Footer from '$lib/components/footer.svelte';
     import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
     
     interface Product {
       productId: {
@@ -129,20 +130,77 @@
         toast.error('Failed to reorder. Please try again.');
       }
     };
+    const cancelOrderMutation = createMutation({
+  mutationFn: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No token found. Please log in.');
+    }
+
+    try {
+      const response = await _axios.post(`/orders/cancel/${orderId}`, {}, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+
+      if (!response.data.status) {
+        throw new Error(response.data.message || 'Failed to cancel the order');
+      }
+      goto('/order-history')
+      return response.data;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('An unexpected error occurred');
+    }
+  },
+  onSuccess: () => {
+    toast.success('Order cancelled successfully');
+    // Refetch the order to update the status
+    $orderQuery.refetch();
+  },
+  onError: (error:any) => {
+    toast.error(error instanceof Error ? error.message : 'Failed to cancel order. Please try again.');
+  },
+});
+const handleCancelOrder = async () => {
+  try {
+    if (!$orderQuery.data?.data) {
+      toast.error('Order details not available');
+      return;
+    }
+    
+    const orderStatus = $orderQuery.data.data.status;
+    
+    // Check if order can be cancelled
+    if (orderStatus !== 'pending' && orderStatus !== 'accepted') {
+      toast.error('This order cannot be cancelled.');
+      return;
+    }
+    
+    // Show confirmation dialog before cancelling
+    if (confirm('Are you sure you want to cancel this order?')) {
+      $cancelOrderMutation.mutate();
+    }
+  } catch (error) {
+    toast.error('Failed to cancel order. Please try again.');
+  }
+};
   
     // Handle buy again
-    const handleBuyAgain = async (productId: string) => {
+    const handleBuyAgain = async (productId: string,brand:string) => {
       try {
-        // Implement buy again functionality
-        toast.success('Item added to cart successfully');
+        if(brand==='Combo Offer'){
+          goto(`/comboOffers/${productId}`)
+        }
+        else{
+          goto(`/Products/${productId}`)
+        }
+
       } catch (error) {
-        toast.error('Failed to add item to cart. Please try again.');
+        toast.error('Please try again.');
       }
     };
 </script>
   
-<div class="xl:max-w-[75%] 2xl:max-w-[60%] lg:max-w-[85%] md:max-w-[75%] mx-auto p-4 pt-10 pb-20">
-  <h2 class="text-3xl font-bold text-[#30363C] mb-4">Order Details</h2>
+<div class="xl:max-w-[75%] 2xl:max-w-[60%] lg:max-w-[85%] md:max-w-[75%] mx-auto p-4 lg:pt-10 pb-20">
 
   {#if $orderQuery.isLoading}
     <div class="space-y-4">
@@ -154,18 +212,19 @@
     <p class="text-red-500">Error: {$orderQuery.error.message}</p>
   {:else if $orderQuery.data}
     {@const order = $orderQuery.data.data}
+  <h2 class="lg:text-3xl md:text-2xl text-xl font-bold text-[#30363C] mb-4">#{$orderQuery?.data.data.orderId}</h2>
     
     <!-- Order Header Information -->
     <div class="border rounded-lg bg-white shadow-md mb-4">
-      <div class="flex flex-wrap gap-4 justify-between p-4 bg-[#F2F4F5]">
+      <div class="flex lg:flex-wrap gap-4  items-start justify-between lg:p-4 p-2  bg-[#F2F4F5]">
         <div>
-          <p class="text-lg text-[#4F585E]">Order Placed</p>
-          <p class="font-semibold text-[#30363C] text-base">
-            {formatDate(order.createdAt)} at {formatTime(order.createdAt)}
+          <p class="lg:text-lg text-base text-[#4F585E]">Order Placed</p>
+          <p class="font-semibold text-[#30363C] lg:text-base text-sm">
+            {formatDate(order.createdAt)} <span class="hidden lg:block"> at {formatTime(order.createdAt)}</span> 
           </p>
         </div>
         <div>
-          <p class="text-lg text-[#4F585E]">Order Delivered</p>
+          <p class="lg:text-lg text-base text-[#4F585E]">Order Delivered</p>
           <p class="font-semibold text-[#30363C] text-base">{order.deliveryTime ? new Date(order.deliveryTime).toLocaleDateString() : '-'}</p>
         </div>
         <!-- <div>
@@ -173,27 +232,42 @@
           <p class="font-semibold text-[#30363C] text-base capitalize">{order.status}</p>
         </div> -->
         <div class="lg:block hidden">
-          <p class="text-lg text-[#4F585E]">Total Amount</p>
+          <p class="lg:text-lg text-base text-[#4F585E]">Total Amount</p>
           <p class="font-semibold text-[#30363C] text-base">₹{order.totalPrice.toFixed(2)}</p>
         </div>
-        <div class="lg:block hidden">
+        <!-- <div class="lg:block hidden">
           <p class="text-lg text-[#4F585E]">Order Id</p>
           <p class="font-semibold text-[#30363C] text-base">#{order.orderId}</p>
-        </div>
-        <div class="flex flex-col  items-end">
-          <p class="font-semibold text-[#30363C] text-base lg:hidden block">#{order.orderId}</p>
+        </div> -->
+        <div class="flex flex-col  lg:items-end">
+          <!-- <p class="font-semibold text-[#30363C] text-base lg:hidden block">#{order.orderId}</p> -->
+          {#if order.status==='pending'||order.status==='accepted'}
           <button 
-            class="text-[#147097] text-xl font-medium px-4 py-2 rounded-md"
-            on:click={handleReorder}
+            class="text-[#FF080C] lg:text-xl md:text-lg text-base  font-medium  rounded-md"
+            on:click={handleCancelOrder}
           >
-            Reorder
+           Cancel Order
           </button>
+          {:else}
+         {#if order.status==='cancelled' || order.status==='rejected'}
+         <div>
+
+         </div>
+         {:else}
+         <button 
+         class="text-[#147097] lg:text-xl md:text-lg text-base font-medium  rounded-md"
+         on:click={handleReorder}
+       >
+         Reorder
+       </button>
+         {/if}
+          {/if}
         </div>
       </div>
 
       <!-- Shipping and Payment Information -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 border-t">
-        <div class=" rounded-lg p-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-4 lg:p-4 border-t">
+        <div class=" rounded-lg lg:p-4 p-2">
           <h3 class="text-xl font-bold text-[#30363C] mb-2">Shipping Address</h3>
           <p class="font-medium text-lg">{order.addressId.receiverName}</p>
           <p class="text-lg">{order.addressId.flatorHouseno}, {order.addressId.area}</p>
@@ -201,13 +275,13 @@
           <p class="mt-2 text-lg">Phone: {order.addressId.receiverMobile}</p>
         </div>
         
-        <div class=" rounded-lg p-4">
+        <div class=" rounded-lg lg:p-4 p-2">
           <h3 class="text-xl font-bold text-[#30363C] mb-2">Payment Mode</h3>
           <p class=" text-lg font-medium capitalize">{order.paymentMethod}</p>
-          <p class="mt-2 text-lg">Status: <span class="text-green-600 font-medium capitalize">{order.paymentStatus}</span></p>
+          <!-- <p class="mt-2 text-lg">Status: <span class="text-green-600 font-medium capitalize">{order.paymentStatus}</span></p> -->
         </div>
         
-        <div class=" rounded-lg p-4">
+        <div class=" rounded-lg lg:p-4 p-2">
           <h3 class="text-xl font-bold text-[#30363C] mb-2">Payment Summary</h3>
           <div class=" text-lg flex justify-between mt-1">
             <span>Subtotal ({order.products.length} items)</span>
@@ -246,7 +320,7 @@
           </div>
           <div class="flex-1">
             <p class="text-xl font-semibold text-[#30363C]">{product.productId.productName}</p>
-            <div class="flex lg:grid lg-grid-cols-4 lg:gap-2 gap-4  mt-2">
+            <div class="flex  gap-4 lg:gap-8  mt-2">
               <p class="lg:text-lg text-sm">
                 <span class="text-[#147097]">BRAND:</span> {product.productId.brand.name}
               </p>
@@ -260,7 +334,7 @@
           </div>
           <button 
             class="text-[#01A0E2] lg:block hidden text-xl px-4 py-2 rounded-md hover:bg-[#E6F7FD] self-end sm:self-auto"
-            on:click={() => handleBuyAgain(product.productId._id)}
+            on:click={() => handleBuyAgain(product.productId._id,product.productId.brand.name)}
           >
             Buy Again
           </button>

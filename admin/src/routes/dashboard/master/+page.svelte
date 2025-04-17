@@ -10,7 +10,7 @@
 
 <svelte:head>
 	<title>Dashboard | JME</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <Tabs.Root value={'specification'} class="w-[90%] p-4">

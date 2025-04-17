@@ -42,7 +42,7 @@
 
 <svelte:head>
 	<title>Dashboard | User</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 <div
 	class="w-[95%] mx-auto p-6 space-y-6 h-[calc(100vh-60px)] overflow-y-auto hidescrollbarthumb text-zinc-800"

@@ -15,7 +15,7 @@ import { adminOrderController } from "./order-controller";
 import { privacyPolicyController } from "./privacypolicy-controller";
 import { productsController } from "./products-controller";
 import { reportController } from "./report-controller";
-import { adminRestaurentController } from "./store-controller";
+import { adminStoreController } from "./store-controller";
 import { suggetionsController } from "./suggestions-controller";
 import { termsAndConditionsController } from "./termsandconditions-controller";
 import { specificationController } from "./specification-controller";
@@ -25,6 +25,7 @@ import { brandsController } from "./brands-controller";
 import { employeeController } from "./employee-controller";
 import { comboOfferController } from "./combo-controller";
 import { offerController } from "./offer-controller";
+import { demandController } from "./demand-controller";
 
 const adminController = new Elysia({
   prefix: "/admin",
@@ -56,6 +57,7 @@ const adminController = new Elysia({
       };
     }
   })
+  .use(demandController)
   .use(bannerController)
   .use(managerController)
   .use(usersControllerAdmin)
@@ -67,8 +69,7 @@ const adminController = new Elysia({
   .use(deliveryAgentController)
   .use(faqsController)
   .use(privacyPolicyController)
-  .use(adminRestaurentController)
-  .use(adminRestaurentController)
+  .use(adminStoreController)
   .use(couponController)
   .use(notificationController)
   .use(adminOrderController)

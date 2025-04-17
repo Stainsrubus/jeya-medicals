@@ -30,7 +30,7 @@
 	$: totalBanners = $bannerQuery.data?.total || 0;
 </script>
 
-<div>
+<div >
 <Hero />
 <Quote />
 <NewProducts />

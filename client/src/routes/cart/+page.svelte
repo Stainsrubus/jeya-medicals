@@ -24,6 +24,7 @@
   }
 
   interface CartItem {
+	selectedOffer: any;
     productId: ProductDetails;
     quantity: number;
     totalAmount: number;
@@ -122,9 +123,11 @@
     },
   });
 
-  // Fetch cart data
-  const cartQuery = createQuery<CartResponse>({
-    queryKey: ['cart'],
+
+
+  // Fetch user addresses
+  const addressesQuery = createQuery<Address[]>({
+    queryKey: ['addresses'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -132,8 +135,41 @@
       }
 
       try {
-        const response = await _axios.get('/cart', {
+        const response = await _axios.get('/address/all', {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+
+        if (!response.data.status) {
+          throw new Error(response.data.message || 'Failed to fetch addresses');
+        }
+        return response.data.addresses || [];
+      } catch (error) {
+        throw error instanceof Error ? error : new Error('An unexpected error occurred');
+      }
+    },
+    retry: 1,
+    staleTime: 0,
+    enabled: true,
+  });
+  // Fetch cart data
+  const cartQuery = createQuery<CartResponse>({
+    queryKey: ['cart'], // Include addressId in queryKey
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found. Please log in.');
+      }
+
+      // // Get the primary address ID
+      // const primaryAddress = $addressesQuery.data?.find((address) => address.isPrimary);
+      // const addressId = primaryAddress?._id;
+
+      try {
+        const response = await _axios.get(`/cart`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`, 
+            'Content-Type': 'application/json' 
+          },
         });
 
         if (!response.data.status && response.data.message === "No active cart found") {
@@ -179,34 +215,6 @@
     staleTime: 0,
     enabled: true,
   });
-
-  // Fetch user addresses
-  const addressesQuery = createQuery<Address[]>({
-    queryKey: ['addresses'],
-    queryFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
-      try {
-        const response = await _axios.get('/address/all', {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        });
-
-        if (!response.data.status) {
-          throw new Error(response.data.message || 'Failed to fetch addresses');
-        }
-        return response.data.addresses || [];
-      } catch (error) {
-        throw error instanceof Error ? error : new Error('An unexpected error occurred');
-      }
-    },
-    retry: 1,
-    staleTime: 0,
-    enabled: true,
-  });
-
   // Update quantity mutation
   const updateQuantityMutation = createMutation({
     mutationFn: async ({ productId, quantity }: { productId: string; quantity: number }) => {
@@ -329,14 +337,19 @@
     </Breadcrumb.List>
   </Breadcrumb.Root>
 </section>
+
 {#if isLoggedIn}
-<div class=" !flex !justify-center  !items-center">
-  <div class="flex lg:flex-row flex-col  lg:w-full md:w-[65%]  justify-between lg:px-20 px-4 md:px-6 gap-5">
-    <div class="border bg-white  max-w-2xl  lg:hidden flex justify-between rounded-lg shadow-lg p-3">
+<div class="!flex !justify-center !items-center">
+  <div class="flex lg:flex-row flex-col lg:w-full md:w-[65%] justify-between lg:px-20 px-4 md:px-6 gap-5">
+    <!-- Mobile Address Section -->
+    <div class="border bg-white max-w-2xl lg:hidden flex justify-between rounded-lg shadow-lg p-3">
       <div>
         <h3 class="text-base text-[#4F585E] font-medium mb-3">Deliver To</h3>
         {#if $addressesQuery.isLoading}
-          <Skeleton class="h-6 w-3/4" />
+          <div class="space-y-2">
+            <Skeleton class="h-6 w-full" />
+            <Skeleton class="h-6 w-3/4" />
+          </div>
         {:else if $addressesQuery.error}
           <p class="text-red-500 text-sm">Error fetching address: {$addressesQuery.error.message}</p>
         {:else if !primaryAddress}
@@ -353,10 +366,12 @@
         {primaryAddress ? 'Edit address' : 'Add address'}
       </button>
     </div>
-    <div class="cart-items  max-w-2xl  lg:hidden  block bg-white rounded-lg shadow-lg p-2  h-fit border">
+
+    <!-- Mobile Cart Items Section -->
+    <div class="cart-items max-w-2xl lg:hidden block bg-white rounded-lg shadow-lg p-2 h-fit border">
       {#if isLoading}
         <div class="space-y-4 py-4">
-          {#each Array(1) as _}
+          {#each Array(3) as _}
             <div class="flex items-center py-3.5 border-b border-gray-300">
               <div style="width: 30%;" class="flex gap-4 items-center">
                 <Skeleton class="w-12 h-12" />
@@ -382,10 +397,11 @@
           <div class="cart-item gap-5 grid grid-cols-3 items-center py-3.5 border-b border-gray-300">
             <div class="flex gap-4 col-span-2 items-center">
               <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED]">
+                <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
                   src={imgUrl + item.productId.images[0] || 'placeholder.png'}
                   alt="Product Image"
-                  class="p-3  "
+                  class="p-3"
                 />
               </div>
               <div class="item-details flex-1">
@@ -394,9 +410,9 @@
               </div>
             </div>
          
-            <div  class="item-total text-center font-semibold text-base text-[#4F585E]">
+            <div class="item-total text-center font-semibold text-base text-[#4F585E]">
               ₹{item.totalAmount.toFixed(2)}
-              <div  class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
+              <div class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
                 <button
                   on:click={() => updateQuantity(item.productId._id, -1)}
                   class="w-7.5 h-7.5 pl-2 border-gray-300 cursor-pointer text-base flex items-center justify-center text-[#01A0E2]"
@@ -418,12 +434,13 @@
         {/each}
       {/if}
     </div>
-    <!-- Cart Items Section -->
-    <div class="cart-items hidden lg:block bg-white rounded-lg shadow-lg p-2 lg:w-[65%]   h-fit border">
+
+    <!-- Desktop Cart Items Section -->
+    <div class="cart-items hidden lg:block bg-white rounded-lg shadow-lg p-2 lg:w-[65%] h-fit border">
       <div class="cart-header flex items-center justify-between text-sm py-2 text-[#475156] border border-gray-300 bg-[#F2F4F5]">
         <span style="width: 30%; text-align: center;">PRODUCT</span>
         <span style="width: 17%; text-align: center;">PRICE</span>
-        <span style="width: 17%; text-align: center;">DISCOUNT</span>
+        <span style="width: 17%; text-align: center;">OFFER</span>
         <span style="width: 17%; text-align: center;">TOTAL</span>
         <span style="width: 17%; text-align: center;">QUANTITY</span>
         <span style="width: 7%; text-align: center;"></span>
@@ -431,7 +448,7 @@
   
       {#if isLoading}
         <div class="space-y-4 py-4">
-          {#each Array(1) as _}
+          {#each Array(3) as _}
             <div class="flex items-center py-3.5 border-b border-gray-300">
               <div style="width: 30%;" class="flex gap-4 items-center">
                 <Skeleton class="w-12 h-12" />
@@ -457,6 +474,7 @@
           <div class="cart-item flex items-center py-3.5 border-b border-gray-300">
             <div style="width: 30%;" class="flex gap-4 items-center">
               <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED]">
+                <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
                   src={imgUrl + item.productId.images[0] || 'placeholder.png'}
                   alt="Product Image"
@@ -468,10 +486,40 @@
               </div>
             </div>
             <div style="width: 17%;" class="item-price text-center font-semibold text-base text-[#4F585E]">
+              {#if item?.selectedOffer?.offerType!='onMRP' && item?.selectedOffer?.offerType!=null}  
+                <span class="line-through pr-1">₹{item.productId.price}</span>
+              {/if} 
               ₹{item.price.toFixed(2)}
             </div>
-            <div style="width: 17%;" class="item-discount text-center font-semibold text-base text-[#249B3E]">
-              {item.productId.discount}% OFF
+            <div style="width: 17%;" class="item-offer text-center font-semibold text-base text-[#4F585E]">
+              {#if item?.selectedOffer}
+                {#if item?.selectedOffer?.offerType === 'Discount'}
+                  <div class="text-[#249B3E]">Discount</div>
+                  <span class="text-sm">{item.selectedOffer?.discount}% OFF</span>
+                {:else if item.selectedOffer?.offerType === 'onMRP'}
+                  <div class="flex flex-col items-center">
+                    <span class="text-[#249B3E]">On MRP</span>
+                    {#if item.selectedOffer?.onMRP?.subType === 'Need'}
+                      <span class="text-sm">₹{item.selectedOffer?.onMRP?.reductionValue} OFF </span>
+                      <span>({item.selectedOffer?.onMRP?.message})</span>
+                    {:else}
+                      <span class="text-sm">₹{item.selectedOffer?.onMRP.reductionValue} OFF (Complementary)</span>
+                    {/if}
+                  </div>
+                {:else if item.selectedOffer?.offerType === 'Flat'}
+                  <div class="">
+                    <div class="text-[#249B3E]">Flat</div>
+                    <span class="text-sm">{item.selectedOffer.discount}% OFF</span>
+                  </div>
+                {:else if item.selectedOffer?.offerType === 'Negotiate'}
+                  <div class="flex flex-col items-center">
+                    <span class="text-[#249B3E]">Negotiated</span>
+                    <span class="text-sm">₹{item.selectedOffer?.negotiate.negotiatedPrice}</span>
+                  </div>
+                {/if}
+              {:else}
+                <span class="text-gray-400">-</span>
+              {/if}
             </div>
             <div style="width: 17%;" class="item-total text-center font-semibold text-base text-[#4F585E]">
               ₹{item.totalAmount.toFixed(2)}
@@ -507,13 +555,17 @@
       {/if}
     </div>
   
-    <!-- Billing Section -->
+    <!-- Billing Section (always shown, with loading states) -->
     <div class="billing lg:w-[35%] max-w-2xl">
+      <!-- Desktop Address Section -->
       <div class="border hidden bg-white lg:flex justify-between rounded-lg shadow-lg p-3">
         <div>
           <h3 class="text-base text-[#4F585E] font-medium mb-2.5">Deliver To</h3>
           {#if $addressesQuery.isLoading}
-            <Skeleton class="h-6 w-3/4" />
+            <div class="space-y-2">
+              <Skeleton class="h-6 w-full" />
+              <Skeleton class="h-6 w-3/4" />
+            </div>
           {:else if $addressesQuery.error}
             <p class="text-red-500 text-sm">Error fetching address: {$addressesQuery.error.message}</p>
           {:else if !primaryAddress}
@@ -530,43 +582,58 @@
           {primaryAddress ? 'Edit address' : 'Add address'}
         </button>
       </div>
+
+      <!-- Summary Section -->
       <div class="summary mt-5 bg-white rounded-lg shadow-lg p-3 border">
         <h3 class="text-lg font-semibold text-[#4F585E] mb-2.5">Bill Summary</h3>
-        <div class="flex justify-between mb-2.5 text-sm">
-          <span class="text-[#30363C] font-semibold">Subtotal</span>
-          <span class="text-gray-800">₹{totalAmount.toFixed(2)}</span>
-        </div>
-        <div class="flex justify-between mb-2.5 text-sm">
-          <span class="text-[#30363C] font-semibold">Delivery Charge</span>
-          <span class="free text-green-600">{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
-        </div>
-        <div class="flex justify-between mb-2.5 text-sm">
-          <span class="text-[#30363C] font-semibold">Platform Fee</span>
-          <span class="text-gray-800">₹{platformFee.toFixed(2)}</span>
-        </div>
-        <div class="flex justify-between mb-2.5 text-sm">
-          <span class="text-[#30363C] font-semibold">Tax</span>
-          <span class="text-gray-800">₹{tax.toFixed(2)}</span>
-        </div>
-        <div class="flex justify-between mb-2.5 text-sm">
-          <span class="text-[#30363C] font-semibold">Discount</span>
-          <span class="text-gray-800">₹{totalDiscount.toFixed(2)}</span>
-        </div>
-        <div class="total flex justify-between font-bold text-base">
-          <span class="text-[#30363C] font-bold">Total Amount</span>
-          <span class="text-gray-800">₹{totalPrice.toFixed(2)}</span>
-        </div>
-        <button 
-        on:click={handlePayNow}
-        class="pay-now-btn w-full py-2.5 bg-[#01A0E2] text-white rounded-md cursor-pointer text-base mt-5 "
-        disabled={$placeOrderMutation.isPending || cartItems.length === 0}
-      >
-        {#if $placeOrderMutation.isPending}
-          Processing...
+        
+        {#if isLoading}
+          <div class="space-y-3">
+            {#each Array(5) as _}
+              <div class="flex justify-between">
+                <Skeleton class="h-4 w-1/3" />
+                <Skeleton class="h-4 w-1/4" />
+              </div>
+            {/each}
+          </div>
+          <div class="mt-4 flex justify-between">
+            <Skeleton class="h-5 w-1/3" />
+            <Skeleton class="h-5 w-1/4" />
+          </div>
+          <Skeleton class="w-full h-10 mt-5" />
         {:else}
-          PAY NOW
+          <div class="flex justify-between mb-2.5 text-sm">
+            <span class="text-[#30363C] font-semibold">Subtotal</span>
+            <span class="text-gray-800">₹{totalAmount.toFixed(2)}</span>
+          </div>
+          <div class="flex justify-between mb-2.5 text-sm">
+            <span class="text-[#30363C] font-semibold">Delivery Charge</span>
+            <span class="free text-green-600">{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
+          </div>
+          <div class="flex justify-between mb-2.5 text-sm">
+            <span class="text-[#30363C] font-semibold">Platform Fee</span>
+            <span class="text-gray-800">₹{platformFee.toFixed(2)}</span>
+          </div>
+          <div class="flex justify-between mb-2.5 text-sm">
+            <span class="text-[#30363C] font-semibold">Tax</span>
+            <span class="text-gray-800">₹{tax.toFixed(2)}</span>
+          </div>
+          <div class="total flex justify-between font-bold text-base">
+            <span class="text-[#30363C] font-bold">Total Amount</span>
+            <span class="text-gray-800">₹{totalPrice.toFixed(2)}</span>
+          </div>
+          <button 
+            on:click={handlePayNow}
+            class="pay-now-btn w-full py-2.5 bg-[#01A0E2] text-white rounded-md cursor-pointer text-base mt-5"
+            disabled={$placeOrderMutation.isPending || cartItems.length === 0}
+          >
+            {#if $placeOrderMutation.isPending}
+              Processing...
+            {:else}
+              PAY NOW
+            {/if}
+          </button>
         {/if}
-      </button>
       </div>
     </div>
   </div>
@@ -575,7 +642,7 @@
 <div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
   <p class="text-lg font-medium">Please login to access Cart</p>
   <button on:click={()=>{goto('/login')}} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
-  </div>
+</div>
 {/if}
 
 <Footer />

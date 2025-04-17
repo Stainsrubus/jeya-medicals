@@ -160,7 +160,7 @@ updateOrder()
 
 <svelte:head>
 	<title>Dashboard | Order - {$query.data?.order?.orderId || ''}</title>
-	<meta name="description" content="Order management dashboard for Kings Chick" />
+	<meta name="description" content="Order management dashboard for Ecommerce" />
 </svelte:head>
 
 <div

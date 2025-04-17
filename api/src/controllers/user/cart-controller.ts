@@ -7,6 +7,7 @@ import { StoreModel } from "@/models/store-model";
 import { User } from "@/models/user-model";
 import { Address } from "@/models/user/address-model";
 import { CartModel } from "@/models/user/cart-model";
+import  ComboOffer  from "@/models/combo-model";
 import { StoreType } from "@/types";
 import { add, format } from "date-fns";
 import Elysia, { t } from "elysia";
@@ -19,166 +20,260 @@ export const userCartController = new Elysia({
     security: [{ bearerAuth: [] }],
   },
 })
-.get(
-  "/",
-  async ({ store, set, query }) => {
-    const userId = (store as StoreType)["id"];
-    const { addressId, couponId } = query;
+.get("/", async ({ store, set, query }) => {
+  const userId = (store as StoreType)["id"];
+  const { addressId, couponId } = query;
 
-    try {
-      const cart = await CartModel.findOne(
-        {
-          user: new mongoose.Types.ObjectId(userId),
-          status: "active",
-        },
-      ).populate({
-        path: "products.productId",
-        select: "productName price images gst discount onMRP strikePrice",
-      });
+  try {
+    const cart = await CartModel.findOne({
+      user: new mongoose.Types.ObjectId(userId),
+      status: "active",
+    }).populate({
+      path: "products.productId",
+      select: "productName comboName comboPrice price images gst discount onMRP strikePrice flat",
+    });
 
-      if (!cart) {
-        return { message: "No active cart found", status: false };
-      }
-
-      const user = await User.findById(userId);
-      if (!user) {
-        return { message: "User not found", status: false };
-      }
-
-      // Calculate total tax
-      let totalTax = 0;
-      let subtotal = 0;
-
-      for (const product of cart.products) {
-        let _product = product as any;
-        let price = _product.productId?.price || 0;
-
-        const productId = _product.productId?._id?.toString();
-
-        // Check for attempts within the user's attempts array
-        const attempt = user.attempts.find(a => a.productId === productId);
-
-        if (attempt) {
-          const lastAttempt = attempt.attempts[attempt.attempts.length - 1];
-          if (lastAttempt?.amount) {
-            price = lastAttempt.amount;
-          }
-        }
-
-        _product.price = price;
-        _product.totalAmount = price * _product.quantity;
-
-        const quantity = _product.quantity || 1;
-
-        subtotal += _product.totalAmount;
-
-        const gstAmount = (price * quantity * (_product.productId?.gst || 0)) / 100;
-        totalTax += gstAmount;
-      }
-
-      const roundedTax = Math.round(totalTax * 100) / 100;
-      const totalPrice = subtotal + roundedTax;
-
-      cart.tax = roundedTax;
-      cart.subtotal = subtotal;
-      cart.totalPrice = totalPrice;
-
-      // Find available coupons
-      const availableCoupons = await CouponModel.find({
-        active: true,
-        minPrice: { $lte: totalPrice },
-        maxPrice: { $gte: totalPrice },
-      }).sort({ discount: -1 });
-
-      // Fetch store location
-      let storeData = await StoreModel.findOne({});
-      let storeCords = {
-        lat: storeData?.latitude || "8.176293718844061",
-        long: storeData?.longitude || "8.176293718844061",
-      };
-
-      // Handle address & delivery calculations
-      if (addressId) {
-        const config = await Config.findOne();
-        if (!config) throw new Error("Config not found");
-
-        let { freeDeliveryMinDistance = 0, deliveryFreeAfter = 0 } = config;
-
-        const address = await Address.findById(addressId);
-        if (address) {
-          const {
-            distance: { value: calculatedDistance },
-            duration: { value: calculatedSeconds },
-          } = await calculateRoadDistance(
-            Number(storeCords.lat),
-            Number(storeCords.long),
-            Number(address.latitude),
-            Number(address.longitude),
-            []
-          );
-
-          cart.totalDistance = calculatedDistance;
-          cart.deliverySeconds = calculatedSeconds;
-          cart.platformFee = 5;
-
-          let distanceToCharge = Math.max(calculatedDistance / 1000 - freeDeliveryMinDistance, 0);
-          let deliveryFee = Math.ceil(distanceToCharge * 10);
-
-          if (deliveryFreeAfter > 0 && totalPrice >= deliveryFreeAfter) {
-            deliveryFee = 0;
-          }
-
-          cart.deliveryFee = deliveryFee;
-        }
-      } else {
-        cart.totalDistance = 0;
-        cart.deliverySeconds = 0;
-        cart.deliveryFee = 0;
-        cart.platformFee = 5;
-      }
-
-      await cart.save();
-
-      return {
-        message: "Cart details retrieved successfully",
-        status: true,
-        totalDistance: cart.totalDistance,
-        cart,
-        deliveryFee: cart.deliveryFee,
-        platformFee: cart.platformFee,
-        coupons: availableCoupons,
-        deliverySeconds: cart.deliverySeconds,
-        deliveryMinutes: Math.ceil(cart.deliverySeconds / 60),
-      };
-    } catch (error) {
-      console.log(error);
-      set.status = 500;
-      return {
-        message: "Failed to get cart",
-        status: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+    if (!cart) {
+      return { message: "No active cart found", status: false };
     }
-  },
-  {
-    detail: {
-      summary: "Get a user's cart",
-      description: "Retrieve the user's active cart with updated pricing and delivery details.",
-    },
-    query: t.Object({
-      addressId: t.Optional(
-        t.String({
-          pattern: "^[a-fA-F0-9]{24}$",
-        })
-      ),
-      couponId: t.Optional(
-        t.String({
-          default: "",
-        })
-      ),
-    }),
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return { message: "User not found", status: false };
+    }
+
+    // Handle null or unpopulated productId
+    for (let i = 0; i < cart.products.length; i++) {
+      const product = cart.products[i];
+
+      if (!product.productId || !product.productId.productName) {
+        const rawId = product._id.toString();
+        const cartItem = await CartModel.findOne(
+          { "products._id": rawId },
+          { "products.$": 1 }
+        );
+        const actualId = cartItem?.products?.[0]?.productId;
+
+        const combo = await ComboOffer.findById(actualId);
+        if (combo) {
+          // Patch combo product with expected fields
+          const fakeProduct: any = {
+            _id: combo._id,
+            productName: combo.comboName,
+            price: combo.comboPrice,
+            strikePrice: combo.strikePrice,
+            images: [combo.image],
+            gst: 0,
+            discount: 0,
+            onMRP: 0,
+            flat: 0,
+            isCombo: true,
+            comboDescription: combo.comboDescription,
+            productsIncluded: combo.productsIncluded,
+          };
+          cart.products[i].productId = fakeProduct;
+        }
+      }
+    }
+
+    let totalTax = 0;
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let subtotalBeforeDiscount = 0;
+
+    const flatEligibleProducts = cart.products.filter(
+      (p) => (p as any).productId?.flat > 0
+    );
+
+    const shouldApplyFlatOffers = flatEligibleProducts.length >= 2;
+
+    for (const product of cart.products) {
+      let _product = product as any;
+      let basePrice = _product.productId?.price || 0;
+      let finalPrice = basePrice;
+
+      subtotalBeforeDiscount += basePrice * _product.quantity;
+
+      const isFlatEligible = _product.productId?.flat > 0;
+      const existingOfferType = _product.selectedOffer?.offerType;
+
+      const shouldPreserveOffer =
+        existingOfferType === "onMRP" ||
+        existingOfferType === "Negotiate" ||
+        existingOfferType === "Discount";
+
+      if (!shouldPreserveOffer) {
+        _product.selectedOffer = undefined;
+      }
+
+      if (isFlatEligible && shouldApplyFlatOffers && !shouldPreserveOffer) {
+        const flatDiscountPercent = _product.productId.flat;
+        const flatDiscountAmount = basePrice * (flatDiscountPercent / 100);
+        finalPrice = basePrice - flatDiscountAmount;
+        totalDiscount += flatDiscountAmount * _product.quantity;
+
+        _product.selectedOffer = {
+          offerType: "Flat",
+          flatAmount: flatDiscountAmount,
+          discount: flatDiscountPercent,
+          _id: new mongoose.Types.ObjectId().toString(),
+        };
+      } else if (!isFlatEligible || !shouldApplyFlatOffers) {
+        if (_product.selectedOffer && shouldPreserveOffer) {
+          const { offerType } = _product.selectedOffer;
+
+          switch (offerType) {
+            case "Discount":
+              const discountPercent = _product.selectedOffer.discount || 0;
+              const discountAmount = basePrice * (discountPercent / 100);
+              finalPrice = basePrice - discountAmount;
+              totalDiscount += discountAmount * _product.quantity;
+              break;
+
+            case "Negotiate":
+              const negotiatedPrice =
+                _product.selectedOffer.negotiate?.negotiatedPrice;
+              if (negotiatedPrice && negotiatedPrice < basePrice) {
+                finalPrice = negotiatedPrice;
+                totalDiscount +=
+                  (basePrice - negotiatedPrice) * _product.quantity;
+              }
+              break;
+
+            case "onMRP":
+              finalPrice = basePrice;
+              break;
+          }
+        } else {
+          const productId = _product.productId?._id?.toString();
+          const attempt = user.attempts.find(
+            (a) => a.productId === productId
+          );
+          if (attempt) {
+            const lastAttempt = attempt.attempts[attempt.attempts.length - 1];
+            if (lastAttempt?.amount) {
+              finalPrice = lastAttempt.amount;
+              if (finalPrice < basePrice) {
+                totalDiscount +=
+                  (basePrice - finalPrice) * _product.quantity;
+              }
+            }
+          }
+        }
+      }
+
+      _product.price = finalPrice;
+      _product.totalAmount = finalPrice * _product.quantity;
+      subtotal += _product.totalAmount;
+
+      const gstAmount =
+        (finalPrice *
+          _product.quantity *
+          (_product.productId?.gst || 0)) /
+        100;
+      totalTax += gstAmount;
+    }
+
+    const roundedTax = Math.round(totalTax * 100) / 100;
+    const totalPrice = subtotal + roundedTax;
+
+    cart.tax = roundedTax;
+    cart.subtotal = subtotal;
+    cart.totalPrice = totalPrice;
+
+    const availableCoupons = await CouponModel.find({
+      active: true,
+      minPrice: { $lte: totalPrice },
+      maxPrice: { $gte: totalPrice },
+    }).sort({ discount: -1 });
+
+    const storeData = await StoreModel.findOne({});
+    const storeCords = {
+      lat: storeData?.latitude || "8.176293718844061",
+      long: storeData?.longitude || "8.176293718844061",
+    };
+
+
+
+    if (addressId) {
+      const config = await Config.findOne();
+      if (!config) throw new Error("Config not found");
+
+      let {
+        freeDeliveryMinDistance = 0,
+        deliveryFreeAfter = 0,
+      } = config;
+
+      const address = await Address.findById(addressId);
+      if (address) {
+        const {
+          distance: { value: calculatedDistance },
+          duration: { value: calculatedSeconds },
+        } = await calculateRoadDistance(
+          Number(storeCords.lat),
+          Number(storeCords.long),
+          Number(address.latitude),
+          Number(address.longitude),
+          []
+        );
+        console.log("Shop Location:", storeCords.lat, storeCords.long);
+        console.log("User Location:", address.latitude, address.longitude);
+
+        cart.totalDistance = calculatedDistance;
+        cart.deliverySeconds = calculatedSeconds;
+        cart.platformFee = 5;
+
+        let distanceToCharge = Math.max(
+          calculatedDistance / 1000 - freeDeliveryMinDistance,
+          0
+        );
+        let deliveryFee = Math.ceil(distanceToCharge * 10);
+
+        if (deliveryFreeAfter > 0 && totalPrice >= deliveryFreeAfter) {
+          deliveryFee = 0;
+        }
+
+        cart.deliveryFee = deliveryFee;
+      }
+    } else {
+      console.log('no address')
+      cart.totalDistance = 0;
+      cart.deliverySeconds = 0;
+      cart.deliveryFee = 0;
+      cart.platformFee = 5;
+    }
+
+    await cart.save();
+
+    return {
+      message: "Cart details retrieved successfully",
+      status: true,
+      totalDistance: cart.totalDistance,
+      cart,
+      summary: {
+        subtotalBeforeDiscount,
+        totalDiscount,
+        subtotal,
+        tax: roundedTax,
+        totalPrice,
+      },
+      deliveryFee: cart.deliveryFee,
+      platformFee: cart.platformFee,
+      coupons: availableCoupons,
+      deliverySeconds: cart.deliverySeconds,
+      deliveryMinutes: Math.ceil(cart.deliverySeconds / 60),
+    };
+  } catch (error) {
+    console.log(error);
+    set.status = 500;
+    return {
+      message: "Failed to get cart",
+      status: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
-)
+})
+
 
 
 .post(
@@ -206,12 +301,22 @@ export const userCartController = new Elysia({
 
       let totalTax = 0;
       let updatedProducts = [...cart.products];
+      let totalDiscount = 0;
+      let subtotalBeforeDiscount = 0;
 
+      // First pass: Handle all main products
       for (const product of products) {
-        const productDoc = await Product.findById(product.productId).select("price gst");
+        let productDoc = await Product.findById(product.productId).select("price gst");
+        let isCombo = false;
+        
         if (!productDoc) {
-          set.status = 404;
-          return { message: `Product ${product.productId} not found`, status: false };
+          // Check in ComboOffer model if not found in Product
+          productDoc = await ComboOffer.findById(product.productId).select("price gst");
+          if (!productDoc) {
+            set.status = 404;
+            return { message: `Product ${product.productId} not found in Product or ComboOffer`, status: false };
+          }
+          isCombo = true;
         }
 
         if (product.quantity < 1) {
@@ -219,30 +324,147 @@ export const userCartController = new Elysia({
           return { message: `Invalid quantity for product ${product.productId}`, status: false };
         }
 
-        const gstAmount = (productDoc.price * product.quantity * productDoc.gst) / 100;
-        totalTax += gstAmount;
+        // Calculate base price without any offers
+        const basePrice = productDoc.price;
+        subtotalBeforeDiscount += basePrice * product.quantity;
 
-        const existingProductIndex = updatedProducts.findIndex(
-          (p) => p.productId.toString() === product.productId
+        // Prepare selectedOffer data and calculate final price
+        let selectedOffer = null;
+        let finalPrice = basePrice;
+        let discountAmount = 0;
+
+        if (product.selectedOffer) {
+          const { offerType, onMRP } = product.selectedOffer;
+
+          selectedOffer = {
+            offerType,
+            discount: offerType === 'Discount' ? product.selectedOffer.discount : undefined,
+            onMRP: offerType === 'onMRP' ? {
+              subType: onMRP.subType,
+              reductionValue: onMRP.reductionValue,
+              message: onMRP.subType === 'Need' ? onMRP.message : undefined,
+              productId: onMRP.subType === 'Complementary' ? onMRP.productId : undefined
+            } : undefined,
+            flatAmount: offerType === 'Flat' ? product.selectedOffer.flatAmount : undefined,
+            negotiate: offerType === 'Negotiate' ? {
+              negotiatedPrice: product.selectedOffer.negotiate?.negotiatedPrice,
+              attempts: product.selectedOffer.negotiate?.attempts?.map((attempt: { amount: any; attemptNumber: any; }) => ({
+                amount: attempt.amount,
+                attemptNumber: attempt.attemptNumber
+              }))
+            } : undefined
+          };
+
+          // Calculate price based on offer type
+          switch(offerType) {
+            case 'Discount':
+              discountAmount = basePrice * (product.selectedOffer.discount / 100);
+              finalPrice = basePrice - discountAmount;
+              totalDiscount += discountAmount * product.quantity;
+              break;
+              
+            case 'onMRP':
+              // onMRP doesn't affect the price directly
+              finalPrice = basePrice;
+              break;
+              
+            case 'Flat':
+              discountAmount = product.selectedOffer.flatAmount;
+              finalPrice = basePrice - discountAmount;
+              totalDiscount += discountAmount * product.quantity;
+              break;
+              
+            case 'Negotiate':
+              finalPrice = product.selectedOffer.negotiate?.negotiatedPrice || basePrice;
+              if (finalPrice < basePrice) {
+                totalDiscount += (basePrice - finalPrice) * product.quantity;
+              }
+              break;
+          }
+
+          selectedOffer = JSON.parse(JSON.stringify(selectedOffer));
+        }
+
+        const productTotal = product.quantity * finalPrice;
+
+        const productData = {
+          productId: productDoc._id,
+          quantity: product.quantity,
+          totalAmount: productTotal,
+          price: finalPrice,
+          options: product.options || [],
+          ...(selectedOffer && { selectedOffer })
+        };
+
+        // Find if same product exists (regardless of offer type)
+        const existingProductIndex = updatedProducts.findIndex(p => 
+          p.productId.toString() === productDoc._id.toString()
         );
 
-        const productTotal = product.quantity * productDoc.price;
-
-        if (existingProductIndex === -1) {
-          updatedProducts.push({
-            productId: productDoc._id,
-            quantity: product.quantity,
-            totalAmount: productTotal,
-            price: productDoc.price,
-            options: product.options || [],// <-- ✅ store dynamic options
-          });
+        if (existingProductIndex !== -1) {
+          updatedProducts[existingProductIndex] = productData;
         } else {
-          updatedProducts[existingProductIndex].quantity = product.quantity;
-          updatedProducts[existingProductIndex].totalAmount = productTotal;
-          updatedProducts[existingProductIndex].price = productDoc.price;
-          updatedProducts[existingProductIndex].options = product.options || []; 
+          updatedProducts.push(productData);
+        }
+
+        // Add GST based on final price
+        const gstAmount = (finalPrice * product.quantity * productDoc.gst) / 100;
+        totalTax += gstAmount;
+      }
+
+      // Handle complementary products
+      for (const product of products) {
+        if (
+          product.selectedOffer?.offerType === 'onMRP' &&
+          product.selectedOffer.onMRP?.subType === 'Complementary' &&
+          product.selectedOffer.onMRP.productId
+        ) {
+          const complementaryProduct = await Product.findById(product.selectedOffer.onMRP.productId).select("price gst");
+          if (!complementaryProduct) {
+            set.status = 404;
+            return { message: `Complementary product ${product.selectedOffer.onMRP.productId} not found`, status: false };
+          }
+
+          const compProductData = {
+            productId: complementaryProduct._id,
+            quantity: 1,
+            totalAmount: 0,
+            price: 0,
+            options: [],
+            selectedOffer: {
+              offerType: 'onMRP',
+              onMRP: {
+                subType: 'Complementary',
+                reductionValue: 100,
+                productId: product.productId
+              }
+            }
+          };
+
+          const existingCompIndex = updatedProducts.findIndex(p => 
+            p.productId.toString() === complementaryProduct._id.toString() &&
+            p.selectedOffer?.onMRP?.subType === 'Complementary' &&
+            p.selectedOffer?.onMRP?.productId?.toString() === product.productId
+          );
+
+          if (existingCompIndex !== -1) {
+            updatedProducts[existingCompIndex] = compProductData;
+          } else {
+            updatedProducts.push(compProductData);
+          }
         }
       }
+
+      // Final cleanup: Remove any duplicate complementary products
+      const seenComplementary = new Set();
+      updatedProducts = updatedProducts.filter(product => {
+        if (product.selectedOffer?.onMRP?.subType === 'Complementary') {
+          const key = `${product.productId}_${product.selectedOffer.onMRP.productId}`;
+          if (seenComplementary.has(key)) return false;
+          seenComplementary.add(key);
+        }
+        return true;
+      });
 
       const subtotal = updatedProducts.reduce((sum, product) => sum + product.totalAmount, 0);
       const tax = Number(totalTax.toFixed(2));
@@ -260,12 +482,21 @@ export const userCartController = new Elysia({
           },
         },
         { new: true }
-      );
+      )
+        .populate('products.productId')
+        .populate('products.selectedOffer.onMRP.productId');
 
       return {
         message: "Cart updated successfully",
         status: true,
         cart,
+        summary: {
+          subtotalBeforeDiscount,
+          totalDiscount,
+          subtotal,
+          tax,
+          totalPrice
+        }
       };
     } catch (error) {
       console.error(error);
@@ -279,120 +510,186 @@ export const userCartController = new Elysia({
   }
 )
 
+.post(
+  "/updatequantity",
+  async ({ body, set, store }) => {
+    const { productId, quantity } = body;
+    const userId = (store as StoreType)["id"];
 
-  .post(
-    "/updatequantity",
-    async ({ body, set, store }) => {
-      const { productId, quantity } = body;
-      const userId = (store as StoreType)["id"];
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        set.status = 404;
+        throw new Error("User not found");
+      }
 
-      try {
-        const user = await User.findById(userId);
-        if (!user) {
-          set.status = 404;
-          throw new Error("User not found");
-        }
+      const cart = await CartModel.findOne({
+        user: userId,
+        status: "active",
+      });
 
-        const cart = await CartModel.findOne({
-          user: userId,
-          status: "active",
-        });
+      if (!cart) {
+        set.status = 404;
+        throw new Error("Cart not found");
+      }
 
-        if (!cart) {
-          set.status = 404;
-          throw new Error("Cart not found");
-        }
+      // Check Product model first
+      let productDoc = await Product.findById(productId).select("price gst productName");
+      let isCombo = false;
 
-        const productDoc = await Product.findById(productId);
+      // If not found in Product, check ComboOffer model
+      if (!productDoc) {
+        productDoc = await ComboOffer.findById(productId).select("comboPrice gst comboName");
         if (!productDoc) {
           set.status = 404;
           throw new Error("Product not found");
         }
-
-        if (quantity < 1) {
-          set.status = 400;
-          throw new Error("Invalid quantity");
-        }
-
-        const existingProductIndex = cart.products.findIndex(
-          (p) => p.productId.toString() === productId
-        );
-
-        if (existingProductIndex === -1) {
-          set.status = 404;
-          throw new Error("Product not found in cart");
-        }
-
-        const existingProduct = cart.products[existingProductIndex];
-    
-
-        const productGstAmount =
-          (productDoc.price * productDoc.gst * quantity) / 100;
-
-        let totalTax = productGstAmount;
-
-        // @ts-ignore
-        cart.products[existingProductIndex] = {
-          ...existingProduct,
-          quantity: quantity,
-          totalAmount: quantity * productDoc.price,
-          productId: productDoc._id,
-          price: productDoc.price,
-          name: productDoc.productName,
-        };
-
-        const subtotal = cart.products.reduce(
-          (sum, product) => sum + product.totalAmount,
-          0
-        );
-        const roundedTax = Math.round(totalTax * 100) / 100;
-
-        const totalPrice = subtotal + roundedTax;
-
-        const updatedCart = await CartModel.findOneAndUpdate(
-          { _id: cart._id },
-          {
-            $set: {
-              products: cart.products,
-              subtotal,
-              tax: roundedTax,
-              totalPrice,
-              lastUpdated: new Date(),
-            },
-          },
-          { new: true }
-        );
-
-        return {
-          message: "Cart updated successfully",
-          status: true,
-          cart: updatedCart,
-        };
-      } catch (error) {
-        console.error(error);
-        set.status = set.status || 400;
-        return {
-          message: "Failed to update cart",
-          status: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        isCombo = true;
       }
-    },
-    {
-      detail: {
-        summary: "Update product quantity",
-        description: "Update product quantity for an existing product in cart",
-      },
-      body: t.Object({
-        productId: t.String({
-          pattern: "^[a-fA-F0-9]{24}$",
-        }),
-        quantity: t.Number({
-          minimum: 1,
-        }),
-      }),
+
+      // Determine price, gst, and name based on model
+      const price = isCombo ? productDoc.comboPrice : productDoc.price;
+      const gst = isCombo?5:productDoc.gst; // Assuming gst field exists in both models
+      const name = isCombo ? productDoc.comboName : productDoc.productName;
+
+      // Debug: Log product details
+      console.log("Product Details:", {
+        productId,
+        price,
+        gst,
+        name,
+        isCombo,
+      });
+
+      // Validate price and gst
+      if (typeof price !== "number" || isNaN(price)) {
+        console.error("Invalid price:", price);
+        set.status = 400;
+        throw new Error("Invalid product price");
+      }
+      if (typeof gst !== "number" || isNaN(gst)) {
+        console.error("Invalid gst:", gst);
+        set.status = 400;
+        throw new Error("Invalid product GST");
+      }
+
+      if (quantity < 1) {
+        set.status = 400;
+        throw new Error("Invalid quantity");
+      }
+
+      const existingProductIndex = cart.products.findIndex(
+        (p) => p.productId.toString() === productId
+      );
+
+      if (existingProductIndex === -1) {
+        set.status = 404;
+        throw new Error("Product not found in cart");
+      }
+
+      const existingProduct = cart.products[existingProductIndex];
+
+      // Calculate GST
+      const productGstAmount = (price * gst * quantity) / 100;
+      console.log("GST Calculation:", {
+        price,
+        gst,
+        quantity,
+        productGstAmount,
+      });
+
+      let totalTax = productGstAmount;
+      console.log("Total Tax:", totalTax);
+
+      // Update product in cart
+      cart.products[existingProductIndex] = {
+        ...existingProduct,
+        quantity: quantity,
+        totalAmount: quantity * price,
+        productId: productDoc._id,
+        price: price,
+        name: name,
+        options: existingProduct.options,
+        selectedOffer: existingProduct?.selectedOffer,
+      };
+
+      // Debug: Log updated product
+      console.log("Updated Product:", cart.products[existingProductIndex]);
+
+      // Calculate subtotal
+      const subtotal = cart.products.reduce(
+        (sum, product) => {
+          const amount = typeof product.totalAmount === "number" && !isNaN(product.totalAmount) ? product.totalAmount : 0;
+          console.log("Product in Subtotal:", {
+            productId: product.productId.toString(),
+            totalAmount: product.totalAmount,
+            amountUsed: amount,
+          });
+          return sum + amount;
+        },
+        0
+      );
+      console.log("Subtotal:", subtotal);
+
+      // Calculate rounded tax
+      const roundedTax = Math.round(totalTax * 100) / 100;
+      console.log("Rounded Tax:", roundedTax);
+
+      // Calculate total price
+      const totalPrice = subtotal + roundedTax;
+      console.log("Total Price:", totalPrice);
+
+      // Validate totalPrice
+      if (isNaN(totalPrice)) {
+        console.error("Total Price is NaN", { subtotal, roundedTax });
+        set.status = 400;
+        throw new Error("Invalid total price calculation");
+      }
+
+      const updatedCart = await CartModel.findOneAndUpdate(
+        { _id: cart._id },
+        {
+          $set: {
+            products: cart.products,
+            subtotal,
+            tax: roundedTax,
+            totalPrice,
+            lastUpdated: new Date(),
+          },
+        },
+        { new: true }
+      );
+
+      return {
+        message: "Cart updated successfully",
+        status: true,
+        cart: updatedCart,
+      };
+    } catch (error) {
+      console.error("Error in updatequantity:", error);
+      set.status = set.status || 400;
+      return {
+        message: "Failed to update cart",
+        status: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
-  )
+  },
+  {
+    detail: {
+      summary: "Update product quantity",
+      description: "Update product quantity for an existing product in cart",
+    },
+    body: t.Object({
+      productId: t.String({
+        pattern: "^[a-fA-F0-9]{24}$",
+      }),
+      quantity: t.Number({
+        minimum: 1,
+      }),
+    }),
+  }
+)
   .delete(
     "/remove-product/:productId",
     async ({ params, set, store }) => {
@@ -559,3 +856,107 @@ export const userCartController = new Elysia({
       },
     }
   )
+  .post("/updateCombo", async ({ body, set, store }) => {
+    const { products } = body;
+    const userId = (store as StoreType)["id"];
+  
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        set.status = 404;
+        return { message: "User not found", status: false };
+      }
+  
+      let cart = await CartModel.findOne({ user: userId, status: "active" });
+      if (!cart) {
+        cart = await CartModel.create({
+          user: userId,
+          products: [],
+          status: "active",
+        });
+      }
+  
+      let totalTax = 0;
+      let subtotalBeforeDiscount = 0;
+      let totalDiscount = 0;
+  
+      const comboProductIds = products.map((p) => p.productId.toString());
+  
+      // Keep only non-combo products in cart
+      const existingNonComboProducts = cart.products.filter(
+        (p: any) => !comboProductIds.includes(p.productId.toString())
+      );
+  
+      const updatedComboProducts = [];
+  
+      for (const product of products) {
+        const productDoc = await ComboOffer.findById(product.productId);
+        const gst = 5;
+  
+        if (!productDoc) {
+          set.status = 404;
+          return {
+            message: `Product ${product.productId} not found in ComboOffer`,
+            status: false,
+          };
+        }
+  
+        if (product.quantity < 1) {
+          set.status = 400;
+          return {
+            message: `Invalid quantity for product ${product.productId}`,
+            status: false,
+          };
+        }
+  
+        const basePrice = productDoc.comboPrice;
+        let finalPrice = basePrice;
+        const productTotal = finalPrice * product.quantity;
+        const taxAmount = Math.round((productTotal * gst) / 100);
+        totalTax += taxAmount;
+        subtotalBeforeDiscount += basePrice * product.quantity;
+  
+        updatedComboProducts.push({
+          productId: productDoc._id,
+          quantity: product.quantity,
+          price: finalPrice,
+          totalAmount: productTotal,
+          options: product.options || [],
+          name: productDoc.comboName,
+        });
+      }
+  
+      const finalProductList = [...existingNonComboProducts, ...updatedComboProducts];
+  
+      const subtotal = finalProductList.reduce((sum, p: any) => sum + p.totalAmount, 0);
+      const platformFee = 5;
+  
+      cart.products = finalProductList;
+      cart.tempCouponDiscount = 0;
+      cart.subtotal = subtotal;
+      cart.tax = totalTax;
+      cart.totalPrice = subtotal + totalTax + platformFee;
+      cart.platformFee = platformFee;
+      cart.lastUpdated = new Date();
+  
+      await cart.save();
+  
+      return {
+        message: "Cart updated successfully",
+        status: true,
+        cart,
+        summary: {
+          subtotalBeforeDiscount,
+          totalDiscount,
+          subtotal,
+          tax: totalTax,
+          totalPrice: cart.totalPrice,
+        },
+      };
+    } catch (err) {
+      console.error("Error updating cart:", err);
+      set.status = 500;
+      return { message: "Something went wrong", status: false };
+    }
+  })
+  

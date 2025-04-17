@@ -186,7 +186,7 @@ $: displayAddress = primaryAddress
   }
 </script>
 
-<div class="flex items-center justify-between h-[70px] lg:px-10 md:px-5 px-2 bg-white shadow-md">
+<div class="flex items-center justify-between h-[70px] z-50  w-screen lg:px-10 md:px-5 px-2 bg-white shadow-md">
   <!-- Left Section: Logo and Address -->
   <div class="flex items-center md:gap-4 gap-1">
     <!-- Logo -->

@@ -74,6 +74,13 @@ import logo from "$lib/assets/logo.png"
 			canManagerAccess: true
 		},
 		{
+			name: 'Demands',
+			href: '/dashboard/demand/',
+			icon: 'tabler:target-arrow',
+			subRoutes: '-',
+			canManagerAccess: true
+		},
+		{
 			type: 'heading',
 			name: 'Offers'
 		},

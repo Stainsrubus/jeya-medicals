@@ -108,6 +108,7 @@ const authController = new Elysia({
           return {
             message: "Login Successful",
             data: {
+              id:admin._id,
               email: admin.email,
               token,
               isManager,

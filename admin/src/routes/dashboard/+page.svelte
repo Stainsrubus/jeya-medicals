@@ -30,7 +30,7 @@
 
 <svelte:head>
 	<title>Dashboard | Jeya Medical Enterprises</title>
-	<meta name="description" content="dashboard for kings chic." />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <div class="overflow-y-scroll w-full h-[calc(100vh-100px)] hidescrollbarthumb">

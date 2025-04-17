@@ -1,9 +1,9 @@
-import { deleteFile, saveFile } from "@/lib/file-s3";
+import { deleteFile, saveFile } from "@/lib/file";
 import { StoreModel } from "@/models/store-model";
 import Elysia, { t } from "elysia";
 
-export const adminRestaurentController = new Elysia({
-  prefix: "/restaurent",
+export const adminStoreController = new Elysia({
+  prefix: "/store",
   detail: {
     tags: ["Admin - Store"],
   },
@@ -20,7 +20,7 @@ export const adminRestaurentController = new Elysia({
           latitude,
           longitude,
           storeEmail,
-          // storeImage,
+          storeImage,
         } = body;
 
         const Estore = new StoreModel({
@@ -33,20 +33,20 @@ export const adminRestaurentController = new Elysia({
           longitude,
         });
 
-        // if (storeImage) {
-        //   const { ok, filename } = await saveFile(
-        //     storeImage,
-        //     "store"
-        //   );
+        if (storeImage) {
+          const { ok, filename } = await saveFile(
+            storeImage,
+            "store"
+          );
 
-        //   if (!ok) {
-        //     return {
-        //       error: "Failed to upload restaurent image",
-        //     };
-        //   }
+          if (!ok) {
+            return {
+              error: "Failed to upload restaurent image",
+            };
+          }
 
-        // Estore.storeImage = filename;
-        // }
+        Estore.storeImage = filename;
+        }
 
         await Estore.save();
         return {
@@ -76,7 +76,7 @@ export const adminRestaurentController = new Elysia({
         storeDescription: t.String(),
         latitude: t.String(),
         longitude: t.String(),
-        // storeImage: t.File(),
+        storeImage: t.File(),
         storeEmail: t.String(),
       }),
       detail: {
@@ -90,12 +90,12 @@ export const adminRestaurentController = new Elysia({
       try {
         const { id } = params;
   
-        const restaurent = await StoreModel.findById(id);
+        const store = await StoreModel.findById(id);
   
-        if (!restaurent) {
+        if (!store) {
           set.status = 404;
           return {
-            message: "Restaurent not found",
+            message: "store not found",
             status: false,
           };
         }
@@ -110,21 +110,19 @@ export const adminRestaurentController = new Elysia({
           storeEmail,
           storeImage,
           gstNumber,
-          fssaiNumber,
           legalEntityName,
         } = body;
   
         // Update fields
-        restaurent.storeName = storeName || restaurent.storeName;
-        restaurent.storeAddress = storeAddress || restaurent.storeAddress;
-        restaurent.storePhone = storePhone || restaurent.storePhone;
-        restaurent.storeDescription = storeDescription || restaurent.storeDescription;
-        restaurent.latitude = latitude || restaurent.latitude;
-        restaurent.longitude = longitude || restaurent.longitude;
-        restaurent.gstNumber = gstNumber || restaurent.gstNumber;
-        restaurent.fssaiNumber = fssaiNumber || restaurent.fssaiNumber;
-        restaurent.legalEntityName = legalEntityName || restaurent.legalEntityName;
-        restaurent.storeEmail = storeEmail || restaurent.storeEmail;
+        store.storeName = storeName || store.storeName;
+        store.storeAddress = storeAddress || store.storeAddress;
+        store.storePhone = storePhone || store.storePhone;
+        store.storeDescription = storeDescription || store.storeDescription;
+        store.latitude = latitude || store.latitude;
+        store.longitude = longitude || store.longitude;
+        store.gstNumber = gstNumber || store.gstNumber;
+        store.legalEntityName = legalEntityName || store.legalEntityName;
+        store.storeEmail = storeEmail || store.storeEmail;
   
         if (storeImage) {
           const { ok, filename } = await saveFile(storeImage, "store");
@@ -136,19 +134,19 @@ export const adminRestaurentController = new Elysia({
             };
           }
   
-          if (restaurent.storeImage) {
-            deleteFile(restaurent.storeImage);
+          if (store.storeImage) {
+            deleteFile(store.storeImage,'store');
           }
   
-          restaurent.storeImage = filename;
+          store.storeImage = filename;
         }
   
-        await restaurent.save();
+        await store.save();
   
         return {
           message: "Store details updated successfully",
           status: true,
-          data: restaurent,
+          data: store,
         };
       } catch (error) {
         set.status = 400;
@@ -174,7 +172,6 @@ export const adminRestaurentController = new Elysia({
         longitude: t.Optional(t.String({ default: "" })),
         storeImage: t.Optional(t.File()),
         gstNumber: t.Optional(t.String({ default: "" })),
-        fssaiNumber: t.Optional(t.String({ default: "" })),
         legalEntityName: t.Optional(t.String({ default: "" })),
       }),
       detail: {
@@ -182,26 +179,24 @@ export const adminRestaurentController = new Elysia({
       },
     }
   )
-  
-  
   .get(
     "/:id",
     async ({ params }) => {
       const { id } = params;
   
-      const restaurent = await StoreModel.findById(id);
+      const store = await StoreModel.findById(id);
   
-      if (!restaurent) {
+      if (!store) {
         return {
-          message: "Restaurent not found",
+          message: "store not found",
           status: false,
         };
       }
   
       return {
-        restaurent,
+       store,
         status: true,
-        message: "Restaurent fetched successfully",
+        message: "store fetched successfully",
       };
     },
     {
@@ -275,7 +270,7 @@ export const adminRestaurentController = new Elysia({
         const Estore = await StoreModel.findById(id);
   
         if (!Estore) {
-          return { message: "Restaurant not found" };
+          return { message: "store not found" };
         }
   
         if (permanent) {
@@ -288,7 +283,7 @@ export const adminRestaurentController = new Elysia({
         await Estore.save();
   
         return {
-          message: `Restaurant ${Estore.active ? "activated" : "deactivated"} successfully`,
+          message: `store ${Estore.active ? "activated" : "deactivated"} successfully`,
           status: true,
         };
       } catch (error) {

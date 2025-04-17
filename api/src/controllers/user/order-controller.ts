@@ -12,6 +12,8 @@ import { StoreType } from "@/types";
 import axios from "axios";
 import Elysia, { t } from "elysia";
 import mongoose from "mongoose";
+import { Product } from "@/models/product";
+import  ComboOffer  from "@/models/combo-model";
 
 export const userOrderController = new Elysia({
   prefix: "/orders",
@@ -58,13 +60,20 @@ export const userOrderController = new Elysia({
       let Estore = await StoreModel.findOne({});
       let orderId = generateRandomString(6, "JME");
 
+      const orderProducts = cart.products.map(product => ({
+        productId: product.productId,
+        quantity: product.quantity,
+        totalAmount: product.totalAmount,
+        price: product.price,
+        options: product.options,
+         selectedOffer:product.selectedOffer
+      }));
+
       const order = new OrderModel({
         user: cart.user,
         store: Estore?._id,
-        products: cart.products,
+        products: orderProducts,
         addressId: address._id,
-        deliveryAgent: null,
-        deliveryTime: null,
         deliverySeconds: cart.deliverySeconds,
         distance: cart.totalDistance,
         platformFee: cart.platformFee || 0,
@@ -73,7 +82,6 @@ export const userOrderController = new Elysia({
         tax: cart.tax,
         totalPrice: cart.totalPrice,
         status: "pending",
-        preparationTime: 0,
         paymentMethod: "Cash on Delivery",
         paymentStatus: "pending",
         orderId,
@@ -88,6 +96,7 @@ export const userOrderController = new Elysia({
           order.coupon = coupon._id;
           order.couponCode = coupon.code;
           order.totalPrice = cart.totalPrice - discountAmount;
+    
         }
       }
 
@@ -324,10 +333,10 @@ export const userOrderController = new Elysia({
             path: "products.productId",
             select: "productName price images",
           })
-          .populate({
-            path: "deliveryAgent",
-            select: "name phone",
-          })
+          // .populate({
+          //   path: "deliveryAgent",
+          //   select: "name phone",
+          // })
           .exec();
 
         if (!order) {
@@ -488,28 +497,80 @@ export const userOrderController = new Elysia({
     "/orderhistory",
     async ({ set, store }) => {
       const userId = (store as StoreType)["id"];
-
+  
       try {
         const orders = await OrderModel.find(
           { user: userId },
-          "-user -products.suggestions -dipps -products.dips -addressId"
+          "-user"
         )
           .populate({
-            path: "products.productId",
-            select: "productName price images",
-          })
-          .populate({
-            path: "deliveryAgent",
-            select: "name phone",
+            path: "addressId",
+            select: "flatorHouseno area landmark",
           })
           .sort({ createdAt: -1 })
-          .lean()
-          .exec();
-
+          .lean();
+  
+        // Loop through all orders to populate their products
+        const ordersWithPopulatedProducts = await Promise.all(
+          orders.map(async (order) => {
+            const populatedProducts = await Promise.all(
+              order.products.map(async (item) => {
+                // Try normal product
+                const normal = await Product.findById(item.productId)
+                  .select("productName brand images")
+                  .populate("brand", "name")
+                  .lean();
+  
+                if (normal) {
+                  return {
+                    ...item,
+                    productId: {
+                      _id: normal._id,
+                      productName: normal.productName,
+                      brand: normal.brand,
+                      images: normal.images,
+                      isCombo: false,
+                    },
+                  };
+                }
+  
+                // Try combo product
+                const combo = await ComboOffer.findById(item.productId)
+                  .select("comboName image comboPrice")
+                  .lean();
+  
+                if (combo) {
+                  return {
+                    ...item,
+                    productId: {
+                      _id: combo._id,
+                      productName: combo.comboName,
+                      brand: { name: "Combo Offer" },
+                      images: [combo.image],
+                      isCombo: true,
+                    },
+                  };
+                }
+  
+                // Not found
+                return {
+                  ...item,
+                  productId: null,
+                };
+              })
+            );
+  
+            return {
+              ...order,
+              products: populatedProducts,
+            };
+          })
+        );
+  
         return {
           message: "Order Fetched Successfully",
           status: true,
-          orders,
+          orders: ordersWithPopulatedProducts,
         };
       } catch (error) {
         set.status = 500;
@@ -526,7 +587,7 @@ export const userOrderController = new Elysia({
         description: "Get the order history of the authenticated user",
       },
     }
-  )
+  )  
   // .patch(
   //   "/rateorder",
   //   async ({ set, store, body }) => {
@@ -585,35 +646,78 @@ export const userOrderController = new Elysia({
     async ({ params }) => {
       try {
         const { id } = params;
-
-        const product = await OrderModel.findById(id)
-          // .populate({
-          //   path: "restaurent",
-          //   select: "restaurentName restaurentAddress restaurentImage",
-          // })
+  
+        const order = await OrderModel.findById(id)
           .populate({
             path: "addressId",
             select: "receiverName landmark area flatorHouseno receiverMobile",
           })
-          .populate({
-            path: "products.productId",
-            select: "images productName brand",
-            populate: {
-              path: "brand",
-              select: "name ", 
-            },
+          .lean(); // Make it plain JS object
+  
+        if (!order) {
+          return { message: "Order not found", status: false };
+        }
+  
+        // Loop through products to populate each productId
+        const populatedProducts = await Promise.all(
+          order.products.map(async (item) => {
+            let normal = await Product.findById(item.productId)
+              .select("productName brand images")
+              .populate("brand", "name")
+              .lean();
+  
+            if (normal) {
+              return {
+                ...item,
+                productId: {
+                  _id: normal._id,
+                  productName: normal.productName,
+                  brand: normal.brand,
+                  images: normal.images,
+                  isCombo: false,
+                },
+              };
+            }
+  
+            // Try combo product if normal not found
+            let combo = await ComboOffer.findById(item.productId)
+              .select("comboName image comboPrice")
+              .lean();
+  
+            if (combo) {
+              return {
+                ...item,
+                productId: {
+                  _id: combo._id,
+                  productName: combo.comboName,
+                  brand: { name: "Combo Offer" },
+                  images: [combo.image],
+                  isCombo: true,
+                },
+              };
+            }
+  
+            // If neither found
+            return {
+              ...item,
+              productId: null,
+            };
           })
-
+        );
+  
         return {
           message: "Order Fetched Successfully",
-          data: product,
+          data: {
+            ...order,
+            products: populatedProducts,
+          },
           status: true,
         };
-      } catch (error) {
-        console.error(error);
+      } catch (error:any) {
+        console.error("Error fetching order:", error);
         return {
-          error,
-          status: "error",
+          error: error.message,
+          status: false,
         };
       }
     },
@@ -626,72 +730,73 @@ export const userOrderController = new Elysia({
       },
     }
   )
-  // .post(
-  //   "/cancel/:orderId",
-  //   async ({ params, store, set }) => {
-  //     const userId = (store as StoreType)["id"];
+  
+  .post(
+    "/cancel/:orderId",
+    async ({ params, store, set }) => {
+      const userId = (store as StoreType)["id"];
 
-  //     try {
-  //       const { orderId } = params;
+      try {
+        const { orderId } = params;
 
-  //       const order = await OrderModel.findOne({ _id: orderId, user: userId });
+        const order = await OrderModel.findOne({ _id: orderId, user: userId });
 
-  //       if (!order) {
-  //         set.status = 404;
-  //         return { message: "Order not found", status: false };
-  //       }
+        if (!order) {
+          set.status = 404;
+          return { message: "Order not found", status: false };
+        }
 
-  //       const cancelableStatus = ["pending", "accepted", "assigned"];
+        const cancelableStatus = ["pending", "accepted"];
 
-  //       if (!cancelableStatus.includes(order.status)) {
-  //         return {
-  //           message: "Order cannot be cancelled",
-  //           status: false,
-  //         };
-  //       }
+        if (!cancelableStatus.includes(order.status)) {
+          return {
+            message: "Order cannot be cancelled",
+            status: false,
+          };
+        }
 
-  //       const user = await User.findById(order?.user);
+        const user = await User.findById(order?.user);
 
-  //       if (!user) {
-  //         set.status = 404;
-  //         return { message: "User not found", status: false };
-  //       }
+        if (!user) {
+          set.status = 404;
+          return { message: "User not found", status: false };
+        }
 
-  //       await sendNotification(
-  //         user.fcmToken,
-  //         "Order Cancelled",
-  //         `Your order ${order.orderId} has been cancelled. Contact support for assistance.`
-  //       );
+        // await sendNotification(
+        //   user.fcmToken,
+        //   "Order Cancelled",
+        //   `Your order ${order.orderId} has been cancelled. Contact support for assistance.`
+        // );
 
-  //       broadcastMessage(
-  //         `A Order with Order ID: ${order.orderId} is cancelled by User, ${user.username}`
-  //       );
+        // broadcastMessage(
+        //   `A Order with Order ID: ${order.orderId} is cancelled by User, ${user.username}`
+        // );
 
-  //       order.status = "cancelled";
+        order.status = "cancelled";
 
-  //       await order?.save();
+        await order?.save();
 
-  //       return {
-  //         message: "Order cancelled successfully",
-  //         status: true,
-  //       };
-  //     } catch (error) {
-  //       console.error(error);
-  //       return {
-  //         error,
-  //         status: "error",
-  //       };
-  //     }
-  //   },
-  //   {
-  //     params: t.Object({
-  //       orderId: t.String(),
-  //     }),
-  //     detail: {
-  //       summary: "Cancel Order by id",
-  //     },
-  //   }
-  // )
+        return {
+          message: "Order cancelled successfully",
+          status: true,
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: "error",
+        };
+      }
+    },
+    {
+      params: t.Object({
+        orderId: t.String(),
+      }),
+      detail: {
+        summary: "Cancel Order by id",
+      },
+    }
+  )
   // .post(
   //   "/createpayorder",
   //   async ({ body, set }) => {

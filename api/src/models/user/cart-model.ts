@@ -1,15 +1,46 @@
 import { model, Schema, Types } from "mongoose";
 
-interface Dip {
-  quantity: number;
-  productId: Types.ObjectId;
-  totalAmount: number;
-  name: string;
-  price: number;
-}
-
 interface CartProduct {
   productId: Types.ObjectId;
+  selectedOffer: {
+    type: {
+      offerType: {
+        type: String,
+        enum: ['Discount', 'onMRP', 'Flat', 'Negotiate'],
+        required: true,
+      },
+      discount: Number,
+      onMRP: {
+        subType: {
+          type: String,
+          enum: ['Need', 'Complimentary'],
+        },
+        message: String,
+        productId: {
+          type: Types.ObjectId,
+          ref: "Product",
+        },
+        
+        reductionValue: Number,
+      },
+      flatAmount: Number,
+      negotiate: {
+        negotiatedPrice: {
+          type: Number,
+        },
+        attempts: [{
+          amount: {
+            type: Number,
+          },
+          attemptNumber: {
+            type: Number,
+          },
+          _id: false
+        }],
+      },
+    },
+    required: false,
+  },
   quantity: number;
   totalAmount: number;
   options?: { [key: string]: any }; // Dynamic options object
@@ -42,6 +73,73 @@ const CartProductSchema = new Schema<CartProduct>({
     ref: "Product",
     required: true,
   },
+  selectedOffer: {
+    type: {
+      offerType: {
+        type: String,
+        enum: ['Discount', 'onMRP', 'Flat', 'Negotiate'],
+        required: true,
+      },
+      discount: {
+        type: Number,
+        required: function() {
+          return this.offerType === 'Discount';
+        },
+      },
+      onMRP: {
+        type: {
+          subType: {
+            type: String,
+            enum: ['Need', 'Complementary'],
+            required: true,
+          },
+          message: {
+            type: String,
+            required: function() {
+              return this.subType === 'Need';
+            },
+          },
+          productId: {
+            type: Schema.Types.ObjectId,
+            ref: "Product",
+            required: function() {
+              return this.subType === 'Complimentary';
+            },
+          },
+          reductionValue: {
+            type: Number,
+            required: true,
+          },
+        },
+        required: function() {
+          return this.offerType === 'onMRP';
+        },
+      },
+      flatAmount: {
+        type: Number,
+        required: function() {
+          return this.offerType === 'Flat';
+        },
+      },
+      negotiate: {
+        type: {
+          negotiatedPrice: {
+            type: Number,
+          },
+          attempts: [
+            {
+              amount: Number,
+              attemptNumber: Number,
+            },
+          ],
+        },
+        required: function() {
+          return this.offerType === 'Negotiate';
+        },
+      },
+    },
+    required: false,
+  },
   quantity: {
     type: Number,
     required: true,
@@ -65,6 +163,7 @@ const CartProductSchema = new Schema<CartProduct>({
     default: 0,
   },
 });
+
 
 const CartSchema = new Schema<Cart>(
   {

@@ -1,4 +1,6 @@
+import comboModel from "@/models/combo-model";
 import { DiscountOffer, FlatOffer, MRPOffer, NegotiateOffer } from "@/models/offer-model";
+import { User } from "@/models/user-model";
 import { Favorites } from "@/models/user/favorites-model";
 import { StoreType } from "@/types";
 import Elysia, { t } from "elysia";
@@ -25,7 +27,7 @@ export const userOfferController = new Elysia({
 
       // Fetch all offers with populated items.productId for relevant types
       const [flatOffers, negotiateOffers, discountOffers, mrpOffers] = await Promise.all([
-        FlatOffer.find().lean(),
+        FlatOffer.find().populate('products').lean(),
         NegotiateOffer.find().populate('items.productId').lean(),
         DiscountOffer.find().populate('items.productId').lean(),
         MRPOffer.find().populate('items.productId').lean(),
@@ -85,5 +87,60 @@ export const userOfferController = new Elysia({
       description: "Fetches all offers (flat, negotiate, discount, mrp) with populated product details and favorite status based on user ID.",
     },
   },
-);
+)
+.get(
+  "/combo",
+  async ({ query }) => {
+    try {
+      const { page = 1, limit = 10 } = query;
+      const comboOffers = await comboModel.find({ isDeleted: false })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate({path:'productsIncluded.productId',select:"productName images price strikePrice description options specifications"})
+        .sort({ createdAt: -1 });
+      
+        const totalOffers = await comboModel.countDocuments({ isDeleted: false });
+
+      
+      return { comboOffers, total: totalOffers, status: true };
+    } catch (error: any) {
+      return { error: error.message, status: "error" };
+    }
+  },
+  {
+    query: t.Object({
+      page: t.Number({ default: 1 }),
+      limit: t.Number({ default: 10 }),
+    }),
+  }
+)
+.get(
+  "/combo/:id",
+  async ({ params }) => {
+    try {
+      const { id } = params;
+
+      const comboOffer = await comboModel.findOne({
+        _id: id,
+        isDeleted: false,
+      }).populate({
+        path: 'productsIncluded.productId',
+        select: "productName images price strikePrice description options specifications"
+      });
+
+      if (!comboOffer) {
+        return { status: false, message: "Combo offer not found" };
+      }
+
+      return { comboOffer, status: true };
+    } catch (error: any) {
+      return { error: error.message, status: false };
+    }
+  },
+  {
+    params: t.Object({
+      id: t.String(),
+    }),
+  }
+)
 

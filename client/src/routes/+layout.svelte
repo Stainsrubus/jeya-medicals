@@ -26,7 +26,11 @@
 
 <Toaster position="top-center" />
 <QueryClientProvider client={queryClient}>
-	<Topbar />
+<div class="fixed z-50">
+    <Topbar />
 	<Navbar />
+</div>
+<div class="pt-[120px]">
 {@render children()}
+</div>
 </QueryClientProvider>

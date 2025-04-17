@@ -135,7 +135,7 @@
         <div class="md:w-1/2 lg:top-24 top-14 absolute w-full lg:max-h-64 max-h-52  overflow-y-auto bg-white rounded-3xl shadow-md p-4 ">
           {#if searchResults.data.length > 0}
             {#each searchResults.data as product, index}
-              <div class=" {index === searchResults.data.length - 1 ? '' : 'border-b'} flex items-center md:gap-10 gap-2 p-1">
+              <div on:click={()=>{goto(`/Products/${product._id}`)}} class="cursor-pointer {index === searchResults.data.length - 1 ? '' : 'border-b'} flex items-center md:gap-10 gap-2 p-1">
                 <div class="border lg:p-3 md:p-2 p-1 rounded-lg">
                   <img src={imgUrl + product.images[0]} alt="" class="md:w-16 md:h-16 min-w-12 min-h-12 h-12 w-12" />
                 </div>
@@ -169,7 +169,7 @@
       {:else}
         <div class="flex px-4 md:px-0 gap-6 mb-10 lg:w-3/4 w-full overflow-x-auto items-center md:justify-center">
           {#each categories as category}
-            <div class="flex flex-col items-center cursor-pointer">
+            <div on:click={()=>{if(category.label==='See All')goto('/Products')}} class="flex flex-col items-center cursor-pointer">
               <img
                 src={category.label !== 'See All' ? imgUrl + category.image : category.image}
                 alt={category.label}

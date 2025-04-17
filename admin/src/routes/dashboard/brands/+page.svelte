@@ -9,7 +9,7 @@
 
 <svelte:head>
 	<title>Dashboard | Brands</title>
-	<meta name="description" content="dashboard for JME" />
+	<meta name="description" content="dashboard for Ecommerce" />
 </svelte:head>
 
 <Tabs.Root

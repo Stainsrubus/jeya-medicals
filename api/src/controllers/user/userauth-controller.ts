@@ -207,4 +207,5 @@ export const usersAuthController = new Elysia({
         description: "Decrypt the token",
       },
     }
-  );
+  )
+
