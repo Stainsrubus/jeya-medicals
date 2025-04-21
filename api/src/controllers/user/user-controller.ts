@@ -12,8 +12,8 @@ export const userController = new Elysia({
   "/",
   async ({ body, store, set }) => {
     try {
-      let _store: any = store;
-      let id = _store?.id ?? "";
+      const _store: any = store;
+      const id = _store?.id ?? "";
 
       const { username, profileImage } = body;
 
@@ -26,51 +26,64 @@ export const userController = new Elysia({
         };
       }
 
+      let updated = false;
+
       if (profileImage) {
         const { filename, ok } = await saveFile(profileImage, "profile-images");
 
         if (!ok) {
           set.status = 400;
-
           return {
             status: false,
             message: "Unable to upload profile image",
           };
         }
 
-        deleteFile(user.profileImage);
+        // Delete old image only if it's being replaced
+        if (user.profileImage) {
+          deleteFile(user.profileImage, "profile-images");
+        }
 
         user.profileImage = filename;
+        updated = true;
       }
 
-      user.username = username || user.username;
+      if (username && username !== user.username) {
+        user.username = username;
+        updated = true;
+      }
+
+      if (!updated) {
+        set.status = 400;
+        return {
+          status: false,
+          message: "Nothing to update",
+        };
+      }
 
       await user.save();
 
       return {
         message: "User updated successfully",
         status: true,
-        user: user,
+        user,
       };
     } catch (error) {
       console.error(error);
       return {
-        error,
         status: false,
+        message: "Something went wrong",
+        error,
       };
     }
   },
   {
     body: t.Object({
-      username: t.Optional(
-        t.String({
-          default: "",
-        })
-      ),
+      username: t.Optional(t.String({ default: "" })),
       profileImage: t.Optional(t.Any()),
     }),
     detail: {
       summary: "Update a user by id",
     },
   }
-);
+)

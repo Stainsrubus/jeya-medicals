@@ -162,13 +162,20 @@ $: displayAddress = primaryAddress
   }
 
   function handleSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    const formData = new FormData(event.target as HTMLFormElement);
-    const username = formData.get('username') as string;
-    const profileImage = formData.get('profileImage') as File;
+  event.preventDefault();
+  const formData = new FormData(event.target as HTMLFormElement);
+  const username = formData.get('username') as string;
+  const profileImage = formData.get('profileImage') as File;
 
-    $updateProfileMutation.mutate({ username, profileImage });
+  const payload: { username: string; profileImage?: File } = { username };
+
+  if (profileImage && profileImage.size > 0) {
+    payload.profileImage = profileImage;
   }
+
+  $updateProfileMutation.mutate(payload);
+}
+
   function getInitials(name: string) {
     return name.charAt(0).toUpperCase();
   }
@@ -383,7 +390,7 @@ $: displayAddress = primaryAddress
     <div class="p-6 h-full flex flex-col">
       <div class="flex justify-between">
         <h2 class="text-3xl text-[#30363C] font-semibold mb-4 flex items-center gap-2"><Icon onclick={closeDialog} icon="lucide:arrow-left" class="w-6 h-6 text-[#4F585E] cursor-pointer]"  /> Edit Profile</h2>
-        <Icon icon="material-symbols:close-small-rounded" class="text-gray-600" height={32} width={32} onclick={closeDialog} />
+        <!-- <Icon icon="material-symbols:close-small-rounded" class="text-gray-600" height={32} width={32} onclick={closeDialog} /> -->
       </div>
       <form onsubmit={handleSubmit} class="space-y-4 flex-grow">
         <div class="flex flex-col justify-center items-center">
@@ -415,6 +422,7 @@ $: displayAddress = primaryAddress
             type="text"
             id="username"
             name="username"
+            autocomplete="off"
 			placeholder="Enter Username"
             value={$writableGlobalStore.userDetails.userName || ''}
             class="mt-1 block w-full border-gray-300 rounded-lg border shadow-sm h-10 p-2 focus:ring-0 focus:outline-none text-sm"
@@ -427,6 +435,7 @@ $: displayAddress = primaryAddress
 			  id="username"
 			  name="username"
 			  disabled
+        autocomplete="off"
 			  value={$writableGlobalStore.userDetails.mobile || ''}
 			  class="mt-1 block w-full border-gray-300 rounded-lg border shadow-sm h-10 p-2 focus:ring-0 focus:outline-none text-sm"
 			/>

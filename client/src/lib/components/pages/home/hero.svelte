@@ -12,6 +12,7 @@
 
   // Define the type for categories
   interface Category {
+	_id: any;
     label: string;
     image: string;
   }
@@ -37,7 +38,10 @@
           'Content-Type': 'application/json',
         },
       });
-      const fetchedCategories = response.data.categories.map((category: { name: string; image: string }) => ({
+      const fetchedCategories = response.data.categories.map((category: {
+		  _id: any; name: string; image: string 
+}) => ({
+        _id:category._id,
         label: category.name,
         image: category.image,
       }));
@@ -96,17 +100,17 @@
   $: error = $categoriesQuery.error ? ($categoriesQuery.error as Error).message : null;
 </script>
 
-<div class="bg-custom-gradient py-10 px-4 md:px-6 lg:px-8 text-[#30363C]">
+<div class="bg-custom-gradient py-10  text-[#30363C] scrollbar-hide">
   <!-- Search Section -->
   <div>
-    <h1 class="lg:text-3xl text-2xl text-center font-bold text-[#30363C] mb-6">Looking for something specific?</h1>
-    <div class="flex flex-col relative items-center justify-center w-full mb-10">
+    <h1 class="lg:text-3xl px-4 md:px-6 lg:px-8 text-2xl text-center font-bold text-[#30363C] lg:mb-6 mb-3">Looking for something specific?</h1>
+    <div class="flex px-4 md:px-6 lg:px-8 flex-col relative items-center justify-center w-full lg:mb-10 mb-6">
       <div class="border flex md:w-1/2 w-full rounded-full bg-white md:p-2 p-1">
         <div class="relative w-full">
           <input
             type="text"
             placeholder="Search medical products"
-            class="w-full absolute top-1/2 transform -translate-y-1/2 md:text-xl text-lg md:pl-20 pl-14 pr-4 rounded-full focus:outline-none focus:ring-0 text-gray-700"
+            class="w-full absolute top-1/2 transform -translate-y-1/2 md:text-xl text-lg placeholder:text-base md:pl-20 pl-14 pr-4 rounded-full focus:outline-none focus:ring-0 text-gray-700"
             on:input={handleSearch}
             bind:value={searchQuery}
           />
@@ -125,14 +129,14 @@
           </button>
         {:else}
           <button
-            class="ml-4 bg-[#01A0E2] font-medium md:text-xl text-lg text-white md:px-9 md:py-4 px-5 py-2 rounded-full hover:bg-[#156aa3] transition-colors duration-200"
+            class="lg:ml-4 bg-[#01A0E2] font-medium md:text-xl text-lg text-white md:px-9 md:py-4 px-5 py-2 rounded-full hover:bg-[#156aa3] transition-colors duration-200"
           >
             Search
           </button>
         {/if}
       </div>
       {#if searchResults}
-        <div class="md:w-1/2 lg:top-24 top-14 absolute w-full lg:max-h-64 max-h-52  overflow-y-auto bg-white rounded-3xl shadow-md p-4 ">
+        <div class="md:w-1/2 lg:top-24 top-14 absolute w-full lg:max-h-64 max-h-52  overflow-y-auto bg-white rounded-3xl shadow-md py-4 pl-4 ">
           {#if searchResults.data.length > 0}
             {#each searchResults.data as product, index}
               <div on:click={()=>{goto(`/Products/${product._id}`)}} class="cursor-pointer {index === searchResults.data.length - 1 ? '' : 'border-b'} flex items-center md:gap-10 gap-2 p-1">
@@ -158,7 +162,7 @@
     <div class="flex justify-center items-center w-full">
       {#if loading || error}
         <!-- Skeleton Loader with ShadCN Skeleton -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-6 mb-10 w-3/4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-6 md:mb-10 mb-5 w-3/4">
           {#each Array(6) as _}
             <div class="flex flex-col items-center space-y-2">
               <Skeleton class="w-24 h-24 rounded-full" />
@@ -167,15 +171,23 @@
           {/each}
         </div>
       {:else}
-        <div class="flex px-4 md:px-0 gap-6 mb-10 lg:w-3/4 w-full overflow-x-auto items-center md:justify-center">
+        <div class="flex px-4 md:px-0 gap-6 md:mb-10 mb-5  lg:w-3/4 w-full overflow-x-auto items-center md:justify-center scrollbar-hide">
           {#each categories as category}
-            <div on:click={()=>{if(category.label==='See All')goto('/Products')}} class="flex flex-col items-center cursor-pointer">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div 
+            on:click={()=>{
+              if(category.label==='See All'){goto('/Products')}
+              else{goto(`/Products?${category._id}`)}
+                            
+                       }} 
+          class="flex flex-col items-center cursor-pointer">
               <img
                 src={category.label !== 'See All' ? imgUrl + category.image : category.image}
                 alt={category.label}
-                class="w-24 h-24 object-contain mb-2"
+                class="md:min-w-24 md:min-h-24 min-h-12 min-w-12 max-h-12 max-w-12 md:max-h-24 md:max-w-24  object-contain lg:mb-2"
               />
-              <span class="text-xl text-[#30363C] text-center">
+              <span class="lg:text-xl md:text-lg text-base text-[#30363C] text-center">
                 {category.label}
                 {#if category.label === 'See All'}
                   <Icon icon="mdi:arrow-right" class="inline-block ml-1" width="16" />
@@ -188,7 +200,7 @@
     </div>
 
     <!-- Banner Section -->
-    <div class="flex justify-start overflow-x-auto gap-10 lg:pt-10 md:pt-7 pt-5">
+    <div class="px-4 md:px-6 lg:px-8 flex justify-start overflow-x-auto gap-10 lg:pt-10 md:pt-7 pt-5">
       <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
         <img
           src="/images/banner1.png"

@@ -156,6 +156,7 @@
 			<Label for="name">Brand Name</Label>
 			<Input
 				id="name"
+				autocomplete='off'
 				class="pr-10 mt-1"
 				placeholder="Ex: XY Brand"
 				aria-invalid={$errors.name ? 'true' : undefined}

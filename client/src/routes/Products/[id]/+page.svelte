@@ -209,6 +209,16 @@ let offerType: string | null=null;
   });
   $: cartCount = $writableGlobalStore.isLogedIn ? ($cartCountQuery.data?.count || 0) : 0;
   $: cartData = $writableGlobalStore.isLogedIn ? ($cartQuery?.data?.cart|| 0) : 0;
+  let cartQuantity = 0;
+
+$: if ($cartQuery.data?.cart?.products) {
+  const foundItem = $cartQuery.data.cart.products.find(
+    (item: { productId: { _id: string } }) => item.productId._id === productId
+  );
+  if (foundItem) {
+    cartQuantity = foundItem.quantity;
+  }
+}
   const userData = JSON.parse(localStorage.getItem('userData') || '{}');
 
   let selectedImageIndex = 0;
@@ -416,43 +426,47 @@ const flatProductQuery = createMutation<Product>({
       negotiationError = "Failed to negotiate price. Please try again.";
     }
   }
+  function getSelectedOffer() {
+    let selectedOffer = null;
+    if (selectedPricingOption === 'discount') {
+      selectedOffer = {
+        offerType: 'Discount',
+        discount: product?.discount,
+      };
+    } else if (selectedPricingOption === 'onMRP') {
+      selectedOffer = {
+        offerType: 'onMRP',
+        onMRP: {
+          subType: selectedMessageOption,
+          reductionValue: product?.onMRP,
+          ...(selectedMessageOption === 'Need' && { message: neededProductName }),
+          ...(selectedMessageOption === 'Complementary' && { productId: product.id }),
+        },
+      };
+    } else if (selectedPricingOption === 'flatOffer') {
+      selectedOffer = {
+        offerType: 'Flat',
+        flatAmount: product.MRP, // Assuming flatAmount is the MRP for simplicity
+      };
+    } else if (selectedPricingOption === 'negotiation') {
+      selectedOffer = {
+        offerType: 'Negotiate',
+        negotiate: {
+          negotiatedPrice: negotiation.negotiatedPrice,
+          attempts: negotiation.attempts,
+        },
+      };
+    }
+    return selectedOffer;
+  }
 
   const addToCartMutation = createMutation({
-    mutationFn: async () => {
+    mutationFn: async (quantity: number) => {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
       if (!token || !$writableGlobalStore.isLogedIn) {
         throw new Error('Please log in to add to cart');
       }
-      let selectedOffer = null;
-      if (selectedPricingOption === 'discount') {
-        selectedOffer = {
-          offerType: 'Discount',
-          discount: product?.discount,
-        };
-      } else if (selectedPricingOption === 'onMRP') {
-        selectedOffer = {
-          offerType: 'onMRP',
-          onMRP: {
-            subType: selectedMessageOption,
-            reductionValue: product?.onMRP,
-            ...(selectedMessageOption === 'Need' && { message: neededProductName }),
-            ...(selectedMessageOption === 'Complementary' && { productId: product.id }),
-          },
-        };
-      } else if (selectedPricingOption === 'Flat') {
-        // selectedOffer = {
-        //   offerType: 'Flat',
-        //   flatAmount: product.MRP, // Assuming flatAmount is the MRP for simplicity
-        // };
-      } else if (selectedPricingOption === 'negotiation') {
-        selectedOffer = {
-          offerType: 'Negotiate',
-          negotiate: {
-            negotiatedPrice: negotiation.negotiatedPrice,
-            attempts: negotiation.attempts,
-          },
-        };
-      }
+
       try {
         const response = await _axios.post(
           '/cart/update',
@@ -462,7 +476,7 @@ const flatProductQuery = createMutation<Product>({
                 productId: productId,
                 quantity: quantity,
                 options: Object.entries(selectedOptions).map(([key, value]) => ({ title: key, value })),
-                selectedOffer,
+                selectedOffer: getSelectedOffer(),
               },
             ],
           },
@@ -475,33 +489,50 @@ const flatProductQuery = createMutation<Product>({
         );
 
         if (!response.data.status) {
-          throw new Error(response.data.message || 'Failed to add to cart');
+          throw new Error(response.data.message || 'Failed to update cart');
         }
+        toast.success('Quantity updated successfully');
         return response.data;
       } catch (error) {
-        console.error("Failed to add to cart:", error);
+        console.error("Failed to update cart:", error);
         throw error;
       }
     },
+    onMutate: (quantity) => {
+      // Optimistically update the UI
+      cartQuantity = quantity;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['cart']);
-      toast.success('Product added to cart successfully!');
-     neededProductName ='';
+      queryClient.invalidateQueries(['cartCount']);
     },
     onError: (error: any) => {
+      // Revert optimistic update
+      const foundItem = $cartQuery.data?.cart?.products.find(
+        (item: { productId: { _id: string } }) => item.productId._id === productId
+      );
+      cartQuantity = foundItem ? foundItem.quantity : 0;
+
       if (error.message === 'Please log in to add to cart') {
         toast.error(error.message);
         window.location.href = '/login';
       } else {
-        toast.error(error.message || 'An error occurred while adding to cart');
+        toast.error(error.message || 'An error occurred while updating cart');
       }
     },
-    
   });
 
   function addToCart() {
     if (!product) return;
-    $addToCartMutation.mutate();
+    $addToCartMutation.mutate(1);
+  }
+
+  function incrementQuantity() {
+    $addToCartMutation.mutate(cartQuantity + 1);
+  }
+
+  function decrementQuantity() {
+    $addToCartMutation.mutate(Math.max(0, cartQuantity - 1));
   }
 
   $: product = $productQuery.data;
@@ -642,7 +673,7 @@ const flatProductQuery = createMutation<Product>({
               <img
                 src={imgUrl + product.images[selectedImageIndex]}
                 alt={product.name}
-                class="h-96 w-96 object-contain"
+                class="lg:h-96 h-52 w-96 object-contain"
               />
             </div>
             <!-- Thumbnail Gallery -->
@@ -709,12 +740,37 @@ const flatProductQuery = createMutation<Product>({
 
               </div>
               <div class="mt-4 self-end">
-                <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all"
-                  on:click={addToCart}
-                >
-                  Add to cart
-                </button>
+                {#if cartQuantity > 0}
+      <div class="flex items-center rounded-lg gap-2 bg-[#F3FBFF] border-[#0EA5E9] border">
+        <button
+          on:click={decrementQuantity}
+          class="w-14 h-10 text-3xl flex items-center justify-center text-[#01A0E2]"
+          disabled={$addToCartMutation.isPending}
+        >
+          -
+        </button>
+        <span class="text-lg">{cartQuantity}</span>
+        <button
+          on:click={incrementQuantity}
+          class="w-14 h-10 text-2xl flex items-center justify-center text-[#01A0E2]"
+          disabled={$addToCartMutation.isPending}
+        >
+          +
+        </button>
+      </div>
+    {:else}
+      <button
+        class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all"
+        on:click={addToCart}
+        disabled={$addToCartMutation.isPending}
+      >
+        {#if $addToCartMutation.isPending}
+          Adding...
+        {:else}
+          Add to cart
+        {/if}
+      </button>
+    {/if}
               </div>
             </div>
 
@@ -736,7 +792,7 @@ const flatProductQuery = createMutation<Product>({
 
             <!-- Negotiation Section for mobile -->
             <div class="md:hidden block mt-5">
-              <div class={`negotiation-section bg-white p-6 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
+              <div class={`negotiation-section bg-white lg:p-6 p-2 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
                 <!-- Negotiation Option -->
         {#if product?.negotiate}
         <label class="flex items-center space-x-1">
@@ -776,7 +832,7 @@ const flatProductQuery = createMutation<Product>({
         </label>
       {/if}
         </div>
-        <div class={`negotiation-section max-w-lg mt-5 bg-white p-6 rounded-lg shadow-md border border-gray-200 ${product?.negotiate || product?.onMRP > 0 || product?.discount > 0||product?.flat > 0 ? 'block' : 'hidden'}`}>
+        <div class={`negotiation-section max-w-lg mt-5 bg-white lg:p-6 p-2 rounded-lg shadow-md border border-gray-200 ${product?.negotiate || product?.onMRP > 0 || product?.discount > 0||product?.flat > 0 ? 'block' : 'hidden'}`}>
           <!-- Radio Buttons for Pricing Options -->
       {#if selectedPricingOption===''}
       <p class="text-sm text-yellow-600 flex items-center">
@@ -897,18 +953,19 @@ const flatProductQuery = createMutation<Product>({
               </p>
             </div>
             {:else if selectedPricingOption === 'flatOffer' && product?.flat > 0}
-            <div class="mb-4">
-              <p class="text-base my-4 text-yellow-600 flex items-center">
-                <span class="mr-1 text-base">
-                  <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-             </span> Please add one more product to avail<span class="text-lg px-2">{product?.flat}%</span> offer  for this product
+            <div class="mb-1 my-1 flex items-center gap-2 rounded-md  p-1 text-yellow-700">
+              <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600 shrink-0" />
+              <p class="text-base flex lg:flex-wrap items-center gap-1">
+            Please add one more product to avail
+                {product?.flat}%
+                offer for this product.
               </p>
             </div>
           {/if}
         </div>
             </div>
 
-            <div class="mt-4">
+            <!-- <div class="mt-4">
               <p class="text-sm text-[#4F585E] mb-2">COUNT: {quantity}</p>
               <div class="flex items-center gap-2">
                 <button
@@ -925,7 +982,7 @@ const flatProductQuery = createMutation<Product>({
                   +
                 </button>
               </div>
-            </div>
+            </div> -->
             <div class="flex justify-between  lg:hidden  flex-wrap">
               <div>
                 <p class="md:text-lg text-base text-[#4F585E] mt-2">M.R.P <span class="line-through">₹{product.strikePrice}</span></p>
@@ -949,12 +1006,37 @@ const flatProductQuery = createMutation<Product>({
 
               </div>
               <div class="mt-4 self-end">
+                {#if cartQuantity > 0}
+                <div class="flex items-center rounded-lg gap-2 bg-[#F3FBFF] border-[#0EA5E9] border">
+                  <button
+                    on:click={decrementQuantity}
+                    class="w-14 h-10 text-3xl flex items-center justify-center text-[#01A0E2]"
+                    disabled={$addToCartMutation.isPending}
+                  >
+                    -
+                  </button>
+                  <span class="text-lg">{cartQuantity}</span>
+                  <button
+                    on:click={incrementQuantity}
+                    class="w-14 h-10 text-2xl flex items-center justify-center text-[#01A0E2]"
+                    disabled={$addToCartMutation.isPending}
+                  >
+                    +
+                  </button>
+                </div>
+              {:else}
                 <button
                   class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all"
                   on:click={addToCart}
+                  disabled={$addToCartMutation.isPending}
                 >
-                  Add to cart
+                  {#if $addToCartMutation.isPending}
+                    Adding...
+                  {:else}
+                    Add to cart
+                  {/if}
                 </button>
+              {/if}
               </div>
             </div>
           </div>
@@ -970,7 +1052,7 @@ const flatProductQuery = createMutation<Product>({
           </div>
     
           <!-- Negotiation Section -->
-          <div class={`negotiation-section bg-white p-6 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
+          <div class={`negotiation-section bg-white lg:p-6 p-2 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
                   <!-- Negotiation Option -->
           {#if product?.negotiate}
           <label class="flex items-center space-x-1">
@@ -1206,7 +1288,7 @@ const flatProductQuery = createMutation<Product>({
         <!-- Specifications -->
         <div class="mt-8 bg-white ">
           {#if product}
-          <div class="bg-[#F5F5F5] rounded-lg mr-20">
+          <div class="bg-[#F5F5F5] rounded-lg lg:mr-20">
             <h2 class="text-xl font-bold text-[#4B5563] border rounded-lg border-[#0EA5E9] bg-[#F3FBFF] px-16 py-4 inline-block">
               Specifications
             </h2>
@@ -1442,18 +1524,16 @@ const flatProductQuery = createMutation<Product>({
             </div>
          
             {:else if selectedPricingOption === 'flatOffer' && product?.flat > 0}
-            <div class="mb-4 flex items-start my-4">
-              <span class="mr-1 mt-0.5 text-base">
-                <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-              </span>
-              <p class="text-base  flex flex-wrap text-yellow-600 items-center">
-               
-                <span>
-                  Please add one more product to avail <span class="text-lg px-2">{product?.flat}%</span> offer  for this product
-                </span>  
-         
-               </p>
+            <div class="mb-4 my-4 flex items-center gap-2 rounded-md  p-3 text-yellow-700">
+              <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600 shrink-0" />
+              <p class="text-base flex lg:flex-wrap items-center gap-1">
+            Please add one more product to avail
+                {product?.flat}%
+                offer for this product.
+              </p>
             </div>
+            
+            
          
           {/if}
           

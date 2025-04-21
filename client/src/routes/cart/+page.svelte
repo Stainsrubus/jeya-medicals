@@ -527,8 +527,8 @@
             <div style="width: 17%;" class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
               <button
                 on:click={() => updateQuantity(item.productId._id, -1)}
-                class="w-7.5 h-7.5 pl-2 border-gray-300 cursor-pointer text-base flex items-center justify-center text-[#01A0E2]"
-                disabled={$updateQuantityMutation.isPending}
+                class={`w-7.5 h-7.5 pl-2 border-gray-300  text-base flex items-center justify-center  ${item.quantity===1?'text-[#019ee27a] cursor-not-allowed':'text-[#01A0E2] cursor-pointer'}`}
+                disabled={$updateQuantityMutation.isPending||item.quantity===1}
               >
                 -
               </button>

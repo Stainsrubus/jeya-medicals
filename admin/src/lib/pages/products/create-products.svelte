@@ -278,6 +278,7 @@
 			<Label>Product Name</Label>
 			<Input
 				class="pr-10 mt-1"
+				autocomplete="off"
 				placeholder="Ex: Roller Bandage"
 				aria-invalid={$errors.productName ? 'true' : undefined}
 				bind:value={$form.productName}
@@ -291,6 +292,7 @@
 			<Label for="productCode">Product Code</Label>
 			<Input
 				id="productCode"
+				autocomplete="off"
 				class="pr-10 mt-1 uppercase"
 				placeholder="Ex: RB001"
 				aria-invalid={$errors.productCode ? 'true' : undefined}
@@ -369,6 +371,7 @@
 			<Label for="price">Price</Label>
 			<Input
 				id="price"
+				autocomplete="off"
 				min="1"
 				type="text"
 				class="pr-10 mt-1"
@@ -385,6 +388,7 @@
 			<Label for="price">Strike Price</Label>
 			<Input
 				id="strikePrice"
+				autocomplete="off"
 				min="1"
 				type="text"
 				class="pr-10 mt-1"
@@ -401,6 +405,7 @@
 			<Label for="negotiationLimit">Negotiation Limit</Label>
 			<Input
 				id="negotiationLimit"
+				autocomplete="off"
 				min="1"
 				type="text"
 				class="pr-10 mt-1"
@@ -417,6 +422,7 @@
 			<Label for="gst">Gst (%)</Label>
 			<Input
 				id="gst"
+				autocomplete="off"
 				class="pr-10 mt-1"
 				placeholder="Ex: 1"
 				aria-invalid={$errors.gst ? 'true' : undefined}
@@ -442,6 +448,7 @@
 							<div class="flex items-center px-2 py-1">
 								<input
 									type="checkbox"
+									autocomplete="off"
 									id={spec.name}
 									checked={selectedSpecifications.some((s) => s.name === spec.name)}
 									onchange={() => toggleSpecification(spec.name)}
@@ -472,6 +479,7 @@
 						<Label class="text-sm font-medium text-gray-600">{field}</Label>
 						<Input
 							bind:value={spec.fields[field]}
+							autocomplete="off"
 							placeholder={`Enter ${field}`}
 							class="w-full"
 						/>
@@ -578,12 +586,14 @@
 					</div>
 					<Input
 						class="pr-10 mt-1"
+						autocomplete="off"
 						placeholder="Option Title"
 						bind:value={option.title}
 						oninput={(e: any) => updateOptionTitle(index, e.target.value)}
 					/>
 					<Input
 						class="pr-10 mt-1"
+						autocomplete="off"
 						placeholder="Option Values (comma-separated)"
 						value={option.values.join(', ')}
 						oninput={(e: any) => {

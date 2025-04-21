@@ -163,6 +163,7 @@
 			<Label for="name">Category Name</Label>
 			<Input
 				id="name"
+				autocomplete="off"
 				class="pr-10 mt-1"
 				placeholder="Ex:Surgical equipments,.."
 				aria-invalid={$errors.name ? 'true' : undefined}
@@ -177,6 +178,7 @@
 			<Label for="code">Category Code</Label>
 			<Input
 				id="code"
+				autocomplete="off"
 				class="pr-10 mt-1"
 				type={'number'}
 				placeholder="Ex: 1001"
@@ -207,6 +209,7 @@
 			<Label for="image">Category Image <span class="text-gray-500 text-xs">(69 X 69) ~ 200kb</span></Label>
 			<Input
 				id="image"
+				autocomplete="off"
 				required={!edit}
 				class="pr-10 mt-1"
 				type="file"

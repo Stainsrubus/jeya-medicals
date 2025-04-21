@@ -386,6 +386,7 @@ function updateProduct(index: number, value: number) {
 			<Label for="comboName">Combo Name</Label>
 			<Input
 				id="comboName"
+				autocomplete='off'
 				class="pr-10 mt-1"
 				placeholder="Ex: Summer Special Combo..."
 				aria-invalid={$errors.comboName ? 'true' : undefined}
@@ -414,6 +415,7 @@ function updateProduct(index: number, value: number) {
 				<Label for="comboPrice">Combo Price</Label>
 				<Input
 					id="comboPrice"
+					autocomplete='off'
 					class="pr-10 mt-1"
 					type="number"
 					placeholder="Ex: 99.99"
@@ -429,6 +431,7 @@ function updateProduct(index: number, value: number) {
 				<Input
 					id="strikePrice"
 					class="pr-10 mt-1"
+					autocomplete='off'
 					type="number"
 					placeholder="Ex: 129.99"
 					aria-invalid={$errors.strikePrice ? 'true' : undefined}
@@ -479,6 +482,7 @@ function updateProduct(index: number, value: number) {
                             <!-- <Label for={`product-${index}`} class="text-xs">Product</Label> -->
                             <Input
                                 id={`product-${index}`}
+								autocomplete='off'
                                 type="text"
                                 value={getProductName(product.productId)}
                                 readonly
@@ -489,6 +493,7 @@ function updateProduct(index: number, value: number) {
                             <!-- <Label for={`qty-${index}`} class="text-xs">Quantity</Label> -->
                             <Input
                                 id={`qty-${index}`}
+								autocomplete='off'
                                 type="number"
                                 min="1"
                                 class="mt-1"
@@ -515,10 +520,11 @@ function updateProduct(index: number, value: number) {
                     <div class="relative">
                         <Input
                             id="product-search"
+							autocomplete='off'
                             type="text"
                             placeholder="Search and select products..."
                             bind:value={searchQuery}
-                            autocomplete="off"
+                  
                             oninput={(e) => filterProducts(e.currentTarget.value)}
                             onfocus={() => dropdownOpen[0] = true}
                             class="w-full mt-1"
@@ -548,6 +554,7 @@ function updateProduct(index: number, value: number) {
                     <Input
                         id="quantity"
                         type="number"
+						autocomplete='off'
                         min="1"
                         class="mt-1"
                         bind:value={tempQuantity}

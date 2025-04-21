@@ -8,8 +8,9 @@
   import Footer from '$lib/components/footer.svelte';
   import { writableGlobalStore } from '$lib/stores/global-store';
   import { Slider } from "$lib/components/ui/slider/index.js";
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Icon from '@iconify/svelte';
+  import { page } from '$app/stores'
 
   interface Category {
     _id: string;
@@ -59,6 +60,27 @@
 
   let debounceTimeout: any;
 
+  onMount(() => {
+    const urlParams = new URLSearchParams($page.url.search);
+    // Try to get 'category' param or the first key as the category ID
+    let categoryId = urlParams.get('category');
+    if (!categoryId) {
+      // Fallback to the first query parameter key (e.g., ?67e4d42f239d2eaf3becbc44)
+      const firstParam = Array.from(urlParams.keys())[0];
+      if (firstParam && firstParam.match(/^[0-9a-fA-F]{24}$/)) {
+        categoryId = firstParam;
+      }
+    }
+
+    if (categoryId && $categoryQuery.data) {
+      // Validate that the category ID exists in the categories
+      const matchingCategory = $categoryQuery.data.find((cat) => cat._id === categoryId);
+      if (matchingCategory && !selectedCategoryIds.includes(matchingCategory._id)) {
+        selectedCategoryIds = [matchingCategory._id]; // Set the category as selected
+        $productsQuery.refetch(); // Refetch products with the selected category
+      }
+    }
+  });
   function debounceSearch() {
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(async () => {
@@ -261,7 +283,7 @@
             <label class="flex items-center gap-2">
               <input
                 type="checkbox"
-                class="h-5 w-5 text-blue-600"
+                class="min-h-5 min-w-5 text-blue-600"
                 checked={selectedCategoryIds.includes(category._id)}
                 on:change={() => toggleCategory(category._id)}
               />
@@ -288,7 +310,7 @@
             <label class="flex items-center gap-2">
               <input
                 type="checkbox"
-                class="h-5 w-5 text-blue-600"
+                class="min-h-5 min-w-5 text-blue-600"
                 checked={selectedBrandIds.includes(brand._id)}
                 on:change={() => toggleBrand(brand._id)}
               />
@@ -362,7 +384,7 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
           <label class="flex items-center gap-2">
             <input
               type="checkbox"
-              class="h-5 w-5 text-blue-600"
+              class="min-h-5 min-w-5 text-blue-600"
               checked={selectedCategoryIds.includes(category._id)}
               on:change={() => toggleCategory(category._id)}
             />
@@ -389,7 +411,7 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
           <label class="flex items-center gap-2">
             <input
               type="checkbox"
-              class="h-5 w-5 text-blue-600"
+              class="min-h-5 min-w-5 text-blue-600"
               checked={selectedBrandIds.includes(brand._id)}
               on:change={() => toggleBrand(brand._id)}
             />
