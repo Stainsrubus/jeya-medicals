@@ -50,6 +50,19 @@
       return [...fetchedCategories, seeAllCategory];
     },
   });
+  const bannersQuery = createQuery({
+    queryKey: ['banners'],
+    queryFn: async () => {
+      const response = await _axios.get('/banner/all', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+ 
+return response.data;
+
+    },
+  });
 
   const searchMutation = createMutation({
     mutationFn: async (query: string) => {
@@ -93,11 +106,12 @@
     searchQuery = '';
     searchResults = null;
   }
-
   // Access query state
   $: categories = $categoriesQuery.data ?? [];
+  $:banners=$bannersQuery.data??[];
   $: loading = $categoriesQuery.isLoading;
   $: error = $categoriesQuery.error ? ($categoriesQuery.error as Error).message : null;
+
 </script>
 
 <div class="bg-custom-gradient py-10  text-[#30363C] scrollbar-hide">
@@ -139,6 +153,8 @@
         <div class="md:w-1/2 lg:top-24 top-14 absolute w-full lg:max-h-64 max-h-52  overflow-y-auto bg-white rounded-3xl shadow-md py-4 pl-4 ">
           {#if searchResults.data.length > 0}
             {#each searchResults.data as product, index}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div on:click={()=>{goto(`/Products/${product._id}`)}} class="cursor-pointer {index === searchResults.data.length - 1 ? '' : 'border-b'} flex items-center md:gap-10 gap-2 p-1">
                 <div class="border lg:p-3 md:p-2 p-1 rounded-lg">
                   <img src={imgUrl + product.images[0]} alt="" class="md:w-16 md:h-16 min-w-12 min-h-12 h-12 w-12" />
@@ -200,21 +216,49 @@
     </div>
 
     <!-- Banner Section -->
-    <div class="px-4 md:px-6 lg:px-8 flex justify-start overflow-x-auto gap-10 lg:pt-10 md:pt-7 pt-5">
-      <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
-        <img
-          src="/images/banner1.png"
-          alt="Banner"
-          class="object-cover rounded-lg w-full h-full"
-        />
-      </div>
-      <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
-        <img
-          src="/images/banner-2.png"
-          alt="Banner"
-          class="rounded-lg object-cover"
-        />
-      </div>
+    <div class="px-4 md:px-6 lg:px-8 flex justify-start overflow-x-auto scrollbar-hide gap-10 lg:pt-10 md:pt-7 pt-5">
+      {#if $bannersQuery.isLoading}
+        <!-- Skeleton loader for banners -->
+        <div class="flex gap-10">
+          {#each Array(2) as _}
+            <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
+              <Skeleton class="w-full h-[200px] md:h-[250px] lg:h-[300px] rounded-lg" />
+            </div>
+          {/each}
+        </div>
+      {:else if $bannersQuery.error}
+        <div class="text-center w-full text-red-500">
+          Error loading banners
+        </div>
+      {:else if $bannersQuery.data?.banners?.length > 0}
+        {#each $bannersQuery.data.banners as banner}
+          <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
+            <img
+              src={imgUrl + banner.bannerImage}
+              alt={banner.bannerTitle}
+              class="object-cover shadow rounded-lg w-full h-full"
+            />
+          </div>
+        {/each}
+      {:else}
+        <!-- Fallback banners if API returns empty -->
+        <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
+          <img
+            src="/images/banner1.png"
+            alt="Banner"
+            class="object-cover rounded-lg w-full h-full"
+          />
+        </div>
+        <div class="flex-shrink-0 lg:w-[500px] md:w-[400px] w-[300px]">
+          <img
+            src="/images/banner-2.png"
+            alt="Banner"
+            class="rounded-lg object-cover"
+          />
+        </div>
+      {/if}
     </div>
+
+
   </div>
 </div>

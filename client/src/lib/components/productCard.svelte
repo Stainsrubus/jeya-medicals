@@ -127,7 +127,7 @@ export let offerType:string | null = null;
 </script>
 
 <div
-  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64  transition-transform duration-200 cursor-pointer group"
+  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40  transition-transform duration-200 cursor-pointer group"
   on:click={handleClick}
   role="button"
   tabindex="0"
@@ -179,7 +179,7 @@ export let offerType:string | null = null;
   <!-- Product Details -->
   <div class="md:px-4 px-2">
     <!-- Product Name -->
-    <h3 class="font-medium md:text-base text-sm text-[#222222] overflow-hidden text-ellipsis whitespace-nowrap">
+    <h3 class="font-medium md:text-base text-sm text-[#222222] py-1 capitalize overflow-hidden text-ellipsis whitespace-nowrap">
       {name}
     </h3>
 

@@ -1,15 +1,16 @@
 import { validateToken } from "@/lib/util";
 import Elysia from "elysia";
-import { deliveryAgentAuthController } from "./de-agent-auth-controller";
+import { employeeAuthController } from "./employeeAuth-controller";
 import { deliveryAgentController } from "./de-agent-controller";
 import { deliveryAgentOrderController } from "./de-order-controller";
+import { productController } from "./product-controller";
 
-const deliveryagentBaseController = new Elysia({
-  prefix: "/deliveryagent",
+const employeeBaseController = new Elysia({
+  prefix: "/employee",
 })
-  .use(deliveryAgentAuthController)
+  .use(employeeAuthController)
   .state("id", "")
-  .state("mobile", "")
+  .state("email", "")
   .state("role", "")
   .onBeforeHandle(async ({ headers, set, store }) => {
     const token = headers["authorization"];
@@ -17,10 +18,10 @@ const deliveryagentBaseController = new Elysia({
     try {
       const payload = await validateToken(token ?? "");
       store["id"] = payload.id;
-      store["mobile"] = payload.mobile;
+      store["email"] = payload.mobile;
       store["role"] = payload.role;
 
-      if (payload.role !== "deliveryAgent") {
+      if (payload.role !== "employee") {
         set.status = 401;
         return { message: "Unauthorized" };
       }
@@ -29,7 +30,8 @@ const deliveryagentBaseController = new Elysia({
       return { message: "Unauthorized" };
     }
   })
+  .use(productController)
   .use(deliveryAgentController)
   .use(deliveryAgentOrderController);
 
-export { deliveryagentBaseController };
+export { employeeBaseController };

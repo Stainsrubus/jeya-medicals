@@ -65,7 +65,7 @@
     </div>
 
     <!-- Quote Content -->
-    <div class="lg:w-1/2 md:w-3/4 w-5/6  mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="lg:w-1/2 md:w-3/4 w-5/6 flex justify-center items-center mx-auto px-4 sm:px-6 lg:px-8">
       {#if $quoteQuery.isLoading || $quoteQuery.isError}
         <!-- Skeleton Loader -->
         <div class="space-y-2">

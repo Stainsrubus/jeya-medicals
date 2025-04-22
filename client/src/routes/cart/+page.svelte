@@ -5,15 +5,16 @@
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import Icon from '@iconify/svelte';
   import { imgUrl } from "$lib/config";
-  import { toast } from 'svelte-sonner'; // Optional: for error/success feedback
+  import { toast } from 'svelte-sonner';
   import { queryClient } from "$lib/query-client";
-	import { goto } from "$app/navigation";
-	import { writableGlobalStore } from "$lib/stores/global-store";
-	import Footer from "$lib/components/footer.svelte";
+  import { goto } from "$app/navigation";
+  import { writableGlobalStore } from "$lib/stores/global-store";
+  import Footer from "$lib/components/footer.svelte";
+  import { onMount } from 'svelte';
 
   // Define interfaces based on actual backend response
   interface ProductDetails {
-	strikePrice: any;
+    strikePrice: any;
     _id: string;
     productName: string;
     price: number;
@@ -24,7 +25,7 @@
   }
 
   interface CartItem {
-	selectedOffer: any;
+    selectedOffer: any;
     productId: ProductDetails;
     quantity: number;
     totalAmount: number;
@@ -61,7 +62,6 @@
     deliveryMinutes: number;
   }
 
-  // Interface for Address (assuming it matches your backend Address model)
   interface Address {
     _id: string;
     receiverName: string;
@@ -75,10 +75,22 @@
     active: boolean;
     addressType: string;
     userId: string;
-    isPrimary:boolean;
+    isPrimary: boolean;
   }
 
   $: isLoggedIn = $writableGlobalStore.isLogedIn;
+
+  // State to control shimmer effect
+  let showShimmer = true;
+
+  // Reset shimmer and enforce 1-second delay on page visit
+  onMount(() => {
+    showShimmer = true;
+    const timer = setTimeout(() => {
+      showShimmer = false;
+    }, 1000); // 1-second delay
+    return () => clearTimeout(timer); // Cleanup on component destroy
+  });
 
   const placeOrderMutation = createMutation({
     mutationFn: async () => {
@@ -87,15 +99,14 @@
         throw new Error('No token found. Please log in.');
       }
 
-      // Get the first address (or you might want to make address selection required)
-      const addressId =primaryAddress?._id;
+      const addressId = primaryAddress?._id;
       if (!addressId) {
         throw new Error('Please select a delivery address');
       }
 
       const response = await _axios.post(
         '/orders/order',
-        { addressId }, // Include other needed fields like couponId if available
+        { addressId },
         {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         }
@@ -107,15 +118,9 @@
       return response.data;
     },
     onSuccess: (data) => {
-      // Invalidate cart queries to refresh the cart
-      //@ts-ignore
       queryClient.invalidateQueries(['cart']);
-      //@ts-ignore
       queryClient.invalidateQueries(['cartCount']);
-      
       toast.success('Order placed successfully!');
-      
-      // Redirect to order confirmation page
       goto(`/order-confirmation/${data.order._id}`);
     },
     onError: (error: Error) => {
@@ -123,9 +128,6 @@
     },
   });
 
-
-
-  // Fetch user addresses
   const addressesQuery = createQuery<Address[]>({
     queryKey: ['addresses'],
     queryFn: async () => {
@@ -151,18 +153,14 @@
     staleTime: 0,
     enabled: true,
   });
-  // Fetch cart data
+
   const cartQuery = createQuery<CartResponse>({
-    queryKey: ['cart'], // Include addressId in queryKey
+    queryKey: ['cart'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No token found. Please log in.');
       }
-
-      // // Get the primary address ID
-      // const primaryAddress = $addressesQuery.data?.find((address) => address.isPrimary);
-      // const addressId = primaryAddress?._id;
 
       try {
         const response = await _axios.get(`/cart`, {
@@ -215,7 +213,7 @@
     staleTime: 0,
     enabled: true,
   });
-  // Update quantity mutation
+
   const updateQuantityMutation = createMutation({
     mutationFn: async ({ productId, quantity }: { productId: string; quantity: number }) => {
       const token = localStorage.getItem('token');
@@ -237,7 +235,7 @@
       return response.data;
     },
     onSuccess: () => {
-      $cartQuery.refetch(); // Refetch cart data after successful update
+      $cartQuery.refetch();
       toast.success('Quantity updated successfully!');
     },
     onError: (error: Error) => {
@@ -245,7 +243,6 @@
     },
   });
 
-  // Remove product mutation
   const removeProductMutation = createMutation({
     mutationFn: async (productId: string) => {
       const token = localStorage.getItem('token');
@@ -263,15 +260,15 @@
       return response.data;
     },
     onSuccess: () => {
-      //@ts-ignore
       queryClient.invalidateQueries(['cartCount']);
-      $cartQuery.refetch(); // Refetch cart data after successful removal
+      $cartQuery.refetch();
       toast.success('Product removed successfully!');
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to remove product');
     },
   });
+
   function handlePayNow() {
     if (!primaryAddress) {
       toast.error('Please select a delivery address');
@@ -285,38 +282,39 @@
 
     $placeOrderMutation.mutate();
   }
+
   // Access cart data
   $: cartData = $cartQuery.data;
-  $: cartItems = cartData?.cart?.products || [];
-  $: isLoading = $cartQuery.isLoading;
+  $: cartItems = showShimmer ? [] : (cartData?.cart?.products || []);
+  $: isCartLoading = showShimmer || $cartQuery.isLoading;
+  $: isAddressesLoading = showShimmer || $addressesQuery.isLoading;
   $: error = $cartQuery.error ? ($cartQuery.error as Error).message : null;
-  // Access first address
-  $: primaryAddress = $addressesQuery.data?.find((address) => address.isPrimary) || null;
-  // Function to update quantity
+  $: primaryAddress = showShimmer ? null : ($addressesQuery.data?.find((address) => address.isPrimary) || null);
+
+  // Calculate totals for bill summary, reset during shimmer/loading
+  $: totalAmount = isCartLoading ? 0 : (cartData?.cart?.subtotal || 0);
+  $: totalDiscount = isCartLoading ? 0 : cartItems.reduce((sum, item) => sum + (item.productId.discount || 0) * item.quantity, 0);
+  $: deliveryFee = isCartLoading ? 0 : (cartData?.deliveryFee || 0);
+  $: platformFee = isCartLoading ? 0 : (cartData?.platformFee || 0);
+  $: tax = isCartLoading ? 0 : (cartData?.cart?.tax || 0);
+  $: totalPrice = isCartLoading ? 0 : (cartData?.cart?.totalPrice || 0);
+
   function updateQuantity(productId: string, change: number) {
     const item = cartItems.find((item) => item.productId._id === productId);
 
     if (item) {
       const newQuantity = Math.max(1, item.quantity + change);
-      item.quantity = newQuantity; // Update local state immediately
-      item.totalAmount = item.price * newQuantity; // Update total amount based on new quantity
-      $updateQuantityMutation.mutate({ productId, quantity: newQuantity }); // Trigger API call in the background
+      item.quantity = newQuantity;
+      item.totalAmount = item.price * newQuantity;
+      $updateQuantityMutation.mutate({ productId, quantity: newQuantity });
     }
   }
 
-  // Function to remove product
   function removeProduct(productId: string) {
-    cartItems = cartItems.filter((item) => item.productId._id !== productId); // Update local state immediately
-    $removeProductMutation.mutate(productId); // Trigger API call in the background
+    cartItems = cartItems.filter((item) => item.productId._id !== productId);
+    $removeProductMutation.mutate(productId);
   }
 
-  // Calculate totals for the bill summary
-  $: totalAmount = cartData?.cart?.subtotal || 0;
-  $: totalDiscount = cartItems.reduce((sum, item) => sum + (item.productId.discount || 0) * item.quantity, 0);
-  $: deliveryFee = cartData?.deliveryFee || 0;
-  $: platformFee = cartData?.platformFee || 0;
-  $: tax = cartData?.cart?.tax || 0;
-  $: totalPrice = cartData?.cart?.totalPrice || 0;
   async function handleAddressClick() {
     await goto('/address-management', {
       state: { editAddressId: primaryAddress?._id }
@@ -345,16 +343,16 @@
     <div class="border bg-white max-w-2xl lg:hidden flex justify-between rounded-lg shadow-lg p-3">
       <div>
         <h3 class="text-base text-[#4F585E] font-medium mb-3">Deliver To</h3>
-        {#if $addressesQuery.isLoading}
+        {#if isAddressesLoading}
           <div class="space-y-2">
             <Skeleton class="h-6 w-full" />
             <Skeleton class="h-6 w-3/4" />
           </div>
-        {:else if $addressesQuery.error}
+        {:else if $addressesQuery.error && !showShimmer}
           <p class="text-red-500 text-sm">Error fetching address: {$addressesQuery.error.message}</p>
-        {:else if !primaryAddress}
+        {:else if !primaryAddress && !showShimmer}
           <p class="text-gray-500 text-sm">No address available</p>
-        {:else}
+        {:else if primaryAddress}
           <p class="text-lg text-[#30363C] font-semibold mb-2">{primaryAddress.flatorHouseno}, {primaryAddress.area}, {primaryAddress.landmark}</p>
           <p class="text-base text-[#4F585E] mb-1.25">☎ {primaryAddress.receiverMobile} - {primaryAddress.receiverName}</p>
         {/if}
@@ -363,13 +361,13 @@
         on:click={handleAddressClick}
         class="h-fit bg-[#01A0E2] text-white px-3 py-1.5 rounded-md cursor-pointer lg:text-lg text-base whitespace-nowrap font-medium"
       >
-        {primaryAddress ? 'Edit address' : 'Add address'}
+        {primaryAddress && !showShimmer ? 'Edit address' : 'Add address'}
       </button>
     </div>
 
     <!-- Mobile Cart Items Section -->
     <div class="cart-items max-w-2xl lg:hidden block bg-white rounded-lg shadow-lg p-2 h-fit border">
-      {#if isLoading}
+      {#if isCartLoading}
         <div class="space-y-4 py-4">
           {#each Array(3) as _}
             <div class="flex items-center py-3.5 border-b border-gray-300">
@@ -380,14 +378,13 @@
               <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 17%;" class="h-6" />
-              <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 7%;" class="h-6" />
             </div>
           {/each}
         </div>
-      {:else if error}
+      {:else if error && !showShimmer}
         <p class="text-center py-4 text-red-500">Error: {error}</p>
-      {:else if cartItems.length === 0}
+      {:else if cartItems.length === 0 && !showShimmer}
         <div class="flex flex-col items-center py-8">
           <Icon icon="mdi:cart-off" class="w-10 h-10 text-[#d8dee3]" />
           <p class="text-center text-lg text-[#b5bbc1] mt-4">Your cart is empty</p>
@@ -406,10 +403,9 @@
               </div>
               <div class="item-details flex-1">
                 <p class="text-[#30363C] font-bold text-lg mb-0.5">{item.productId.productName}</p>
-                <p><span class="line-through">₹{item.productId.strikePrice}</span>  <span class="text-[#249B3E]"> ₹{item.price}</span></p>
+                <p><span class="line-through">₹{item.productId.strikePrice}</span> <span class="text-[#249B3E]">₹{item.price}</span></p>
               </div>
             </div>
-         
             <div class="item-total text-center font-semibold text-base text-[#4F585E]">
               ₹{item.totalAmount.toFixed(2)}
               <div class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
@@ -445,8 +441,7 @@
         <span style="width: 17%; text-align: center;">QUANTITY</span>
         <span style="width: 7%; text-align: center;"></span>
       </div>
-  
-      {#if isLoading}
+      {#if isCartLoading}
         <div class="space-y-4 py-4">
           {#each Array(3) as _}
             <div class="flex items-center py-3.5 border-b border-gray-300">
@@ -462,9 +457,9 @@
             </div>
           {/each}
         </div>
-      {:else if error}
+      {:else if error && !showShimmer}
         <p class="text-center py-4 text-red-500">Error: {error}</p>
-      {:else if cartItems.length === 0}
+      {:else if cartItems.length === 0 && !showShimmer}
         <div class="flex flex-col items-center py-8">
           <Icon icon="mdi:cart-off" class="w-10 h-10 text-[#d8dee3]" />
           <p class="text-center text-lg text-[#b5bbc1] mt-4">Your cart is empty</p>
@@ -486,7 +481,7 @@
               </div>
             </div>
             <div style="width: 17%;" class="item-price text-center font-semibold text-base text-[#4F585E]">
-              {#if item?.selectedOffer?.offerType!='onMRP' && item?.selectedOffer?.offerType!=null}  
+              {#if item?.selectedOffer?.offerType != 'onMRP' && item?.selectedOffer?.offerType != null}  
                 <span class="line-through pr-1">₹{item.productId.price}</span>
               {/if} 
               ₹{item.price.toFixed(2)}
@@ -500,14 +495,14 @@
                   <div class="flex flex-col items-center">
                     <span class="text-[#249B3E]">On MRP</span>
                     {#if item.selectedOffer?.onMRP?.subType === 'Need'}
-                      <span class="text-sm">₹{item.selectedOffer?.onMRP?.reductionValue} OFF </span>
+                      <span class="text-sm">₹{item.selectedOffer?.onMRP?.reductionValue} OFF</span>
                       <span>({item.selectedOffer?.onMRP?.message})</span>
                     {:else}
                       <span class="text-sm">₹{item.selectedOffer?.onMRP.reductionValue} OFF (Complementary)</span>
                     {/if}
                   </div>
                 {:else if item.selectedOffer?.offerType === 'Flat'}
-                  <div class="">
+                  <div>
                     <div class="text-[#249B3E]">Flat</div>
                     <span class="text-sm">{item.selectedOffer.discount}% OFF</span>
                   </div>
@@ -527,8 +522,8 @@
             <div style="width: 17%;" class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
               <button
                 on:click={() => updateQuantity(item.productId._id, -1)}
-                class={`w-7.5 h-7.5 pl-2 border-gray-300  text-base flex items-center justify-center  ${item.quantity===1?'text-[#019ee27a] cursor-not-allowed':'text-[#01A0E2] cursor-pointer'}`}
-                disabled={$updateQuantityMutation.isPending||item.quantity===1}
+                class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center ${item.quantity === 1 ? 'text-[#019ee27a] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
+                disabled={$updateQuantityMutation.isPending || item.quantity === 1}
               >
                 -
               </button>
@@ -554,23 +549,23 @@
         {/each}
       {/if}
     </div>
-  
-    <!-- Billing Section (always shown, with loading states) -->
+
+    <!-- Billing Section -->
     <div class="billing lg:w-[35%] max-w-2xl">
       <!-- Desktop Address Section -->
       <div class="border hidden bg-white lg:flex justify-between rounded-lg shadow-lg p-3">
         <div>
           <h3 class="text-base text-[#4F585E] font-medium mb-2.5">Deliver To</h3>
-          {#if $addressesQuery.isLoading}
+          {#if isAddressesLoading}
             <div class="space-y-2">
               <Skeleton class="h-6 w-full" />
               <Skeleton class="h-6 w-3/4" />
             </div>
-          {:else if $addressesQuery.error}
+          {:else if $addressesQuery.error && !showShimmer}
             <p class="text-red-500 text-sm">Error fetching address: {$addressesQuery.error.message}</p>
-          {:else if !primaryAddress}
+          {:else if !primaryAddress && !showShimmer}
             <p class="text-gray-500 text-sm">No address available</p>
-          {:else}
+          {:else if primaryAddress}
             <p class="text-lg text-[#30363C] font-semibold mb-2">{primaryAddress.flatorHouseno}, {primaryAddress.area}, {primaryAddress.landmark}</p>
             <p class="text-base text-[#4F585E] mb-1.25">☎ {primaryAddress.receiverMobile} - {primaryAddress.receiverName}</p>
           {/if}
@@ -579,15 +574,14 @@
           on:click={handleAddressClick}
           class="h-fit bg-[#01A0E2] text-white px-4 py-2 rounded-md cursor-pointer text-lg whitespace-nowrap font-medium"
         >
-          {primaryAddress ? 'Edit address' : 'Add address'}
+          {primaryAddress && !showShimmer ? 'Edit address' : 'Add address'}
         </button>
       </div>
 
       <!-- Summary Section -->
       <div class="summary mt-5 bg-white rounded-lg shadow-lg p-3 border">
         <h3 class="text-lg font-semibold text-[#4F585E] mb-2.5">Bill Summary</h3>
-        
-        {#if isLoading}
+        {#if isCartLoading}
           <div class="space-y-3">
             {#each Array(5) as _}
               <div class="flex justify-between">
@@ -641,7 +635,7 @@
 {:else}
 <div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
   <p class="text-lg font-medium">Please login to access Cart</p>
-  <button on:click={()=>{goto('/login')}} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
+  <button on:click={() => goto('/login')} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
 </div>
 {/if}
 

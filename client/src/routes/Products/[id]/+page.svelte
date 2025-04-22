@@ -14,14 +14,17 @@
   import { toast } from 'svelte-sonner';
   import * as Select from "$lib/components/ui/select/index.js";
 	import { json } from '@sveltejs/kit';
+
   
   $: productId = $page.params.id;
   let isInitialLoad = true;
 
+  
 let offerType: string | null=null;
 
   onMount(() => {
     isInitialLoad = false;
+    productId = $page.params.id;
     offerType = $page.url.searchParams.get('offerType');
   });
   let hasFetchedFlatProducts = false;
@@ -277,6 +280,7 @@ const flatProductQuery = createMutation<Product>({
   const productQuery = createQuery<Product>({
     queryKey: ['product', productId],
     queryFn: async () => {
+ console.log(productId)
       const response = await _axios.get(`/products/${productId}`, {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -310,10 +314,10 @@ const flatProductQuery = createMutation<Product>({
         negotiate: product.negotiate,
       };
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
-    keepPreviousData: false
+
+    // staleTime: 0,
+    // refetchOnMount: 'always',
+    // refetchOnWindowFocus: false
   });
 
   const sameBrandProductsQuery = createQuery<Product[]>({
@@ -603,7 +607,7 @@ const flatProductQuery = createMutation<Product>({
           <Skeleton class="h-5 w-32 inline-block" />
         {:else}
           <Breadcrumb.Link href={`/Products/${productId}`} class='text-[#01A0E2] text-base'>
-            {product.name}
+            {product?.name}
           </Breadcrumb.Link>
         {/if}
       </Breadcrumb.Item>

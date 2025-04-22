@@ -5,7 +5,7 @@ import { OrderModel } from "@/models/user/order-model";
 import polyline from "@mapbox/polyline";
 import Elysia, { t } from "elysia";
 import { adminController } from "./admin";
-import { deliveryagentBaseController } from "./deliveryAgent";
+import { employeeBaseController } from "./employee";
 import { userBaseController } from "./user";
 
 const baseRouter = new Elysia({
@@ -14,7 +14,7 @@ const baseRouter = new Elysia({
 
 baseRouter.use(adminController);
 baseRouter.use(userBaseController);
-baseRouter.use(deliveryagentBaseController);
+baseRouter.use(employeeBaseController);
 
 baseRouter
   .ws("/deliveryagent/ws", {

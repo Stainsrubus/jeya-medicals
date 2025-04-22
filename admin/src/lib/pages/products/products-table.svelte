@@ -258,7 +258,7 @@
 					<Table.Head>Category</Table.Head>
 					<Table.Head>Price</Table.Head>
 					<Table.Head>Active</Table.Head>
-					<Table.Head>Top Seller</Table.Head>
+					<!-- <Table.Head>Top Seller</Table.Head> -->
 					<Table.Head>Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -296,7 +296,7 @@
 						/>
 							
 						</Table.Cell>
-						<Table.Cell>
+						<!-- <Table.Cell>
 							<Switch
 							class="text-right"
 							disabled={$topSellerMutation.isPending}
@@ -308,7 +308,7 @@
 							}}
 						/>
 							
-						</Table.Cell>
+						</Table.Cell> -->
 						<Table.Cell class="flex gap-4 items-center">
 							<button
 								onclick={() => {

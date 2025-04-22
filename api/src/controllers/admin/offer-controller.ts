@@ -135,6 +135,7 @@ export const offerController = new Elysia({
       percentage: t.Optional(t.Number()),
       failurePercentage: t.Optional(t.Number()),
       successPercentage: t.Optional(t.Number()),
+      limit:t.Optional(t.Number()),
       minPrd: t.Optional(t.Number()),
       noOfAttempts: t.Optional(t.Number()),
       items: t.Optional(t.Array(
@@ -155,7 +156,7 @@ export const offerController = new Elysia({
   async ({ params, body, set }) => {
     try {
       const { id } = params;
-      const { productId, discount, mrpReduction,successPercentage,failurePercentage } = body;
+      const { productId, discount, mrpReduction,successPercentage,failurePercentage,limit } = body;
 
       const offer = await FlatOffer.findById(id) || await DiscountOffer.findById(id) || await MRPOffer.findById(id)|| await NegotiateOffer.findById(id);
       if (!offer) {
@@ -207,8 +208,8 @@ else{
       }//@ts-ignore
       else if(offer.type ==='negotiate'){
         //@ts-ignore
-        offer.items.push({ productId, successPercentage,failurePercentage });
-        await Product.findByIdAndUpdate(productId, { negotiate:true }); // Add discount to Product
+        offer.items.push({ productId, successPercentage,failurePercentage});
+        await Product.findByIdAndUpdate(productId, { negotiate:true,negotiateLimit:limit }); // Add discount to Product
       }
 
       await offer.save();
@@ -227,7 +228,8 @@ else{
       discount: t.Optional(t.Number()),
       mrpReduction: t.Optional(t.Number()),
       successPercentage:t.Optional(t.Number()),
-      failurePercentage:t.Optional(t.Number())
+      failurePercentage:t.Optional(t.Number()),
+      limit:t.Optional(t.Number()),
     }),
     detail: { summary: 'Add a product to the offer' },
   }
@@ -280,7 +282,7 @@ else{
      //@ts-ignore
 
         } else if (offer.type === 'negotiate') {
-          await Product.findByIdAndUpdate(productId, { negotiate: false });
+          await Product.findByIdAndUpdate(productId, { negotiate: false,  $unset: { negotiateLimit: "" } });
         }
       }
 
@@ -307,7 +309,7 @@ else{
 
 // Update Product Values in Offer (Both Discount & MRP Types)
 .patch(
-  '/update-products',
+  "/update-products",
   async ({ query, body, set }) => {
     try {
       const { id } = query;
@@ -315,70 +317,57 @@ else{
 
       if (!id) {
         set.status = 400;
-        return { message: 'Offer ID is required', status: false };
+        return { message: "Offer ID is required", status: false };
       }
 
-      const offer = await DiscountOffer.findById(id) || await MRPOffer.findById(id)||await NegotiateOffer.findById(id);
+      const offer =
+        (await DiscountOffer.findById(id)) ||
+        (await MRPOffer.findById(id)) ||
+        (await NegotiateOffer.findById(id));
+
       if (!offer) {
         set.status = 404;
-        return { message: 'Offer not found', status: false };
+        return { message: "Offer not found", status: false };
       }
-//@ts-ignore
 
       const offerType = offer.type;
 
-      if (offerType === 'discount') {
-        products.forEach(async ({ productId, discount }) => {
-//@ts-ignore
+      for (const product of products) {
+        const { productId, discount, mrpReduction, successPercentage, failurePercentage, limit } = product;
 
-          const productIndex = offer.items.findIndex(
-            (item: { productId: { toString: () => string; }; }) => item.productId.toString() === productId
-          );
-          if (productIndex !== -1) {
-//@ts-ignore
+        const index = offer.items.findIndex((item) => item.productId.toString() === productId);
+        if (index === -1) continue;
 
-            offer.items[productIndex].discount = discount;
-            await Product.findByIdAndUpdate(productId, { discount }); // Update Product.discount
-          }
-        });
-      } 
-      else if (offerType === 'mrp') {
-        products.forEach(async ({ productId, mrpReduction }) => {
-//@ts-ignore
+        if (offerType === "discount") {
+          offer.items[index].discount = discount;
+          await Product.findByIdAndUpdate(productId, { discount });
+        }
 
-          const productIndex = offer.items.findIndex(
-            (item: { productId: { toString: () => string; }; }) => item.productId.toString() === productId
-          );
-          if (productIndex !== -1) {
-//@ts-ignore
+        if (offerType === "mrp") {
+          offer.items[index].mrpReduction = mrpReduction;
+          await Product.findByIdAndUpdate(productId, { onMRP: mrpReduction });
+        }
 
-            offer.items[productIndex].mrpReduction = mrpReduction;
-            await Product.findByIdAndUpdate(productId, { onMRP: mrpReduction }); // Update Product.onMRP
-          }
-        });
-      }
-      else if (offerType === 'negotiate') {
-        products.forEach(async ({ productId, successPercentage,failurePercentage }) => {
-//@ts-ignore
+        if (offerType === "negotiate") {
+          offer.items[index].successPercentage = successPercentage;
+          offer.items[index].failurePercentage = failurePercentage;
 
-          const productIndex = offer.items.findIndex(
-            (item: { productId: { toString: () => string; }; }) => item.productId.toString() === productId
-          );
-          if (productIndex !== -1) {
-//@ts-ignore
-            offer.items[productIndex].successPercentage = successPercentage;
-           //@ts-ignore
-            offer.items[productIndex].failurePercentage = failurePercentage;
+          // Update the limit in product from the request body
+          await Product.findByIdAndUpdate(productId, { negotiateLimit: limit });
 
-          }
-        });
+          console.log(`[Negotiate] Updated product ${productId} → success: ${successPercentage}, failure: ${failurePercentage}, limit: ${limit}`);
+        }
       }
 
       await offer.save();
 
-      return { message: 'Product values updated successfully', data: offer, status: true };
+      return {
+        message: "Product values updated successfully",
+        data: offer,
+        status: true,
+      };
     } catch (error) {
-      console.error(error);
+      console.error("Error updating product values:", error);
       set.status = 400;
       return { status: false, error };
     }
@@ -393,12 +382,13 @@ else{
           productId: t.String(),
           discount: t.Optional(t.Number()),
           mrpReduction: t.Optional(t.Number()),
-          successPercentage:t.Optional(t.Number()),
-          failurePercentage:t.Optional(t.Number())
+          successPercentage: t.Optional(t.Number()),
+          failurePercentage: t.Optional(t.Number()),
+          limit: t.Optional(t.Number()), // Added limit to the schema
         })
       ),
     }),
-    detail: { summary: 'Update multiple product values in the offer' },
+    detail: { summary: "Update multiple product values in the offer" },
   }
 )
 

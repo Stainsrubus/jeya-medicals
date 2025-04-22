@@ -32,7 +32,7 @@ export const productsController = new Elysia({
         topSeller,
         gst,
         options, 
-        negotiateLimit,
+        // negotiateLimit,
         specifications,
       } = body;
 
@@ -61,7 +61,7 @@ export const productsController = new Elysia({
         productName,
         description,
         price: +price,
-        negotiateLimit:+negotiateLimit,
+        // negotiateLimit:+negotiateLimit,
         images: _images,
         active,
         strikePrice:+strikePrice,
@@ -96,7 +96,7 @@ export const productsController = new Elysia({
       images: t.Files(),
       productCode: t.String({ default: "123456", examples: ["123456"] }),
       price: t.String({ default: 100 }),
-      negotiateLimit:t.String({default:0}),
+      // negotiateLimit:t.String({default:0}),
       strikePrice: t.String({ default: 150 }),
       description: t.String({ default: "Product" }),
       topSeller: t.String({ default: false }),
@@ -590,7 +590,7 @@ export const productsController = new Elysia({
           description,
           category,
           price,
-          negotiateLimit,
+          // negotiateLimit,
           strikePrice,
           active,
           images, // Can be a single File, an array of Files, or undefined
@@ -767,7 +767,7 @@ export const productsController = new Elysia({
             productName: productName || product.productName,
             description: description || product.description,
             price: price ? +price : product.price,
-            negotiateLimit:negotiateLimit?+negotiateLimit:product.negotiateLimit,
+            // negotiateLimit:negotiateLimit?+negotiateLimit:product.negotiateLimit,
             strikePrice: strikePrice ? +strikePrice : product.strikePrice,
             images: _images, // Ensure this is a flat array
             active: active !== undefined ? active : product.active,
@@ -807,7 +807,7 @@ export const productsController = new Elysia({
         category: t.Optional(t.String()),
         brand: t.Optional(t.String()),
         price: t.Optional(t.String()),
-        negotiateLimit:t.Optional(t.String()),
+        // negotiateLimit:t.Optional(t.String()),
         strikePrice: t.Optional(t.String()),
         active: t.Optional(t.Boolean()),
         images: t.Optional(t.Any()),

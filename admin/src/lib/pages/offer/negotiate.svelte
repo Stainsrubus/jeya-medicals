@@ -14,7 +14,7 @@
   let searchQuery = '';
   let productResults: any[] = [];
   let isLoading = false;
-  let newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '' };
+  let newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' }; // Added limit
   let dropdownOpen = false;
   let isSearching = false;
   let page = 1;
@@ -37,6 +37,7 @@
         price: product.price || 0,
         successPercentage: item.successPercentage || 0,
         failurePercentage: item.failurePercentage || 0,
+        limit: product.negotiateLimit || 0, // Added limit
         strikePrice: product.strikePrice || 0
       };
     });
@@ -75,7 +76,7 @@
   }
 
   function validateNumber(value: string): boolean {
-    return /^[0-9]+$/.test(value);
+    return /^[0-9]+$/.test(value) && parseInt(value) >= 0;
   }
 
   function removeItem(index: number) {
@@ -132,8 +133,13 @@
   }
 
   async function addNewProduct() {
-    if (!newProduct.productId || !validateNumber(newProduct.successPercentage) || !validateNumber(newProduct.failurePercentage)) {
-      toast.error('Please select a product and enter valid success and failure percentages');
+    if (
+      !newProduct.productId ||
+      !validateNumber(newProduct.successPercentage) ||
+      !validateNumber(newProduct.failurePercentage) ||
+      !validateNumber(newProduct.limit)
+    ) {
+      toast.error('Please select a product and enter valid success percentage, failure percentage, and negotiation limit');
       return;
     }
 
@@ -141,7 +147,7 @@
 
     if (existingProductIndex >= 0) {
       toast.error('This product is already in the negotiate list');
-      newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '' };
+      newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' };
       searchQuery = '';
       return;
     }
@@ -156,7 +162,8 @@
       const response = await _axios.post(`/offer/${offerId}/add-product`, {
         productId: newProduct.productId,
         successPercentage: parseInt(newProduct.successPercentage),
-        failurePercentage: parseInt(newProduct.failurePercentage)
+        failurePercentage: parseInt(newProduct.failurePercentage),
+        limit: parseInt(newProduct.limit) // Added limit
       });
 
       if (response.data.status) {
@@ -170,7 +177,7 @@
       toast.error('An error occurred while adding the product');
     }
 
-    newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '' };
+    newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' };
     searchQuery = '';
   }
 
@@ -186,56 +193,64 @@
     }
   }
 
+  function updateLimit(index: number, value: string) {
+    if (validateNumber(value)) {
+      localItems = localItems.map((item, i) => i === index ? { ...item, limit: parseInt(value) } : item);
+    }
+  }
+
   async function handleSubmit() {
-    if (localItems.length === 0) {
-      toast.error('Please add at least one product with negotiate details');
+  if (localItems.length === 0) {
+    toast.error('Please add at least one product with negotiate details');
+    return;
+  }
+
+  isSubmitting = true;
+  try {
+    const offerId = $offerStore.data?._id;
+    if (!offerId) {
+      toast.error('No offer ID found. Please save the offer first.');
       return;
     }
 
-    isSubmitting = true;
-    try {
-      const offerId = $offerStore.data?._id;
-      if (!offerId) {
-        toast.error('No offer ID found. Please save the offer first.');
-        return;
-      }
+    // First update the products with their negotiation details
+    const updateResponse = await _axios.patch(`/offer/update-products`, {
+      products: localItems.map(item => ({
+        productId: item.productId,
+        successPercentage: item.successPercentage,
+        failurePercentage: item.failurePercentage,
+        limit: item.limit
+      }))
+    }, {
+      params: { id: offerId }
+    });
 
-      const response = await _axios.patch(`/offer/update-products`, {
-        products: localItems.map(item => ({
-          productId: item.productId,
-          successPercentage: item.successPercentage,
-          failurePercentage: item.failurePercentage
-        }))
-      }, {
-        params: { id: offerId }
-      });
+    if (updateResponse.data.status) {
+      // Update the offer store with the latest items
+      updateOfferField('items', localItems.map(item => ({
+        productId: item.productId,
+        successPercentage: item.successPercentage,
+        failurePercentage: item.failurePercentage,
+        limit: item.limit
+      })));
 
-      if (response.data.status) {
-        updateOfferField('items', localItems.map(item => ({
-          productId: item.productId,
-          successPercentage: item.successPercentage,
-          failurePercentage: item.failurePercentage
-        })));
+      // Update active status
+      updateOfferField('isActive', isActive);
 
-        updateOfferField('isActive', isActive);
-
-        const saveResult = await saveOfferData();
-        if (saveResult && saveResult.status) {
-          await initializeOfferStore();
-          toast.success('Negotiate offer saved successfully');
-        } else {
-          toast.error('Failed to save negotiate offer');
-        }
-      } else {
-        toast.error(response.data.message || 'Failed to update negotiate details');
-      }
-    } catch (error) {
-      console.error('Error saving negotiate offer:', error);
-      toast.error('An error occurred while saving');
-    } finally {
-      isSubmitting = false;
+      // Here we're considering the update successful based on the first API call
+      // No need for another saveOfferData() call which might be failing
+      await initializeOfferStore();
+      toast.success('Negotiate offer saved successfully');
+    } else {
+      toast.error(updateResponse.data.message || 'Failed to update negotiate details');
     }
+  } catch (error) {
+    console.error('Error saving negotiate offer:', error);
+    toast.error('An error occurred while saving');
+  } finally {
+    isSubmitting = false;
   }
+}
 
   function handleProductSearch(event: { target: { value: any } }) {
     const term = event.target.value;
@@ -284,7 +299,7 @@
         {#if dropdownOpen}
           <div
             class="dropdown-container absolute z-20 w-full bg-white dark:bg-gray-900 mt-1 border border-gray-200 dark:border-gray-700 rounded shadow-lg max-h-48 overflow-y-auto"
-            onscroll={handleScroll}
+            on:scroll={handleScroll}
           >
             {#if isSearching}
               <div class="p-2 text-gray-500">Searching...</div>
@@ -292,7 +307,7 @@
               {#each productResults as product}
                 <div
                   class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer flex justify-between items-center"
-                  onmousedown={() =>
+                  on:mousedown={() =>
                     selectProduct({
                       _id: product._id,
                       productName: product.productName,
@@ -317,13 +332,30 @@
     </div>
 
     <div class="mb-4">
+      <Label class="block text-sm font-medium mb-1">Negotiation Limit (₹)</Label>
+      <Input
+        type="number"
+        placeholder="Enter negotiation limit"
+        bind:value={newProduct.limit}
+        class="w-full"
+        min="0"
+      />
+      {#if newProduct.limit && !validateNumber(newProduct.limit)}
+        <span class="text-xs text-red-500">Must be a valid non-negative number</span>
+      {/if}
+    </div>
+    <div class="mb-4">
       <Label class="block text-sm font-medium mb-1">Success Discount (%)</Label>
       <Input
         type="number"
         placeholder="Enter success discount"
         bind:value={newProduct.successPercentage}
         class="w-full"
+        min="0"
       />
+      {#if newProduct.successPercentage && !validateNumber(newProduct.successPercentage)}
+        <span class="text-xs text-red-500">Must be a valid non-negative number</span>
+      {/if}
     </div>
     <div class="mb-4">
       <Label class="block text-sm font-medium mb-1">Failure Discount (%)</Label>
@@ -332,7 +364,11 @@
         placeholder="Enter failure discount"
         bind:value={newProduct.failurePercentage}
         class="w-full"
+        min="0"
       />
+      {#if newProduct.failurePercentage && !validateNumber(newProduct.failurePercentage)}
+        <span class="text-xs text-red-500">Must be a valid non-negative number</span>
+      {/if}
     </div>
 
     <Button onclick={addNewProduct} class="w-full">
@@ -354,7 +390,7 @@
       <div class="text-center py-16 border rounded-md bg-gray-50">
         <Icon icon="lucide:package" class="h-12 w-12 mx-auto text-gray-400 mb-2" />
         <p class="text-gray-500">No products added yet.</p>
-        <p class="text-sm text-gray-400">Add products from the form on the right</p>
+        <p class="text-sm text-gray-400">Add products from the form on the left</p>
       </div>
     {:else}
       <div class="border rounded-md overflow-hidden">
@@ -362,6 +398,8 @@
           <thead class="bg-gray-100 text-black">
             <tr>
               <th class="py-2 px-4 text-left font-medium">Product</th>
+              <th class="py-2 px-4 text-left font-medium">Price</th>
+              <th class="py-2 px-4 text-left font-medium w-32">Negotiation Limit (₹)</th>
               <th class="py-2 px-4 text-left font-medium w-32">Success Discount (%)</th>
               <th class="py-2 px-4 text-left font-medium w-32">Failure Discount (%)</th>
               <th class="py-2 px-4 text-right font-medium w-16">Action</th>
@@ -372,14 +410,29 @@
               <tr class="border-t hover:bg-gray-50">
                 <td class="py-2 px-4">
                   <div>
-                    <span class="font-medium text-gray-600">{item.productName}</span>
+                    <span class="font-medium text-gray-600 ">{item.productName}</span>
                   </div>
+                </td>
+                <td class="py-2 px-4">
+                  <div>
+                    <span class="font-medium text-gray-600 whitespace-nowrap">₹{item.price}</span>
+                  </div>
+                </td>
+                <td class="py-2 px-4">
+                  <Input
+                    type="number"
+                    value={item.limit}
+                    class="h-8"
+                    min="0"
+                    oninput={(e) => updateLimit(index, e.currentTarget.value)}
+                  />
                 </td>
                 <td class="py-2 px-4">
                   <Input
                     type="number"
                     value={item.successPercentage}
                     class="h-8"
+                    min="0"
                     oninput={(e) => updateSuccessPercentage(index, e.currentTarget.value)}
                   />
                 </td>
@@ -388,6 +441,7 @@
                     type="number"
                     value={item.failurePercentage}
                     class="h-8"
+                    min="0"
                     oninput={(e) => updateFailurePercentage(index, e.currentTarget.value)}
                   />
                 </td>

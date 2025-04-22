@@ -12,7 +12,8 @@ export const brandController = new Elysia({
       },
     ],
   },
-}).get(
+})
+.get(
   "/all",
   async ({ query }) => {
     try {

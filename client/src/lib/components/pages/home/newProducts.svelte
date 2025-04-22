@@ -94,9 +94,9 @@
         {/each}
       </div>
     {:else}
-      <div class="flex md:gap-6 gap-4 overflow-x-auto">
+      <div class="flex md:gap-6 gap-4 py-1 px-1 overflow-x-auto scrollbar-hide">
         {#each products as product (product.id)}
-          <div class="flex-shrink-0">
+          <div class="flex-wrap">
             <ProductCard
               id={product.id}
               image={product.image[0]}

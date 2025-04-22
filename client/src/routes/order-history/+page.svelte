@@ -8,6 +8,7 @@
   import Footer from '$lib/components/footer.svelte';
   import { goto } from '$app/navigation';
   import { writableGlobalStore } from '$lib/stores/global-store';
+	import { queryClient } from '$lib/query-client';
 
   interface Address {
     _id: string;
@@ -77,8 +78,8 @@
     status: boolean;
     orders: Order[];
   }
-  
-  $: isLoggedIn = $writableGlobalStore.isLogedIn;
+
+  let isLoggedIn = $writableGlobalStore.isLogedIn;
   const ordersQuery = createQuery<OrderResponse>({
     queryKey: ['orders'],
     queryFn: async () => {
@@ -106,6 +107,9 @@
   });
 
   let activeTab = 'not yet shipped';
+  let showDialog = false;
+  let selectedOrderId = '';
+  let selectedProductId = '';
 
   $: filteredOrders = $ordersQuery.data?.orders.filter(order => {
     if (activeTab === 'not yet shipped' && order.status === 'pending') return true;
@@ -118,67 +122,141 @@
   }) || [];
 
   const cancelOrderMutation = createMutation({
-  mutationFn: async (orderId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No token found. Please log in.');
-    }
+    mutationFn: async (orderId) => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found. Please log in.');
+      }
 
+      try {
+        const response = await _axios.post(`/orders/cancel/${orderId}`, {}, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+
+        if (!response.data.status) {
+          throw new Error(response.data.message || 'Failed to cancel the order');
+        }
+        goto('/order-history')
+        return response.data;
+      } catch (error) {
+        throw error instanceof Error ? error : new Error('An unexpected error occurred');
+      }
+    },
+    onSuccess: () => {
+      toast.success('Order cancelled successfully');
+      // Refetch the order to update the status
+      $ordersQuery.refetch();
+    },
+    onError: (error:any) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel order. Please try again.');
+    },
+  });
+
+  const handleCancelOrder = async (orderId:any,status:any) => {
     try {
-      const response = await _axios.post(`/orders/cancel/${orderId}`, {}, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      });
+      if (!$ordersQuery.data?.orders) {
+        toast.error('Order details not available');
+        return;
+      }
+
+      const orderStatus = status;
+
+      // Check if order can be cancelled
+      if (orderStatus !== 'pending' && orderStatus !== 'accepted') {
+        toast.error('This order cannot be cancelled.');
+        return;
+      }
+
+      // Show confirmation dialog before cancelling
+      if (confirm('Are you sure you want to cancel this order?')) {
+        $cancelOrderMutation.mutate(orderId);
+      }
+    } catch (error) {
+      toast.error('Failed to cancel order. Please try again.');
+    }
+  };
+
+  // Reorder mutation
+  const reorderMutation = createMutation({
+    mutationFn: async ({ products }: { products: any[] }) => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found. Please log in.');
+      }
+
+      const response = await _axios.post(
+        '/cart/reorder',
+        { products },
+        {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        }
+      );
 
       if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to cancel the order');
+        throw new Error(response.data.message || 'Failed to reorder products');
       }
-      goto('/order-history')
       return response.data;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error('An unexpected error occurred');
-    }
-  },
-  onSuccess: () => {
-    toast.success('Order cancelled successfully');
-    // Refetch the order to update the status
-    $ordersQuery.refetch();
-  },
-  onError: (error:any) => {
-    toast.error(error instanceof Error ? error.message : 'Failed to cancel order. Please try again.');
-  },
-});
-const handleCancelOrder = async (orderId:any,status:any) => {
-  try {
-    if (!$ordersQuery.data?.orders) {
-      toast.error('Order details not available');
-      return;
-    }
-    
-    const orderStatus = status;
-    
-    // Check if order can be cancelled
-    if (orderStatus !== 'pending' && orderStatus !== 'accepted') {
-      toast.error('This order cannot be cancelled.');
-      return;
-    }
-    
-    // Show confirmation dialog before cancelling
-    if (confirm('Are you sure you want to cancel this order?')) {
-      $cancelOrderMutation.mutate(orderId);
-    }
-  } catch (error) {
-    toast.error('Failed to cancel order. Please try again.');
-  }
-};
-    // Handle reorder
-    const handleReorder = async () => {
-      try {
-        // Implement reorder functionality
-        toast.success('Items added to cart successfully');
-      } catch (error) {
-        toast.error('Failed to reorder. Please try again.');
+    },
+    onSuccess: () => {
+      toast.success('Products reordered successfully!');
+    //@ts-ignore
+    queryClient.invalidateQueries(['cart']);
+      //@ts-ignore
+      queryClient.invalidateQueries(['cartCount']);
+      goto('/cart')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to reorder products');
+    },
+  });
+
+  // Handle reorder
+  const handleReorder = async (orderId: string) => {
+    try {
+      const order = $ordersQuery.data?.orders.find(o => o._id === orderId);
+      if (!order) {
+        toast.error('Order details not available');
+        return;
       }
-    };
+
+      const productsToReorder = order.products.map(product => ({
+        productId: product.productId._id,
+        quantity: product.quantity,
+        options: product.options || [],
+        // selectedOffer: product.selectedOffer?.offerType === 'Flat' ? product.selectedOffer : null,
+      }));
+
+      const hasSelectedOffer = productsToReorder.some(product => product.selectedOffer !== null);
+
+      if (hasSelectedOffer) {
+        selectedOrderId = orderId;
+        selectedProductId = productsToReorder.find(product => product.selectedOffer !== null)?.productId;
+        showDialog = true;
+      } else {
+        $reorderMutation.mutate({ products: productsToReorder });
+      }
+    } catch (error) {
+      toast.error('Failed to reorder. Please try again.');
+    }
+  };
+
+  const handleDialogAction = (action: string) => {
+    if (action === 'revisit') {
+      goto(`/Products/${selectedProductId}`);
+    } else if (action === 'reorder') {
+      const order = $ordersQuery.data?.orders.find(o => o._id === selectedOrderId);
+      if (order) {
+        const productsToReorder = order.products.map(product => ({
+          productId: product.productId._id,
+          quantity: product.quantity,
+          options: product.options || [],
+          selectedOffer: product.selectedOffer?.offerType === 'Flat' ? product.selectedOffer : null,
+        }));
+        $reorderMutation.mutate({ products: productsToReorder });
+      }
+    }
+    showDialog = false;
+  };
 </script>
 
 {#if isLoggedIn}
@@ -238,7 +316,7 @@ const handleCancelOrder = async (orderId:any,status:any) => {
             <p class="font-semibold text-[#30363C] text-base truncate">
               {order.addressId?.flatorHouseno}, {order.addressId?.area}
             </p>
-            
+
           </div>
           <div class="lg:block hidden">
             <p class="text-lg text-[#4F585E]">Total Amount</p>
@@ -250,7 +328,7 @@ const handleCancelOrder = async (orderId:any,status:any) => {
           </div>
           <div class="lg:flex items-center hidden">
               {#if order.status==='pending'||order.status==='accepted'}
-              <button 
+              <button
                 class="text-[#FF080C] lg:text-lg  text-base  font-medium  rounded-md"
                 onclick={(e) => {
                   e.stopPropagation();
@@ -262,12 +340,15 @@ const handleCancelOrder = async (orderId:any,status:any) => {
               {:else}
              {#if order.status==='cancelled'|| order.status==='rejected'}
              <div>
-    
+
              </div>
              {:else}
-             <button 
+             <button
              class="text-[#147097] lg:text-xl md:text-lg text-base font-medium  rounded-md"
-             onclick={handleReorder}
+             onclick={(e) => {
+               e.stopPropagation();
+               handleReorder(order._id);
+             }}
            >
              Reorder
            </button>
@@ -277,7 +358,7 @@ const handleCancelOrder = async (orderId:any,status:any) => {
           <div class="flex flex-col items-end lg:hidden">
             <p class="font-semibold text-[#30363C] text-base">₹{order.totalPrice.toFixed(2)}</p>
             {#if order.status==='pending'||order.status==='accepted'}
-            <button 
+            <button
               class="text-[#FF080C] lg:text-lg text-base  font-medium  rounded-md"
               onclick={(e) => {
                 e.stopPropagation();
@@ -289,12 +370,15 @@ const handleCancelOrder = async (orderId:any,status:any) => {
             {:else}
            {#if order.status==='cancelled' || order.status==='rejected'}
            <div>
-  
+
            </div>
            {:else}
-           <button 
+           <button
            class="text-[#147097] lg:text-xl md:text-lg text-base font-medium  rounded-md"
-           onclick={handleReorder}
+           onclick={(e) => {
+             e.stopPropagation();
+             handleReorder(order._id);
+           }}
          >
            Reorder
          </button>
@@ -302,7 +386,7 @@ const handleCancelOrder = async (orderId:any,status:any) => {
             {/if}
           </div>
         </div>
-        
+
         <div class="lg:hidden flex px-4 py-2 justify-between">
           <div class="block lg:hidden">
             <p class="text-base">
@@ -313,7 +397,7 @@ const handleCancelOrder = async (orderId:any,status:any) => {
           </div>
           <p class="font-semibold text-[#30363C] text-base">#{order.orderId}</p>
         </div>
-        
+
         <!-- Product List -->
         {#each order.products as product}
           <div class="flex items-center space-x-4 py-2 p-4 lg:border-t border-b">
@@ -328,9 +412,9 @@ const handleCancelOrder = async (orderId:any,status:any) => {
               <p class="lg:text-xl text-lg font-semibold text-[#30363C]">{product.productId.productName}</p>
               <div class="flex flex-wrap gap-4 mt-2">
                 <p class="text-sm text-gray-500">
-                  <span class="text-[#147097]">BRAND:</span> {product.productId.brand?.name || 'N/A'} 
+                  <span class="text-[#147097]">BRAND:</span> {product.productId.brand?.name || 'N/A'}
                 </p>
-                
+
                 <!-- Display product options if they exist -->
                 {#if product.options && product.options.length > 0}
                   {#each product.options as option}
@@ -339,9 +423,9 @@ const handleCancelOrder = async (orderId:any,status:any) => {
                     </p>
                   {/each}
                 {/if}
-                
+
                 <p class="text-sm text-gray-500">
-                  <span class="text-[#147097]">QUANTITY:</span> {product.quantity} 
+                  <span class="text-[#147097]">QUANTITY:</span> {product.quantity}
                 </p>
                 <p class="text-sm text-gray-500">
                   <span class="text-[#147097]">AMOUNT:</span> ₹{product.totalAmount.toFixed(2)}
@@ -361,6 +445,30 @@ const handleCancelOrder = async (orderId:any,status:any) => {
 <div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
   <p class="text-lg font-medium">Please login to access Order History</p>
   <button onclick={()=>{goto('/login')}} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
+</div>
+{/if}
+
+<!-- Dialog for revisiting offer -->
+{#if showDialog}
+<div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h2 class="text-xl font-bold mb-4">Do you need to revisit the product to avail offers?</h2>
+    <div class="flex justify-end space-x-4">
+      <button
+      class="px-4 py-2 bg-blue-500 text-white rounded-md"
+      onclick={() => handleDialogAction('revisit')}
+    >
+      Yes, Revisit
+    </button>
+      <button
+        class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md"
+        onclick={() => handleDialogAction('reorder')}
+      >
+        No, Reorder
+      </button>
+     
+    </div>
+  </div>
 </div>
 {/if}
 

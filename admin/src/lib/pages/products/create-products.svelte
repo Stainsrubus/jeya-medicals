@@ -298,6 +298,7 @@
 				aria-invalid={$errors.productCode ? 'true' : undefined}
 				bind:value={$form.productCode}
 				{...$constraints.productCode}
+				maxlength={14}
 			/>
 			{#if $errors.productCode}
 				<span class="invalid text-xs text-red-500">{$errors.productCode}</span>
@@ -401,7 +402,7 @@
 				<span class="invalid text-xs text-red-500">{$errors.strikePrice}</span>
 			{/if}
 		</div>
-		<div>
+		<!-- <div>
 			<Label for="negotiationLimit">Negotiation Limit</Label>
 			<Input
 				id="negotiationLimit"
@@ -417,7 +418,7 @@
 			{#if $errors.negotiationLimit}
 				<span class="invalid text-xs text-red-500">{$errors.negotiationLimit}</span>
 			{/if}
-		</div>
+		</div> -->
 		<div>
 			<Label for="gst">Gst (%)</Label>
 			<Input

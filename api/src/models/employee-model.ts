@@ -6,6 +6,8 @@ interface Employee {
   password: string;
   role: string;
   active: boolean;
+  image:string;
+  mobile:number;
   isDeleted: boolean;
 }
 
@@ -20,9 +22,15 @@ const employeeScheam = new Schema<Employee>(
       required: true,
       index: true,
     },
+    mobile:{
+      type:Number,
+    },
     password: {
       type: String,
       required: true,
+    },
+    image:{
+      type:String,
     },
     role: {
       type: String,
