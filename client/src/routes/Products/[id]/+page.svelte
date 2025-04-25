@@ -943,10 +943,16 @@
                 
       {#if selectedPricingOption==='onMRP'&&selectedMessageOption==='Need'}
       <input type="text"  bind:value={neededProductName} class="h-10 focus:outline-none  focus:ring-0 w-full px-2 rounded-lg my-3 border" placeholder="Enter products name">
-      <p class="text-sm text-yellow-600 flex items-center">
+      <p class="text-sm text-yellow-600 flex items-start">
         <span class="mr-1 text-lg">
           <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
         </span> Tell us your needed product we will send 
+
+      </p>
+      <p class="text-sm text-yellow-600 flex items-center">
+        <span class="mr-1 text-lg">
+          <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
+        </span> You can avail ₹{product?.onMRP} worth products
 
       </p>
       {:else}
@@ -958,12 +964,12 @@
 
       </p>
       {/if}
-              <button
+              <!-- <button
                 class={`${selectedMessageOption!='Need'?'hidden':''} w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-lg mt-2`}
                 on:click={sendMessage}
               >
                 Send Message
-              </button>
+              </button> -->
             </div>
           
           {:else if selectedPricingOption === 'discount' && product?.discount > 0}
@@ -1050,7 +1056,7 @@
                   </button>
                 </div>
                 <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  class="bg-[#01A0E2] text-base text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
                   on:click={addToCart}
                   disabled={$addToCartMutation.isPending}
                 >
@@ -1203,11 +1209,17 @@
                   
         {#if selectedPricingOption==='onMRP'&&selectedMessageOption==='Need'}
         <input type="text"  bind:value={neededProductName} class="h-10 focus:outline-none  focus:ring-0 w-full px-2 rounded-lg my-3 border" placeholder="Enter products name">
-        <p class="text-sm text-yellow-600 flex items-center">
+        <p class="text-sm text-yellow-600 flex items-start">
           <span class="mr-1 text-lg">
             <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
           </span> Tell us your needed product we will send 
-
+  
+        </p>
+        <p class="text-sm text-yellow-600 flex items-center">
+          <span class="mr-1 text-lg">
+            <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
+          </span> You can avail ₹{product?.onMRP} worth products
+  
         </p>
         {:else}
         <p class="text-sm my-4 text-yellow-600 flex items-center">
@@ -1218,12 +1230,12 @@
 
         </p>
         {/if}
-                <button
+                <!-- <button
                   class={`${selectedMessageOption!='Need'?'hidden':''} w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-lg mt-2`}
                   on:click={sendMessage}
                 >
                   Send Message
-                </button>
+                </button> -->
               </div>
             
             {:else if selectedPricingOption === 'discount' && product?.discount > 0}
@@ -1508,10 +1520,16 @@
                 
       {#if selectedPricingOption==='onMRP'&&selectedMessageOption==='Need'}
       <input type="text"  bind:value={neededProductName} class="h-10 focus:outline-none  focus:ring-0 w-full px-2 rounded-lg my-3 border" placeholder="Enter products name">
-      <p class="text-sm text-yellow-600 flex items-center">
+      <p class="text-sm text-yellow-600 flex items-start">
         <span class="mr-1 text-lg">
           <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
         </span> Tell us your needed product we will send 
+
+      </p>
+      <p class="text-sm text-yellow-600 flex items-center">
+        <span class="mr-1 text-lg">
+          <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
+        </span> You can avail ₹{product?.onMRP} worth products
 
       </p>
       {:else}
@@ -1523,12 +1541,12 @@
 
       </p>
       {/if}
-              <button
+              <!-- <button
                 class={`${selectedMessageOption!='Need'?'hidden':''} w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-lg mt-2`}
                 on:click={sendMessage}
               >
                 Send Message
-              </button>
+              </button> -->
             </div>
           
           {:else if selectedPricingOption === 'discount' && product?.discount > 0}
@@ -1572,7 +1590,7 @@
       <div class="mt-8 overflow-x-auto">
         <h2 class="text-xl font-bold text-[#30363C] mb-4">More from {product?.brand || 'this brand'}</h2>
         {#if sameBrandProductsLoading}
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 ">
             {#each Array(4) as _}
               <div class="w-full bg-white rounded-xl shadow-md overflow-hidden">
                 <Skeleton class="h-48 w-full" />
@@ -1590,16 +1608,18 @@
         {:else if sameBrandProductsError}
           <p class="text-red-500">Error loading products: {sameBrandProductsError}</p>
         {:else}
-          <div class="flex flex-wrap gap-10">
+          <div class="flex md:gap-6 gap-4 py-1 px-1 overflow-x-auto scrollbar-hide">
             {#each sameBrandProducts as product (product.id)}
+            <div class='flex-wrap'>
               <ProductCard
-                id={product.id}
-                image={product.images[0]}
-                discount={product.discount}
-                name={product.name}
-                MRP={product.MRP}
-                strikePrice={product.strikePrice}
-              />
+              id={product.id}
+              image={product.images[0]}
+              discount={product.discount}
+              name={product.name}
+              MRP={product.MRP}
+              strikePrice={product.strikePrice}
+            />
+            </div>
             {/each}
           </div>
         {/if}

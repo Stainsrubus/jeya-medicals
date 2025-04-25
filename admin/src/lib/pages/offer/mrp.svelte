@@ -133,114 +133,167 @@
     searchQuery = product.productName;
     dropdownOpen = false;
   }
-
+  function validateMRPReduction(price: number, reduction: number): { valid: boolean; message: string } {
+  if (!validateNumber(String(reduction))) {
+    return { valid: false, message: 'Please enter a valid number' };
+  }
+  
+  if (reduction <= 0) {
+    return { valid: false, message: 'Reduction must be greater than 0' };
+  }
+  
+  if (reduction >= price) {
+    return { valid: false, message: 'Reduction cannot be equal to or greater than the product price' };
+  }
+  
+  return { valid: true, message: '' };
+}
   async function addNewProduct() {
-    if (!newProduct.productId || !validateNumber(newProduct.mrpReduction)) {
-      toast.error('Please select a product and enter a valid MRP reduction value');
-      return;
-    }
+  if (!newProduct.productId) {
+    toast.error('Please select a product');
+    return;
+  }
+  
+  if (!newProduct.mrpReduction) {
+    toast.error('Please enter an MRP reduction value');
+    return;
+  }
+  
+  // Validate the reduction amount
+  const validation = validateMRPReduction(newProduct.price, parseInt(newProduct.mrpReduction));
+  if (!validation.valid) {
+    toast.error(validation.message);
+    return;
+  }
 
-    const existingProductIndex = localItems.findIndex((item) => item.productId === newProduct.productId);
+  const existingProductIndex = localItems.findIndex((item) => item.productId === newProduct.productId);
 
-    if (existingProductIndex >= 0) {
-      toast.error('This product is already in the MRP offer list');
-      newProduct = { productId: '', productName: '', mrpReduction: '', price: 0 };
-      searchQuery = '';
-      return;
-    }
-
-    try {
-      const offerId = $offerStore.data?._id;
-      if (!offerId) {
-        toast.error('No offer ID found. Please save the offer first.');
-        return;
-      }
-
-      const response = await _axios.post(`/offer/${offerId}/add-product`, {
-        productId: newProduct.productId,
-        mrpReduction: parseInt(newProduct.mrpReduction),
-      });
-
-      if (response.data.status) {
-        await initializeOfferStore();
-        toast.success('Product added successfully');
-      } else {
-        toast.error(response.data.message || 'Failed to add product');
-      }
-    } catch (error) {
-      console.error('Error adding product:', error);
-      toast.error('An error occurred while adding the product');
-    }
-
+  if (existingProductIndex >= 0) {
+    toast.error('This product is already in the MRP offer list');
     newProduct = { productId: '', productName: '', mrpReduction: '', price: 0 };
     searchQuery = '';
+    return;
   }
 
-  function updateMRPReduction(index: number, value: string) {
-    if (validateNumber(value)) {
-      localItems = [...localItems];
-      localItems[index].mrpReduction = value;
+  try {
+    const offerId = $offerStore.data?._id;
+    if (!offerId) {
+      toast.error('No offer ID found. Please save the offer first.');
+      return;
     }
+
+    const response = await _axios.post(`/offer/${offerId}/add-product`, {
+      productId: newProduct.productId,
+      mrpReduction: parseInt(newProduct.mrpReduction),
+    });
+
+    if (response.data.status) {
+      await initializeOfferStore();
+      toast.success('Product added successfully');
+    } else {
+      toast.error(response.data.message || 'Failed to add product');
+    }
+  } catch (error) {
+    console.error('Error adding product:', error);
+    toast.error('An error occurred while adding the product');
   }
+
+  newProduct = { productId: '', productName: '', mrpReduction: '', price: 0 };
+  searchQuery = '';
+}
+
+function updateMRPReduction(index: number, value: string) {
+  if (!validateNumber(value)) {
+    return;
+  }
+  
+  const price = localItems[index].price;
+  const reduction = parseInt(value);
+  const previousValue = localItems[index].mrpReduction;
+  
+  // Validate the reduction amount
+  const validation = validateMRPReduction(price, reduction);
+  if (!validation.valid) {
+    toast.error(`${localItems[index].productName}: ${validation.message}`);
+    
+    // Create a new array with the previous valid value
+    localItems = [...localItems];
+    localItems[index].mrpReduction = previousValue;
+    return;
+  }
+  
+  // If valid, update with the new value
+  localItems = [...localItems];
+  localItems[index].mrpReduction = value;
+}
 
   function calculateReducedPrice(price: number, mrpReduction: number): number {
     return price - mrpReduction;
   }
 
   async function handleSubmit() {
-    if (localItems.length === 0) {
-      toast.error('Please add at least one product with an MRP reduction');
+  if (localItems.length === 0) {
+    toast.error('Please add at least one product with an MRP reduction');
+    return;
+  }
+
+  // Validate all items before submitting
+  for (const item of localItems) {
+    const validation = validateMRPReduction(item.price, parseInt(item.mrpReduction));
+    if (!validation.valid) {
+      toast.error(`${item.productName}: ${validation.message}`);
+      return;
+    }
+  }
+
+  isSubmitting = true;
+  try {
+    const offerId = $offerStore.data?._id;
+    if (!offerId) {
+      toast.error('No offer ID found. Please save the offer first.');
       return;
     }
 
-    isSubmitting = true;
-    try {
-      const offerId = $offerStore.data?._id;
-      if (!offerId) {
-        toast.error('No offer ID found. Please save the offer first.');
-        return;
+    // First update the products
+    const response = await _axios.patch(
+      `/offer/update-products`,
+      {
+        products: localItems.map((item) => ({
+          productId: item.productId,
+          mrpReduction: parseInt(item.mrpReduction),
+        })),
+      },
+      {
+        params: { id: offerId },
       }
+    );
 
-      // First update the products
-      const response = await _axios.patch(
-        `/offer/update-products`,
-        {
-          products: localItems.map((item) => ({
-            productId: item.productId,
-            mrpReduction: parseInt(item.mrpReduction),
-          })),
-        },
-        {
-          params: { id: offerId },
-        }
-      );
+    if (response.data.status) {
+      // Refresh the store with the latest data
+      await initializeOfferStore();
 
-      if (response.data.status) {
-        // Refresh the store with the latest data
-        await initializeOfferStore();
-
-        // Now update just the isActive status if needed
-        if ($offerStore?.data.isActive !== isActive) {
-          updateOfferField('isActive', isActive);
-          const saveResult = await saveOfferData();
-          if (saveResult && saveResult.status) {
-            toast.success('MRP offer saved successfully');
-          } else {
-            toast.error('Failed to update active status');
-          }
-        } else {
+      // Now update just the isActive status if needed
+      if ($offerStore?.data.isActive !== isActive) {
+        updateOfferField('isActive', isActive);
+        const saveResult = await saveOfferData();
+        if (saveResult && saveResult.status) {
           toast.success('MRP offer saved successfully');
+        } else {
+          toast.error('Failed to update active status');
         }
       } else {
-        toast.error(response.data.message || 'Failed to update MRP reductions');
+        toast.success('MRP offer saved successfully');
       }
-    } catch (error) {
-      console.error('Error saving MRP offer:', error);
-      toast.error('An error occurred while saving');
-    } finally {
-      isSubmitting = false;
+    } else {
+      toast.error(response.data.message || 'Failed to update MRP reductions');
     }
+  } catch (error) {
+    console.error('Error saving MRP offer:', error);
+    toast.error('An error occurred while saving');
+  } finally {
+    isSubmitting = false;
   }
+}
 
   function handleProductSearch(event: { target: { value: any } }) {
     const term = event.target.value;
