@@ -1,22 +1,43 @@
 <script lang="ts">
-  import { queryClient } from '$lib/query-client';
-  import { QueryClientProvider } from '@tanstack/svelte-query';
-	import '../app.css';
   import { Toaster } from 'svelte-sonner';
+  import '../app.css';
+  let { children } = $props();
+  import { queryClient } from '$lib/query-client';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { browser } from '$app/environment'; // To check if running in browser
+  import { QueryClientProvider } from '@tanstack/svelte-query';
   import Topbar from '$lib/components/topbar.svelte';
-	let { children } = $props();
-  import { page } from '$app/stores';
-  import { derived } from 'svelte/store';
-
-
+  import Navbar from '$lib/components/navbar.svelte';
+    import { page } from '$app/stores';
   
+    const isLoginPage = $derived($page.url.pathname === '/login');
+
+  // Check for userToken on mount
+  // onMount(() => {
+  
+  //   if (browser) {
+  //     const userToken = localStorage.getItem('userToken');
+  
+  //     // If no userToken is found, redirect to /login
+  //     if (!userToken) {
+  //       goto('/login', { replaceState: true });
+  //     }
+  //   }
+  // });
 </script>
-
-
 
 <Toaster position="top-center" />
 <QueryClientProvider client={queryClient}>
-<div>
-  {@render children()}
-</div>
+  {#if !isLoginPage}
+    <div class="fixed z-50">
+      <Topbar />
+      <Navbar />
+    </div>
+    <div class="pt-[120px] scrollbar-hide">
+      {@render children()}
+    </div>
+  {:else}
+    {@render children()}
+  {/if}
 </QueryClientProvider>

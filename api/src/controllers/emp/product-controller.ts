@@ -1,0 +1,418 @@
+import { StoreType } from "@/types";
+import { add, format } from "date-fns";
+import Elysia, { t } from "elysia";
+import { Types } from "mongoose";
+import { Product } from "../../models/product";
+import { Favorites } from "../../models/user/favorites-model";
+import { NegotiateOffer } from "@/models/offer-model";
+import { User } from "@/models/user-model";
+import { Brand } from "@/models/brand-model";
+import { Config } from "@/models/config-model";
+import { ProductCategory } from "@/models/product-category";
+
+export const productController = new Elysia({
+  prefix: "/products",
+  detail: {
+    tags: ["Employee - Product"],
+  },
+})
+.get(
+  "/",
+  async ({ query }) => {
+    const { page, limit, q, rating, empId, category, brand, minPrice, maxPrice } = query;
+
+    const _limit = limit || 10;
+    const _page = page || 1;
+
+    let matchFilter: any = { active: true, isDeleted: false };
+
+    // Search filter
+    if (q) {
+      matchFilter.$or = [{ productName: { $regex: q, $options: "i" } }];
+    }
+
+    // Rating filter
+    if (rating) {
+      const ratingNumber = parseInt(rating, 10);
+      if (ratingNumber >= 1 && ratingNumber <= 5) {
+        matchFilter.ratings = ratingNumber;
+      }
+    }
+
+    // Price range filter
+    if (minPrice || maxPrice) {
+      matchFilter.price = {};
+      if (minPrice) matchFilter.price.$gte = parseFloat(minPrice);
+      if (maxPrice) matchFilter.price.$lte = parseFloat(maxPrice);
+    }
+
+    try {
+      // Convert category and brand to arrays if they're comma-separated strings
+      const categoryIds = category 
+        ? category.split(',').map((id: string) => new Types.ObjectId(id.trim()))
+        : [];
+      
+      const brandIds = brand 
+        ? brand.split(',').map((id: string) => new Types.ObjectId(id.trim()))
+        : [];
+
+      const totalPromise = Product.countDocuments(matchFilter);
+      
+      const aggregationPipeline: any[] = [
+        {
+          $match: matchFilter,
+        },
+        // Lookup for categories
+        {
+          $lookup: {
+            from: "productcategories",
+            localField: "category",
+            foreignField: "_id",
+            as: "categoryDetails",
+          },
+        },
+        {
+          $unwind: "$categoryDetails",
+        },
+        {
+          $match: {
+            "categoryDetails.active": true,
+            ...(categoryIds.length > 0 ? { "categoryDetails._id": { $in: categoryIds } } : {})
+          },
+        },
+        // Lookup for brands
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brand",
+            foreignField: "_id",
+            as: "brandDetails",
+          },
+        },
+        {
+          $unwind: "$brandDetails",
+        },
+        {
+          $match: {
+            "brandDetails.active": true,
+            ...(brandIds.length > 0 ? { "brandDetails._id": { $in: brandIds } } : {})
+          },
+        },
+        // Add priority fields for sorting
+        {
+          $addFields: {
+            categoryPriority: {
+              $cond: [
+                { $in: ["$categoryDetails._id", categoryIds] },
+                0, // Higher priority for selected categories
+                1
+              ]
+            },
+            brandPriority: {
+              $cond: [
+                { $in: ["$brandDetails._id", brandIds] },
+                0, // Higher priority for selected brands
+                1
+              ]
+            },
+            // Add a combined priority field
+            combinedPriority: {
+              $add: [
+                { $cond: [{ $in: ["$categoryDetails._id", categoryIds] }, 0, 1] },
+                { $cond: [{ $in: ["$brandDetails._id", brandIds] }, 0, 1] }
+              ]
+            }
+          },
+        },
+        {
+          $sort: { 
+            combinedPriority: 1, // Sort by combined priority first
+            categoryPriority: 1, 
+            brandPriority: 1, 
+            productName: 1 
+          },
+        },
+        // Group by category
+        {
+          $group: {
+            _id: "$categoryDetails._id",
+            categoryName: { $first: "$categoryDetails.name" },
+            totalProducts: { $sum: 1 },
+            products: {
+              $push: {
+                _id: "$_id",
+                productName: "$productName",
+                images: "$images",
+                description: "$description",
+                categoryId: "$categoryDetails._id",
+                categoryName: "$categoryDetails.name",
+                brandId: "$brandDetails._id",
+                brandName: "$brandDetails.name",
+              },
+            },
+            categoryPriority: { $first: "$categoryPriority" },
+            brandPriority: { $first: "$brandPriority" },
+          },
+        },
+        {
+          $sort: { 
+            categoryPriority: 1, 
+            brandPriority: 1, 
+            categoryName: 1 
+          },
+        },
+        // Pagination at the category level
+        {
+          $skip: (_page - 1) * _limit,
+        },
+        {
+          $limit: _limit,
+        },
+      ];
+
+      const [total, products] = await Promise.all([
+        totalPromise, 
+        Product.aggregate(aggregationPipeline)
+      ]);
+
+      let userFavorites: string[] = [];
+
+      if (empId) {
+        const favorites = await Favorites.findOne({ emp: empId });
+        userFavorites = favorites?.products?.map((p: any) => p.toString()) || [];
+      }
+
+      const paginatedCategories = products.map((category: any) => ({
+        ...category,
+        products: category.products.map((product: any) => ({
+          ...product,
+          favorite: userFavorites.includes(product._id.toString()),
+        })),
+      }));
+
+      return {
+        data: paginatedCategories,
+        total,
+        page: _page,
+        limit: _limit,
+        status: true,
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        error,
+        status: false,
+        message: "Something went wrong",
+      };
+    }
+  },
+  {
+    detail: {
+      summary: "Get all active products grouped by category with filters",
+      description: "Supports filtering by multiple categories, brands, price ranges, and ratings. Categories and brands can be comma-separated for multiple values."
+    },
+    query: t.Object({
+      page: t.Optional(t.Number({ default: 1 })),
+      limit: t.Optional(t.Number({ default: 10 })),
+      q: t.Optional(t.String({ default: "" })),
+      rating: t.Optional(t.String()),
+      empId: t.Optional(t.String()),
+      category: t.Optional(t.String({ description: "Comma-separated category IDs" })),
+      brand: t.Optional(t.String({ description: "Comma-separated brand IDs" })),
+    }),
+  }
+)
+
+
+.get(
+    "/:id",
+    async ({ params, query }) => {
+      try {
+        const { id } = params;
+        const { userId } = query;
+  
+        const product: any = await Product.findById(id)
+          .populate({
+            path: "category",
+            select: "name categoryNumber",
+          })
+          .populate({
+            path: "brand",
+            select: "name",
+          })
+          .exec();
+  
+        if (!product) {
+          return {
+            error: "Product not found",
+            status: false,
+          };
+        }
+  
+        let userFavorites: String[] = [];
+  
+        if (userId) {
+          const favorites = await Favorites.findOne({ user: userId });
+          userFavorites = favorites?.products || [];
+        }
+  
+        const { price, strikePrice, discount, onMRP,negotiate,negotiateLimit,flat,...rest } = product._doc;
+  
+        const newProduct = {
+          ...rest,
+          favorite: userFavorites.includes(product._id.toString()),
+        };
+  
+        return {
+          message: "Product Fetched Successfully",
+          data: newProduct,
+          status: true,
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: "error",
+        };
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      query: t.Object({
+        userId: t.Optional(t.String()),
+      }),
+      detail: {
+        summary: "Get a product by id",
+      },
+    }
+  )
+  
+
+  
+  .get(
+    "/brands/all",
+    async ({ query }) => {
+      try {
+        const { limit, page } = query;
+  
+        let _limit = limit || 10;
+        let _page = page || 1;
+  
+        const brands = await Brand.find(
+          {
+            active: true,
+          },
+          "name image _id"
+        )
+          .skip((_page - 1) * _limit)
+          .limit(_limit)
+          .sort({ createdAt: -1 })
+          .exec();
+  
+        const totalBrands = await Brand.countDocuments({
+          active: true,
+        });
+  
+        return {
+          brands,
+          status: true,
+          total: totalBrands,
+          message: "Brands Fetched Successfully",
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: false,
+        };
+      }
+    },
+    {
+      query: t.Object({
+        page: t.Number({
+          default: 1,
+        }),
+        limit: t.Number({
+          default: 10,
+        }),
+      }),
+      detail: {
+        summary: "Get all brands",
+      },
+    }
+  )
+  .get(
+    "/categories/all",
+    async ({ query }) => {
+      try {
+        const { limit, page } = query;
+
+        let _limit = limit || 10;
+        let _page = page || 1;
+
+        const categories = await ProductCategory.find(
+          {
+            active: true,
+            isDeleted: false,
+          },
+          "name image _id"
+        )
+          .sort({ order: 1 })
+          .skip((_page - 1) * _limit)
+          .limit(_limit)
+          .exec();
+
+        // const categoryPromises = categories.map(async (category) => {
+        //   const totalProducts = await Product.countDocuments({
+        //     category: category._id,
+        //     active: true,
+        //   });
+
+        //   return totalProducts > 0
+        //     ? { ...category.toObject(), totalProducts }
+        //     : null;
+        // });
+
+        // let updatedCategories = (await Promise.all(categoryPromises)).filter(
+        //   (category) => category !== null
+        // );
+
+        // updatedCategories = updatedCategories.sort((a, b) => {
+        //   //@ts-ignore
+        //   return a.order - b.order;
+        // });
+
+        let reason = "";
+
+        const config = await Config.findOne();
+
+        // if (config && updatedCategories.length <= 0) {
+        //   reason = config.shopCloseReason ?? "";
+        // }
+
+        return {
+          // categories: updatedCategories,
+          categories,
+          status: "success",
+          showMessage: reason,
+        };
+      } catch (error) {
+        console.log(error);
+        return {
+          error,
+          status: "error",
+        };
+      }
+    },
+    {
+      query: t.Object({
+        page: t.Optional(t.Number({ default: 1 })),
+        limit: t.Optional(t.Number({ default: 10 })),
+      }),
+      detail: {
+        summary: "Get all categories for app side, excluding empty categories",
+      },
+    }
+  )

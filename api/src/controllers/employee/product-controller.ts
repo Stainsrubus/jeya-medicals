@@ -19,7 +19,7 @@ export const productController = new Elysia({
 .get(
   "/",
   async ({ query }) => {
-    const { page, limit, q, rating, empId, category, brand, minPrice, maxPrice } = query;
+    const { page, limit, q, rating, empId, category, brand} = query;
 
     const _limit = limit || 10;
     const _page = page || 1;
@@ -39,12 +39,7 @@ export const productController = new Elysia({
       }
     }
 
-    // Price range filter
-    if (minPrice || maxPrice) {
-      matchFilter.price = {};
-      if (minPrice) matchFilter.price.$gte = parseFloat(minPrice);
-      if (maxPrice) matchFilter.price.$lte = parseFloat(maxPrice);
-    }
+
 
     try {
       // Convert category and brand to arrays if they're comma-separated strings
@@ -414,5 +409,114 @@ export const productController = new Elysia({
       detail: {
         summary: "Get all categories for app side, excluding empty categories",
       },
+    }
+  )
+  
+  .get(
+    "/search",
+    async ({ query, store }) => {
+      const { page, limit, q } = query;
+      const userId = (store as StoreType)["id"];
+  
+      let _limit = limit || 10;
+      let _page = page || 1;
+  
+      let filter: any = { active: true };
+  
+      if (q) {
+        filter.productName = {
+          $regex: q.trim().split("").join(".*"),
+          $options: "i",
+        };
+      }
+  
+      let userFavorites: String[] = [];
+  
+      try {
+        if (userId) {
+          const favorites = await Favorites.findOne({ user: userId });
+          userFavorites = favorites?.products || [];
+        }
+  
+        const mergedFilter = { ...filter };
+  
+        let productsPromise = Product.aggregate([
+          { $match: mergedFilter },
+          {
+            $lookup: { // Add this stage to populate brand
+              from: "brands", // The collection name for brands
+              localField: "brand", // Field in products collection
+              foreignField: "_id", // Field in brands collection
+              as: "brand" // Output array field
+            }
+          },
+          { $unwind: "$brand" }, // Convert the array to an object
+          {
+            $addFields: {
+              favorite: {
+                $in: ["$_id", userFavorites],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$_id",
+              productDetails: {
+                $first: "$$ROOT",
+              },
+            },
+          },
+          {
+            $replaceRoot: { newRoot: "$productDetails" },
+          },
+          {
+            $project: {
+              productName: 1,
+              images: 1,
+              description: 1,
+              brand: { // Include specific brand fields you want
+                _id: 1,
+                name: 1,
+                logo: 1,
+                // Add other brand fields you need
+              },
+            },
+          },
+          { $skip: (_page - 1) * _limit },
+          { $limit: _limit },
+        ]);
+  
+        const totalPromise = Product.countDocuments(filter);
+  
+        const [products, total] = await Promise.all([
+          productsPromise,
+          totalPromise,
+        ]);
+        
+        return {
+          data: products,
+          total,
+          page: _page,
+          limit: _limit,
+          status: true,
+        };
+      } catch (error) {
+        console.error(error);
+        return {
+          error,
+          status: false,
+          message: "Something went wrong",
+        };
+      }
+    },
+    {
+      detail: {
+        summary: "Search through all products",
+      },
+      query: t.Object({
+        page: t.Optional(t.Number({ default: 1 })),
+        limit: t.Optional(t.Number({ default: 10 })),
+        q: t.Optional(t.String({ default: "" })),
+      }),
     }
   )

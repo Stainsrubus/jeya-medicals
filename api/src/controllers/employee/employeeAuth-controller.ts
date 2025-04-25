@@ -1,5 +1,5 @@
 import { PasetoUtil } from "@/lib/paseto";
-import { Employee } from "@/models/employee-model";
+import { Employee } from "@/models/emp/employee-model";
 import Elysia, { t } from "elysia";
 
 export const employeeAuthController = new Elysia({
@@ -72,6 +72,7 @@ if(employee.password!=password){
       },
     }
   )
+  
   .post(
     "/decrypt-token",
     async ({ body }) => {

@@ -1,6 +1,6 @@
 import Elysia, { t } from "elysia";
 import { Manager } from "../../models/manager-model";
-import { Employee } from "@/models/employee-model";
+import { Employee } from "@/models/emp/employee-model";
 
 const employeeController = new Elysia({
   prefix: "/employee",

@@ -72,7 +72,9 @@
   
     // Get order ID from URL parameter
     const orderId = $page.params.id;
-  
+    let isDialogOpen = false;
+    let dialogElement: HTMLDivElement | null = null;
+
     // Query to fetch specific order details
     const orderQuery = createQuery<OrderResponse>({
       queryKey: ['order', orderId],
@@ -174,11 +176,11 @@ const handleCancelOrder = async () => {
       toast.error('This order cannot be cancelled.');
       return;
     }
-    
-    // Show confirmation dialog before cancelling
-    if (confirm('Are you sure you want to cancel this order?')) {
+    else{
       $cancelOrderMutation.mutate();
+      isDialogOpen=false
     }
+   
   } catch (error) {
     toast.error('Failed to cancel order. Please try again.');
   }
@@ -244,7 +246,7 @@ const handleCancelOrder = async () => {
           {#if order.status==='pending'||order.status==='accepted'}
           <button 
             class="text-[#FF080C] lg:text-xl md:text-lg text-base  font-medium  rounded-md"
-            on:click={handleCancelOrder}
+            on:click={()=>{isDialogOpen=true}}
           >
            Cancel Order
           </button>
@@ -393,7 +395,22 @@ const handleCancelOrder = async () => {
     <p class="text-gray-500">No order details found</p>
   {/if}
 </div>
-
+{#if isDialogOpen}
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 transition-all duration-300">
+          <div
+            class="bg-white rounded-lg flex gap-3 flex-col items-center  shadow-lg p-6 w-full max-w-md max-h-[60vh] overflow-y-auto scrollbar-hide"
+            role="dialog"
+            aria-label="Add user form"
+            bind:this={dialogElement}
+          >
+          <p>Are sure need to cancel the order?</p>
+        <div class="flex justify-center gap-5 items-center">
+          <button on:click={handleCancelOrder} class="px-3 py-2 shadow-sm bg-[#01A0E2] text-white rounded-lg font-medium">Confirm</button>
+          <button on:click={()=>{isDialogOpen=false}} class="px-3 py-2 shadow-sm bg-red-600 border text-white rounded-lg font-medium">Decline</button>
+        </div>
+          </div>
+        </div>
+      {/if}
 <Footer />
 
 <style>

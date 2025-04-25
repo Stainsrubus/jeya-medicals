@@ -78,7 +78,13 @@
     status: boolean;
     orders: Order[];
   }
-
+  let isDialogOpen = false;
+    let dialogElement: HTMLDivElement | null = null;
+    const orderToCancel = {
+  _id :'',
+  orderId:'',
+  status:''
+};
   let isLoggedIn = $writableGlobalStore.isLogedIn;
   const ordersQuery = createQuery<OrderResponse>({
     queryKey: ['orders'],
@@ -146,9 +152,15 @@
       toast.success('Order cancelled successfully');
       // Refetch the order to update the status
       $ordersQuery.refetch();
+      orderToCancel.status='';
+      orderToCancel._id=''
+      orderToCancel.orderId=''
     },
     onError: (error:any) => {
       toast.error(error instanceof Error ? error.message : 'Failed to cancel order. Please try again.');
+      orderToCancel.status='';
+      orderToCancel._id=''
+      orderToCancel.orderId=''
     },
   });
 
@@ -166,11 +178,12 @@
         toast.error('This order cannot be cancelled.');
         return;
       }
-
-      // Show confirmation dialog before cancelling
-      if (confirm('Are you sure you want to cancel this order?')) {
+      else{
         $cancelOrderMutation.mutate(orderId);
+        isDialogOpen=false
       }
+
+  
     } catch (error) {
       toast.error('Failed to cancel order. Please try again.');
     }
@@ -332,7 +345,10 @@
                 class="text-[#FF080C] lg:text-lg  text-base  font-medium  rounded-md"
                 onclick={(e) => {
                   e.stopPropagation();
-                  handleCancelOrder(order._id,order.status);
+                  orderToCancel._id = order._id;
+                      orderToCancel.status=order.status;
+                      orderToCancel.orderId=order.orderId;
+                      isDialogOpen = true;
                 }}
               >
                Cancel Order
@@ -362,7 +378,10 @@
               class="text-[#FF080C] lg:text-lg text-base  font-medium  rounded-md"
               onclick={(e) => {
                 e.stopPropagation();
-                handleCancelOrder(order._id,order.status);
+                orderToCancel._id = order._id;
+                      orderToCancel.status=order.status;
+                      orderToCancel.orderId=order.orderId;
+                      isDialogOpen = true;
               }}
             >
              Cancel Order
@@ -471,5 +490,21 @@
   </div>
 </div>
 {/if}
-
+{#if isDialogOpen}
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 transition-all duration-300">
+          <div
+            class="bg-white rounded-lg flex gap-3 flex-col items-center  shadow-lg p-6 w-full max-w-md max-h-[60vh] overflow-y-auto scrollbar-hide"
+            role="dialog"
+            aria-label="Add user form"
+            bind:this={dialogElement}
+          >
+          <p>Are sure need to cancel the order ({`${orderToCancel.orderId}`})?</p>
+        <div class="flex justify-center gap-5 items-center">
+          <button onclick={handleCancelOrder(orderToCancel?._id,orderToCancel?.status)} class="px-3 py-2 shadow-sm bg-[#01A0E2] text-white rounded-lg font-medium">Confirm</button>
+          <button onclick={()=>{isDialogOpen=false;  orderToCancel.status='';
+      orderToCancel._id=''}} class="px-3 py-2 shadow-sm bg-red-600 border text-white rounded-lg font-medium">Decline</button>
+        </div>
+          </div>
+        </div>
+      {/if}
 <Footer />

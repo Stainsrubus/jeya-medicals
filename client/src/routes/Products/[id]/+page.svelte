@@ -13,20 +13,26 @@
   import { goto } from '$app/navigation';
   import { toast } from 'svelte-sonner';
   import * as Select from "$lib/components/ui/select/index.js";
-	import { json } from '@sveltejs/kit';
+  import { json } from '@sveltejs/kit';
 
-  
-  $: productId = $page.params.id;
-  let isInitialLoad = true;
-
-  
-let offerType: string | null=null;
+  let productId: string | null = null;
+  let isInitialLoad = false;
+  let offerType: string | null = null;
 
   onMount(() => {
     isInitialLoad = false;
     productId = $page.params.id;
     offerType = $page.url.searchParams.get('offerType');
+    queryClient.invalidateQueries(['product', productId]); // Invalidate the query to refetch data
   });
+
+  $: {
+    if (productId !== $page.params.id) {
+      productId = $page.params.id;
+      queryClient.invalidateQueries(['product', productId]); // Invalidate the query to refetch data
+    }
+  }
+
   let hasFetchedFlatProducts = false;
   interface Option {
     title: string;
@@ -49,7 +55,7 @@ let offerType: string | null=null;
     name: string;
     images: string[];
     discount: number;
-    onMRP: number; 
+    onMRP: number;
     MRP: number;
     strikePrice: number;
     description?: string;
@@ -64,7 +70,7 @@ let offerType: string | null=null;
     options?: Option[];
     specifications?: Specification[];
     negotiateLimit?: number;
-    negotiate?:boolean;
+    negotiate?: boolean;
   }
 
   interface NegotiationAttempt {
@@ -101,19 +107,17 @@ let offerType: string | null=null;
 
   $: if (product) {
     if (product.flat > 0 && !hasFetchedFlatProducts) {
-    selectedPricingOption = 'flatOffer';
-    $flatProductQuery.mutate(),
-  hasFetchedFlatProducts = true; 
-  }
-  if(offerType==='negotiation'){
-    selectedPricingOption='negotiation'
-  }
-  else if(offerType==='discount'){
-    selectedPricingOption='discount'
-  }
-  else if(offerType==='onMRP'){
-    selectedPricingOption='onMRP'
-  }
+      selectedPricingOption = 'flatOffer';
+      $flatProductQuery.mutate(),
+      hasFetchedFlatProducts = true;
+    }
+    if (offerType === 'negotiation') {
+      selectedPricingOption = 'negotiation'
+    } else if (offerType === 'discount') {
+      selectedPricingOption = 'discount'
+    } else if (offerType === 'onMRP') {
+      selectedPricingOption = 'onMRP'
+    }
     negotiation.currentPrice = product.MRP;
     negotiation.negotiateLimit = product.negotiateLimit || 0;
     // Reset complementary selections when product changes
@@ -121,7 +125,7 @@ let offerType: string | null=null;
       selectedComplementaryProducts = [];
       totalComplementaryValue = 0;
       complementaryError = '';
-      hasFetchedFlatProducts = false; 
+      hasFetchedFlatProducts = false;
     }
   }
 
@@ -154,6 +158,7 @@ let offerType: string | null=null;
     staleTime: 0,
     enabled: $writableGlobalStore.isLogedIn,
   });
+
   const cartQuery = createQuery({
     queryKey: ['cart'],
     queryFn: async () => {
@@ -210,18 +215,22 @@ let offerType: string | null=null;
     staleTime: 0,
     enabled: true,
   });
+
   $: cartCount = $writableGlobalStore.isLogedIn ? ($cartCountQuery.data?.count || 0) : 0;
-  $: cartData = $writableGlobalStore.isLogedIn ? ($cartQuery?.data?.cart|| 0) : 0;
+  $: cartData = $writableGlobalStore.isLogedIn ? ($cartQuery?.data?.cart || 0) : 0;
   let cartQuantity = 0;
 
-$: if ($cartQuery.data?.cart?.products) {
-  const foundItem = $cartQuery.data.cart.products.find(
-    (item: { productId: { _id: string } }) => item.productId._id === productId
-  );
-  if (foundItem) {
-    cartQuantity = foundItem.quantity;
+  $: if ($cartQuery.data?.cart?.products) {
+    const foundItem = $cartQuery.data.cart.products.find(
+      (item: { productId: { _id: string } }) => item.productId._id === productId
+    );
+    cartQuantity = foundItem ? foundItem.quantity : 0;
+    // Sync desiredQuantity with cartQuantity only if the product is in the cart
+    // if (foundItem && desiredQuantity !== cartQuantity) {
+    //   desiredQuantity = cartQuantity;
+    // }
   }
-}
+
   const userData = JSON.parse(localStorage.getItem('userData') || '{}');
 
   let selectedImageIndex = 0;
@@ -245,14 +254,16 @@ $: if ($cartQuery.data?.cart?.products) {
         attempts: []
       };
       negotiationError = null;
+      desiredQuantity = cartQuantity || 1;
       queryClient.cancelQueries({ queryKey: ['product', previousProductId] });
       previousProductId = productId;
     }
   }
+
   const complementaryProductQuery = createMutation<Product>({
     mutationFn: async () => {
       const response = await _axios.get(`/products/complementary`, {
-        params: { q: product.onMRP }, 
+        params: { q: product.onMRP },
         headers: { 'Content-Type': 'application/json' },
       });
 
@@ -260,13 +271,14 @@ $: if ($cartQuery.data?.cart?.products) {
         throw new Error(response.data.message || 'Failed to fetch product');
       }
 
-      return response.data; 
+      return response.data;
     },
-});
-const flatProductQuery = createMutation<Product>({
+  });
+
+  const flatProductQuery = createMutation<Product>({
     mutationFn: async () => {
       const response = await _axios.get(`/products/flat-discount`, {
-        params: { userId: userData?.userId,productId:productId },
+        params: { userId: userData?.userId, productId: productId },
         headers: { 'Content-Type': 'application/json' },
       });
 
@@ -274,13 +286,13 @@ const flatProductQuery = createMutation<Product>({
         throw new Error(response.data.message || 'Failed to fetch product');
       }
 
-      return response.data; 
+      return response.data;
     },
-});
+  });
+
   const productQuery = createQuery<Product>({
     queryKey: ['product', productId],
     queryFn: async () => {
- console.log(productId)
       const response = await _axios.get(`/products/${productId}`, {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -296,7 +308,7 @@ const flatProductQuery = createMutation<Product>({
         images: product.images,
         discount: product.discount || 0,
         onMRP: product.onMRP || 0,
-        flat:product.flat||0,
+        flat: product.flat || 0,
         MRP: product.price,
         strikePrice: product.strikePrice || product.price,
         description: product.description,
@@ -314,10 +326,10 @@ const flatProductQuery = createMutation<Product>({
         negotiate: product.negotiate,
       };
     },
-
-    // staleTime: 0,
-    // refetchOnMount: 'always',
-    // refetchOnWindowFocus: false
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true
   });
 
   const sameBrandProductsQuery = createQuery<Product[]>({
@@ -395,7 +407,7 @@ const flatProductQuery = createMutation<Product>({
   }
 
   async function handleNegotiate() {
-    if (!product ) return;
+    if (!product) return;
 
     if (!proposedPrice || proposedPrice <= 0) {
       negotiationError = "Please enter a valid price";
@@ -430,6 +442,7 @@ const flatProductQuery = createMutation<Product>({
       negotiationError = "Failed to negotiate price. Please try again.";
     }
   }
+
   function getSelectedOffer() {
     let selectedOffer = null;
     if (selectedPricingOption === 'discount') {
@@ -526,17 +539,24 @@ const flatProductQuery = createMutation<Product>({
     },
   });
 
+  let desiredQuantity: number = cartQuantity || 1;
+
   function addToCart() {
     if (!product) return;
-    $addToCartMutation.mutate(1);
+    if (desiredQuantity < 1) {
+      toast.error('Quantity must be at least 1');
+      desiredQuantity = 1;
+      return;
+    }
+    $addToCartMutation.mutate(desiredQuantity);
   }
 
   function incrementQuantity() {
-    $addToCartMutation.mutate(cartQuantity + 1);
+    desiredQuantity += 1;
   }
 
   function decrementQuantity() {
-    $addToCartMutation.mutate(Math.max(0, cartQuantity - 1));
+    desiredQuantity = Math.max(1, desiredQuantity - 1);
   }
 
   $: product = $productQuery.data;
@@ -549,7 +569,7 @@ const flatProductQuery = createMutation<Product>({
   $: hasSameBrandProducts = sameBrandProducts.length > 0;
 
   let selectedOptions: { [key: string]: string } = {};
-  let quantity: number = 1;
+  let quantity: number = desiredQuantity;
 
   $: if (product?.options) {
     product.options.forEach((option: { title: string | number; values: string[]; }) => {
@@ -560,36 +580,35 @@ const flatProductQuery = createMutation<Product>({
   }
 
   function toggleComplementaryProduct(prod: Product) {
-  const index = selectedComplementaryProducts.findIndex(p => p._id === prod._id);
-  
-  if (index > -1) {
-    selectedComplementaryProducts = selectedComplementaryProducts.filter(p => p._id !== prod._id);
-    totalComplementaryValue -= prod.MRP || prod.price || 0;
-  } else {
-    if (totalComplementaryValue + (prod.MRP || prod.price || 0) > product.onMRP) {
-      complementaryError = `Cannot add - exceeds your complementary limit of ₹${product.onMRP}`;
-      toast.error(complementaryError);
-      return;
+    const index = selectedComplementaryProducts.findIndex(p => p._id === prod._id);
+
+    if (index > -1) {
+      selectedComplementaryProducts = selectedComplementaryProducts.filter(p => p._id !== prod._id);
+      totalComplementaryValue -= prod.MRP || prod.price || 0;
+    } else {
+      if (totalComplementaryValue + (prod.MRP || prod.price || 0) > product.onMRP) {
+        complementaryError = `Cannot add - exceeds your complementary limit of ₹${product.onMRP}`;
+        toast.error(complementaryError);
+        return;
+      }
+
+      selectedComplementaryProducts = [prod]; // Select only one product
+      totalComplementaryValue = prod.MRP || prod.price || 0;
     }
 
-    selectedComplementaryProducts = [prod]; // Select only one product
-    totalComplementaryValue = prod.MRP || prod.price || 0;
+    complementaryError = '';
   }
-
-  complementaryError = '';
-}
-
 
   // Function to check if a product is selected
   function isComplementarySelected(prod: Product) {
-  return selectedComplementaryProducts.some(p => p._id === prod._id);
-}
+    return selectedComplementaryProducts.some(p => p._id === prod._id);
+  }
 
   onDestroy(() => {
     queryClient.cancelQueries({ queryKey: ['product'] });
   });
-
 </script>
+
 
 <section class="bg-[#F2F4F5] py-4 px-4 md:px-6 lg:px-8">
   <Breadcrumb.Root>
@@ -744,37 +763,37 @@ const flatProductQuery = createMutation<Product>({
 
               </div>
               <div class="mt-4 self-end">
-                {#if cartQuantity > 0}
-      <div class="flex items-center rounded-lg gap-2 bg-[#F3FBFF] border-[#0EA5E9] border">
-        <button
-          on:click={decrementQuantity}
-          class="w-14 h-10 text-3xl flex items-center justify-center text-[#01A0E2]"
-          disabled={$addToCartMutation.isPending}
-        >
-          -
-        </button>
-        <span class="text-lg">{cartQuantity}</span>
-        <button
-          on:click={incrementQuantity}
-          class="w-14 h-10 text-2xl flex items-center justify-center text-[#01A0E2]"
-          disabled={$addToCartMutation.isPending}
-        >
-          +
-        </button>
-      </div>
-    {:else}
-      <button
-        class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all"
-        on:click={addToCart}
-        disabled={$addToCartMutation.isPending}
-      >
-        {#if $addToCartMutation.isPending}
-          Adding...
-        {:else}
-          Add to cart
-        {/if}
-      </button>
-    {/if}
+                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
+                  <button
+                    on:click={decrementQuantity}
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    bind:value={desiredQuantity}
+                    min="1"
+                    class="w-16 h-10 text-center border-none text-lg focus:outline-none"
+                  />
+                  <button
+                    on:click={incrementQuantity}
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  on:click={addToCart}
+                  disabled={$addToCartMutation.isPending}
+                >
+                  {#if $addToCartMutation.isPending}
+                    Adding...
+                  {:else}
+                    Add to Cart
+                  {/if}
+                </button>
               </div>
             </div>
 
@@ -1010,37 +1029,37 @@ const flatProductQuery = createMutation<Product>({
 
               </div>
               <div class="mt-4 self-end">
-                {#if cartQuantity > 0}
-                <div class="flex items-center rounded-lg gap-2 bg-[#F3FBFF] border-[#0EA5E9] border">
+                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
                     on:click={decrementQuantity}
-                    class="w-14 h-10 text-3xl flex items-center justify-center text-[#01A0E2]"
-                    disabled={$addToCartMutation.isPending}
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     -
                   </button>
-                  <span class="text-lg">{cartQuantity}</span>
+                  <input
+                    type="number"
+                    bind:value={desiredQuantity}
+                    min="1"
+                    class="w-16 h-10 text-center border-none text-lg focus:outline-none"
+                  />
                   <button
                     on:click={incrementQuantity}
-                    class="w-14 h-10 text-2xl flex items-center justify-center text-[#01A0E2]"
-                    disabled={$addToCartMutation.isPending}
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
-              {:else}
                 <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all"
+                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
                   on:click={addToCart}
                   disabled={$addToCartMutation.isPending}
                 >
                   {#if $addToCartMutation.isPending}
                     Adding...
                   {:else}
-                    Add to cart
+                    Add to Cart
                   {/if}
                 </button>
-              {/if}
               </div>
             </div>
           </div>

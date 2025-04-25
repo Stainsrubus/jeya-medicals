@@ -832,7 +832,7 @@ export const userCartController = new Elysia({
           };
         }
 
-        const productCount = cart.products.length;
+        const productCount = cart.products.reduce((total, item) => total + (item.quantity || 0), 0);
 
         return {
           message: "Cart product count retrieved successfully",

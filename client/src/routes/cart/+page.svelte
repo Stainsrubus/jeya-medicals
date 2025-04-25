@@ -236,6 +236,7 @@
     },
     onSuccess: () => {
       $cartQuery.refetch();
+      queryClient.invalidateQueries({queryKey:['cartCount']});
       toast.success('Quantity updated successfully!');
     },
     onError: (error: Error) => {
