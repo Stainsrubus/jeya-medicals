@@ -24,6 +24,8 @@
 
   // Handle click to navigate to product details page or combo offer page
   function handleClick() {
+    if (!available) return;
+
     if (comboOffer) {
       goto(`/comboOffers/${id}`);
     } else {
@@ -128,7 +130,8 @@
 </script>
 
 <div
-  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40 transition-transform duration-200 cursor-pointer group"
+  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40 transition-transform duration-200"
+  style="{available ? 'cursor-pointer' : 'cursor-not-allowed'}"
   on:click={handleClick}
   role="button"
   tabindex="0"
@@ -204,7 +207,7 @@
 
   <!-- Out of Stock Overlay -->
   {#if !available}
-    <div class="absolute inset-0 bg-black/60 flex justify-center items-center text-white text-lg  font-medium">
+    <div class="absolute inset-0 bg-black/60 flex justify-center items-center text-white text-lg font-medium">
       Out of Stock
     </div>
   {/if}
