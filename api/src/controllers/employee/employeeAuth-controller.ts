@@ -65,7 +65,7 @@ export const employeeAuthController = new Elysia({
           },
           status: true,
         };
-      } catch (error) {
+      } catch (error:any) {
         console.error("Login error:", error);
         return {
           error: error.message || "An unexpected error occurred",
@@ -99,7 +99,7 @@ export const employeeAuthController = new Elysia({
           data: { ...payload?.payload },
           status: true,
         };
-      } catch (error) {
+      } catch (error:any) {
         console.error("Decrypt token error:", error);
         return {
           error: error.message || "An unexpected error occurred",
