@@ -9,6 +9,7 @@ import { Elysia } from "elysia";
 import { connect } from "mongoose";
 import { baseRouter } from "./src/controllers";
 import { User } from "@/models/user-model";
+import { broadcastMessage } from "@/lib/ws-store";
 
 const app = new Elysia();
 

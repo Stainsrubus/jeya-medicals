@@ -13,7 +13,6 @@ interface ProductInterface {
   category: Types.ObjectId;
   price: number;
   strikePrice: number;
-  timing: Types.ObjectId[];
   ratings: number;
   productCode: string;
   description: string;
@@ -23,6 +22,7 @@ interface ProductInterface {
   discount: number;
   onMRP: number;
   flat:number;
+  stock:number;
   brand:Types.ObjectId;
   active: boolean;
   isDeleted: boolean;
@@ -57,7 +57,6 @@ const ProductSchema = new Schema<ProductInterface>(
     },
     negotiateLimit:{
       type:Number,
-      required:true,
     },
     negotiate:{
 type:Boolean,
@@ -65,6 +64,10 @@ default:false
     },
     flat:{
       type:Number,
+    },
+    stock:{
+      type:Number,
+      required:true,
     },
         strikePrice: {
       type: Number,

@@ -11,12 +11,14 @@
   export let image: string;
   export let discount: number | null = null;
   export let name: string;
+  export let available: boolean = true;
   export let MRP: number;
   export let strikePrice: number;
   export let id: string | number;
   export let favorite: boolean = false; // New prop to track favorite status
   export let comboOffer: boolean = false; // New prop to track if it's a combo offer
-export let offerType:string | null = null;
+  export let offerType: string | null = null;
+
   // Calculate savings
   $: savings = strikePrice > MRP ? strikePrice - MRP : 0;
 
@@ -25,13 +27,12 @@ export let offerType:string | null = null;
     if (comboOffer) {
       goto(`/comboOffers/${id}`);
     } else {
-      if(offerType==='negotiation'||offerType==='discount'||offerType==='onMRP'){
-      goto(`/Products/${id}?offerType=${offerType}`);
+      if (offerType === 'negotiation' || offerType === 'discount' || offerType === 'onMRP') {
+        goto(`/Products/${id}?offerType=${offerType}`);
+      } else {
+        goto(`/Products/${id}`);
       }
-    else{
-      goto(`/Products/${id}`);
     }
-  }
   }
 
   // Handle favorite toggle
@@ -46,7 +47,7 @@ export let offerType:string | null = null;
     try {
       // Make API call to toggle favorite status
       const response = await _axios.post(
-        '/favorites/toggle',
+        '/favorites/favorite',
         { productId: id },
         {
           headers: {
@@ -84,7 +85,7 @@ export let offerType:string | null = null;
       }
 
       const response = await _axios.post(
-        comboOffer? '/cart/updateCombo':'/cart/update',
+        comboOffer ? '/cart/updateCombo' : '/cart/update',
         {
           products: [
             {
@@ -127,7 +128,7 @@ export let offerType:string | null = null;
 </script>
 
 <div
-  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40  transition-transform duration-200 cursor-pointer group"
+  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40 transition-transform duration-200 cursor-pointer group"
   on:click={handleClick}
   role="button"
   tabindex="0"
@@ -136,7 +137,7 @@ export let offerType:string | null = null;
   <!-- Discount Badge -->
   {#if discount}
     <div
-      class="absolute top-0 right-0 bg-[#FA8232] text-white md:text-sm text-xs  font-bizGothic font-medium rounded-full px-4 py-2"
+      class="absolute top-0 right-0 bg-[#FA8232] text-white md:text-sm text-xs font-bizGothic font-medium rounded-full px-4 py-2"
     >
       {discount}% OFF
     </div>
@@ -150,30 +151,32 @@ export let offerType:string | null = null;
       alt={name}
     />
     <!-- Overlay on hover -->
-    <div
-      class="absolute inset-0 bg-black bg-opacity-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex justify-center items-center gap-4"
-    >
-      <!-- Heart Icon -->
-      <button
-        class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
-        on:click|stopPropagation={handleFavorite}
-        aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
+    {#if available}
+      <div
+        class="absolute inset-0 bg-black bg-opacity-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex justify-center items-center gap-4"
       >
-        {#if favorite}
-          <img class="px-2.5" src="/svg/fav-filled.svg" alt="Favorited" />
-        {:else}
-          <img class="px-2.5" src="/svg/fav.svg" alt="Favorite" />
-        {/if}
-      </button>
-      <!-- Cart Icon -->
-      <button
-        class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
-        on:click|stopPropagation={handleAddToCart}
-        aria-label="Add to cart"
-      >
-        <img class="p-2" src="/svg/cart.svg" alt="Cart" />
-      </button>
-    </div>
+        <!-- Heart Icon -->
+        <button
+          class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+          on:click|stopPropagation={handleFavorite}
+          aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {#if favorite}
+            <img class="px-2.5" src="/svg/fav-filled.svg" alt="Favorited" />
+          {:else}
+            <img class="px-2.5" src="/svg/fav.svg" alt="Favorite" />
+          {/if}
+        </button>
+        <!-- Cart Icon -->
+        <button
+          class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+          on:click|stopPropagation={handleAddToCart}
+          aria-label="Add to cart"
+        >
+          <img class="p-2" src="/svg/cart.svg" alt="Cart" />
+        </button>
+      </div>
+    {/if}
   </div>
 
   <!-- Product Details -->
@@ -198,4 +201,11 @@ export let offerType:string | null = null;
       </div>
     {/if}
   </div>
+
+  <!-- Out of Stock Overlay -->
+  {#if !available}
+    <div class="absolute inset-0 bg-black/60 flex justify-center items-center text-white text-lg  font-medium">
+      Out of Stock
+    </div>
+  {/if}
 </div>

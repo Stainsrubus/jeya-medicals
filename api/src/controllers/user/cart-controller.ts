@@ -412,59 +412,12 @@ export const userCartController = new Elysia({
         totalTax += gstAmount;
       }
 
-      // Handle complementary products
-      for (const product of products) {
-        if (
-          product.selectedOffer?.offerType === 'onMRP' &&
-          product.selectedOffer.onMRP?.subType === 'Complementary' &&
-          product.selectedOffer.onMRP.productId
-        ) {
-          const complementaryProduct = await Product.findById(product.selectedOffer.onMRP.productId).select("price gst");
-          if (!complementaryProduct) {
-            set.status = 404;
-            return { message: `Complementary product ${product.selectedOffer.onMRP.productId} not found`, status: false };
-          }
-
-          const compProductData = {
-            productId: complementaryProduct._id,
-            quantity: 1,
-            totalAmount: 0,
-            price: 0,
-            options: [],
-            selectedOffer: {
-              offerType: 'onMRP',
-              onMRP: {
-                subType: 'Complementary',
-                reductionValue: 100,
-                productId: product.productId
-              }
-            }
-          };
-
-          const existingCompIndex = updatedProducts.findIndex(p => 
-            p.productId.toString() === complementaryProduct._id.toString() &&
-            p.selectedOffer?.onMRP?.subType === 'Complementary' &&
-            p.selectedOffer?.onMRP?.productId?.toString() === product.productId
-          );
-
-          if (existingCompIndex !== -1) {
-            updatedProducts[existingCompIndex] = compProductData;
-          } else {
-            updatedProducts.push(compProductData);
-          }
-        }
+      // Final cleanup: Remove any duplicate products
+      const uniqueProducts = new Map();
+      for (const product of updatedProducts) {
+        uniqueProducts.set(product.productId.toString(), product);
       }
-
-      // Final cleanup: Remove any duplicate complementary products
-      const seenComplementary = new Set();
-      updatedProducts = updatedProducts.filter(product => {
-        if (product.selectedOffer?.onMRP?.subType === 'Complementary') {
-          const key = `${product.productId}_${product.selectedOffer.onMRP.productId}`;
-          if (seenComplementary.has(key)) return false;
-          seenComplementary.add(key);
-        }
-        return true;
-      });
+      updatedProducts = Array.from(uniqueProducts.values());
 
       const subtotal = updatedProducts.reduce((sum, product) => sum + product.totalAmount, 0);
       const tax = Number(totalTax.toFixed(2));

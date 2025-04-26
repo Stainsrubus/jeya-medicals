@@ -28,10 +28,10 @@
 				<Icon class="w-5 h-5" icon="ic:outline-format-quote" />
 				<span class="ml-2">Quotes</span>
 			</Tabs.Trigger>
-			<Tabs.Trigger value="faqs" class="flex items-center">
+			<!-- <Tabs.Trigger value="faqs" class="flex items-center">
 				<Icon class="w-4 h-4" icon="qlementine-icons:faq-16" />
 				<span class="ml-2">FAQS</span>
-			</Tabs.Trigger>
+			</Tabs.Trigger> -->
 			<Tabs.Trigger value="banner" class="flex items-center">
 				<Icon class="w-5 h-5" icon="material-symbols-light:planner-banner-ad-pt-outline-rounded" />
 				<span class="ml-2">Banner</span>
@@ -51,9 +51,9 @@
 	<!-- <Tabs.Content value="suggestions">
 		<Suggestions />
 	</Tabs.Content> -->
-	<Tabs.Content value="faqs">
+	<!-- <Tabs.Content value="faqs">
 		<FAQ />
-	</Tabs.Content>
+	</Tabs.Content> -->
 	<Tabs.Content value="banner">
 		<Banners />
 	</Tabs.Content>

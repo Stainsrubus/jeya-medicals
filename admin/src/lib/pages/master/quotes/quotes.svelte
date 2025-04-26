@@ -42,7 +42,7 @@
 				create = false;
 
 				queryClient.refetchQueries({
-					queryKey: ['faqs fetch']
+					queryKey: ['quotes fetch']
 				});
 			}}
 		>

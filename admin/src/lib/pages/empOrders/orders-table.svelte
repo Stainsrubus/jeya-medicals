@@ -14,7 +14,7 @@
 
 	async function fetchOrders(limit = 10, page = 1, search = '', selectedStatus = '') {
 		const res = await _axios.get(
-			`/orders/all?limit=${limit}&page=${page}&q=${search}&status=${selectedStatus}`
+			`/empOrders/all?limit=${limit}&page=${page}&q=${search}&status=${selectedStatus}`
 		);
 		const data = await res.data;
 		return data;
@@ -52,7 +52,7 @@
 	});
 
 	function viewOrder(orderId: string) {
-		goto(`/dashboard/orders/${orderId}`);
+		goto(`/dashboard/empOrders/${orderId}`);
 	}
 
 	function onStatusChange(status: string) {
@@ -139,7 +139,6 @@
 					<Table.Head>User Name</Table.Head>
 					<Table.Head>Mobile</Table.Head>
 					<Table.Head>Ordered At</Table.Head>
-					<Table.Head>Amount</Table.Head>
 					<Table.Head>Status</Table.Head>
 					<!-- <Table.Head>Actions</Table.Head> -->
 				</Table.Row>
@@ -159,9 +158,8 @@
 							>
 							<Table.Cell>
 								<button
-									class="capitalize underline underline-offset-2 text-primary font-bold cursor-pointer"
-									onclick={() =>
-										goto(`/dashboard/users/${order?.userData._id}`)}
+									class="capitalize   font-bold "
+									
 								>
 									{order?.userData.username}
 								</button></Table.Cell
@@ -169,9 +167,6 @@
 							<Table.Cell>{order?.userData.mobile}</Table.Cell>
 							<Table.Cell>{formatDate(new Date(order?.createdAt).toISOString())}</Table.Cell>
 
-							<Table.Cell
-								>{(order?.totalPrice - order.couponDiscount + order.deliveryPrice).toFixed(2)} ₹</Table.Cell
-							>
 							<Table.Cell class="capitalize">
 								<Badge class={setBadgeColor(order?.status)}>{order?.status}</Badge>
 							</Table.Cell>

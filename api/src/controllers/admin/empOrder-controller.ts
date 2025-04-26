@@ -3,15 +3,15 @@ import { razor } from "@/lib/razorpay";
 import { DeliveryAgent } from "@/models/delivery-agent";
 import { Product } from "@/models/product";
 import { User } from "@/models/user-model";
-import { OrderModel } from "@/models/user/order-model";
 import dayjs from "dayjs";
 import Elysia, { t } from "elysia";
 import  ComboOffer  from "@/models/combo-model";
+import { EmpOrderModel } from "@/models/emp/order-model";
 
-export const adminOrderController = new Elysia({
-  prefix: "/orders",
+export const adminEmpOrderController = new Elysia({
+  prefix: "/empOrders",
   detail: {
-    tags: ["Admin - Orders"],
+    tags: ["Admin - EmpOrders"],
     security: [
       {
         bearerAuth: [],
@@ -72,8 +72,8 @@ export const adminOrderController = new Elysia({
         const countPipeline: any = [...aggregatePipeline, { $count: "total" }];
 
         const [orders, totalCountResult] = await Promise.all([
-          OrderModel.aggregate(ordersPipeline),
-          OrderModel.aggregate(countPipeline),
+          EmpOrderModel.aggregate(ordersPipeline),
+          EmpOrderModel.aggregate(countPipeline),
         ]);
 
         const totalOrders = totalCountResult[0]?.total || 0;
@@ -116,12 +116,18 @@ export const adminOrderController = new Elysia({
     "/all",
     async ({ query }) => {
       try {
-        const { page, limit, q, status } = query;
+        const { page, limit, q, status, empId } = query;
         const _limit = limit || 10;
         const _page = page || 1;
-
+        
         const matchStage: Record<string, unknown> = {};
-
+        
+        // Filter by employee ID if provided
+        if (empId) {
+          matchStage["employee"] = new Types.ObjectId(empId);
+        }
+        
+        // Search functionality
         if (q) {
           matchStage["$or"] = [
             { orderId: { $regex: q, $options: "i" } },
@@ -129,43 +135,94 @@ export const adminOrderController = new Elysia({
             { "userData.mobile": { $regex: q, $options: "i" } },
           ];
         }
-
+        
+        // Filter by status if provided
         if (status) {
           matchStage["status"] = status;
         }
-
+        
         const aggregatePipeline = [
           {
             $lookup: {
-              from: "users",
+              from: "preusers", // Changed from users to preusers based on the ref in schema
               localField: "user",
               foreignField: "_id",
               as: "userData",
             },
           },
           { $unwind: "$userData" },
+          {
+            $lookup: {
+              from: "employees",
+              localField: "employee",
+              foreignField: "_id",
+              as: "employeeData",
+            },
+          },
+          { $unwind: "$employeeData" },
+          {
+            $lookup: {
+              from: "stores",
+              localField: "store",
+              foreignField: "_id",
+              as: "storeData",
+            },
+          },
+          { $unwind: "$storeData" },
           { $match: matchStage },
           { $sort: { createdAt: -1 } },
         ];
-
+        
         const ordersPipeline: any = [
           ...aggregatePipeline,
           { $skip: (_page - 1) * _limit },
           { $limit: _limit },
-          { $project: { products: 0 } },
+          {
+            $project: {
+              _id: 1,
+              orderId: 1,
+              employee: 1,
+              employeeData: {
+                _id: 1,
+                name: 1,
+                employeeId: 1
+              },
+              user: 1,
+              userData: {
+                _id: 1,
+                username: 1,
+                mobile: 1,
+                profileImage: 1
+              },
+              store: 1,
+              storeData: {
+                _id: 1,
+                name: 1
+              },
+              address: 1,
+              subtotal: 1,
+              tax: 1,
+              totalPrice: 1,
+              status: 1,
+              paymentStatus: 1,
+              invoiceId: 1,
+              createdAt: 1,
+              updatedAt: 1
+            },
+          },
         ];
-
+        
         const countPipeline: any = [...aggregatePipeline, { $count: "total" }];
-
+        
         const [orders, totalCountResult] = await Promise.all([
-          OrderModel.aggregate(ordersPipeline),
-          OrderModel.aggregate(countPipeline),
+          EmpOrderModel.aggregate(ordersPipeline),
+          EmpOrderModel.aggregate(countPipeline),
         ]);
-
+        
         const totalOrders = totalCountResult[0]?.total || 0;
-
+        
         return {
-          message: "Orders Fetched Successfully",
+          message: "Employee Orders Fetched Successfully",
           status: "success",
           total: totalOrders,
           orders,
@@ -192,9 +249,12 @@ export const adminOrderController = new Elysia({
         status: t.String({
           default: "",
         }),
+        empId: t.Optional(t.String({
+          pattern: `^[a-fA-F0-9]{24}$`,
+        })),
       }),
       detail: {
-        summary: "Get all Orders for admin panel",
+        summary: "Get all Employee Orders",
       },
     }
   )
@@ -203,100 +263,18 @@ export const adminOrderController = new Elysia({
     async ({ query }) => {
       try {
         const { orderId } = query;
-  
-        // Step 1: Fetch order without productId populated
-        const order = await OrderModel.findById(orderId)
+        const order = await EmpOrderModel.findById(orderId)
           .populate("user")
-          .populate("addressId")
-          .lean();
-  
+          .populate("products.productId")
+          .lean()
+          .exec();
         if (!order) {
           return { message: "Order not found", status: "error" };
         }
-  
-        // Step 2: Manually populate products
-        const populatedProducts = await Promise.all(
-          order.products.map(async (item) => {
-            let populatedProductId = null;
-            let populatedOfferProductId = null;
-  
-            // Populate the main productId
-            const normalProduct = await Product.findById(item.productId)
-              .select("productName brand images")
-              .populate("brand", "name")
-              .lean();
-  
-            if (normalProduct) {
-              populatedProductId = {
-                _id: normalProduct._id,
-                productName: normalProduct.productName,
-                brand: normalProduct.brand,
-                images: normalProduct.images,
-                isCombo: false,
-              };
-            } else {
-              // Try to populate from ComboOffer if normal product not found
-              const combo = await ComboOffer.findById(item.productId)
-                .select("comboName image comboPrice")
-                .lean();
-  
-              if (combo) {
-                populatedProductId = {
-                  _id: combo._id,
-                  productName: combo.comboName,
-                  brand: { name: "Combo Offer" },
-                  images: [combo.image],
-                  isCombo: true,
-                };
-              }
-            }
-  
-            // Populate the selectedOffer.onMRP.productId if exists
-            if (
-              item.selectedOffer?.onMRP?.productId
-            ) {
-              const offerProduct = await Product.findById(item.selectedOffer.onMRP.productId)
-                .select("productName brand images")
-                .populate("brand", "name")
-                .lean();
-  
-              if (offerProduct) {
-                populatedOfferProductId = {
-                  _id: offerProduct._id,
-                  productName: offerProduct.productName,
-                  brand: offerProduct.brand,
-                  images: offerProduct.images,
-                  isCombo: false,
-                };
-              }
-            }
-  
-            // Return the modified product
-            return {
-              ...item,
-              productId: populatedProductId,
-              selectedOffer: item.selectedOffer
-                ? {
-                    ...item.selectedOffer,
-                    onMRP: item.selectedOffer.onMRP
-                      ? {
-                          ...item.selectedOffer.onMRP,
-                          productId: populatedOfferProductId || item.selectedOffer.onMRP.productId,
-                        }
-                      : undefined,
-                  }
-                : undefined,
-            };
-          })
-        );
-  
         return {
           message: "Order Fetched Successfully",
           status: "success",
-          order: {
-            ...order,
-            products: populatedProducts,
-          },
+          order,
         };
       } catch (error) {
         console.error(error);
@@ -323,7 +301,7 @@ export const adminOrderController = new Elysia({
         const { id } = params;
         const { status } = body;
 
-        const order = await OrderModel.findById(id);
+        const order = await EmpOrderModel.findById(id);
         if (!order) {
           return { message: "Order not found", status: "error" };
         }
@@ -411,7 +389,7 @@ export const adminOrderController = new Elysia({
   //       const { id } = params;
   //       const { agentId } = body;
 
-  //       const order = await OrderModel.findById(id);
+  //       const order = await EmpOrderModel.findById(id);
   //       if (!order) {
   //         return { message: "Order not found", status: "error" };
   //       }
@@ -466,7 +444,7 @@ export const adminOrderController = new Elysia({
           "delivered",
         ];
 
-        const orderCounts = await OrderModel.aggregate([
+        const orderCounts = await EmpOrderModel.aggregate([
           {
             $group: {
               _id: "$status",
@@ -520,7 +498,7 @@ export const adminOrderController = new Elysia({
           throw new Error("Invalid quantity");
         }
 
-        const order = await OrderModel.findById(orderId);
+        const order = await EmpOrderModel.findById(orderId);
         if (!order) {
           set.status = 404;
           throw new Error("Order not found");
@@ -575,7 +553,7 @@ export const adminOrderController = new Elysia({
         const tax = totalTax;
         const totalPrice = subtotal + tax;
 
-        const updatedOrder = await OrderModel.findOneAndUpdate(
+        const updatedOrder = await EmpOrderModel.findOneAndUpdate(
           { _id: order._id },
           {
             $set: {
@@ -628,7 +606,7 @@ export const adminOrderController = new Elysia({
       const { orderId, products } = body;
 
       try {
-        const order = await OrderModel.findById(orderId);
+        const order = await EmpOrderModel.findById(orderId);
         if (!order) {
           set.status = 404;
           throw new Error("Order not found");
@@ -704,7 +682,7 @@ export const adminOrderController = new Elysia({
 
         const totalPrice = subtotal + totalTax;
 
-        const updatedOrder = await OrderModel.findOneAndUpdate(
+        const updatedOrder = await EmpOrderModel.findOneAndUpdate(
           { _id: order._id },
           {
             $set: {
@@ -763,7 +741,7 @@ export const adminOrderController = new Elysia({
       const { orderId, productId } = body;
 
       try {
-        const order = await OrderModel.findById(orderId);
+        const order = await EmpOrderModel.findById(orderId);
         if (!order) {
           set.status = 404;
           throw new Error("Order not found");
@@ -800,7 +778,7 @@ export const adminOrderController = new Elysia({
 
         const totalPrice = subtotal + totalTax;
 
-        const updatedOrder = await OrderModel.findOneAndUpdate(
+        const updatedOrder = await EmpOrderModel.findOneAndUpdate(
           { _id: order._id },
           {
             $set: {

@@ -457,7 +457,12 @@
           subType: selectedMessageOption,
           reductionValue: product?.onMRP,
           ...(selectedMessageOption === 'Need' && { message: neededProductName }),
-          ...(selectedMessageOption === 'Complementary' && { productId: product.id }),
+          ...(selectedMessageOption === 'Complementary' && { 
+            productId:
+              selectedComplementaryProducts.length > 0
+                ? selectedComplementaryProducts[0]._id
+                : null,
+           }),
         },
       };
     } else if (selectedPricingOption === 'flatOffer') {
@@ -580,6 +585,7 @@
   }
 
   function toggleComplementaryProduct(prod: Product) {
+    console.log(product)
     const index = selectedComplementaryProducts.findIndex(p => p._id === prod._id);
 
     if (index > -1) {
@@ -594,6 +600,7 @@
 
       selectedComplementaryProducts = [prod]; // Select only one product
       totalComplementaryValue = prod.MRP || prod.price || 0;
+      console.log(selectedComplementaryProducts)
     }
 
     complementaryError = '';
@@ -743,7 +750,7 @@
                 <p class="md:text-lg text-base text-[#4F585E] mt-2">M.R.P <span class="line-through">₹{product.strikePrice*quantity}</span></p>
 
                 {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
-                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{negotiation.negotiatedPrice*quantity} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
+                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
 
               {:else}
               <div class="flex gap-2">
@@ -902,7 +909,7 @@
               {#each negotiation.attempts as attempt, index}
                 <div class="flex justify-between items-center">
                   <p class="text-sm text-gray-800">{index + 1}st attempt</p>
-                  <p class="text-sm text-gray-800">₹{attempt.amount}</p>
+                  <p class="text-sm text-gray-800">₹{attempt.amount.toFixed(2)}</p>
                 </div>
               {/each}
               {#if negotiation.attempts.length === 0}
@@ -1017,7 +1024,7 @@
                 <p class="md:text-lg text-base text-[#4F585E] mt-2">M.R.P <span class="line-through">₹{product.strikePrice}</span></p>
 
                 {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
-                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{negotiation.negotiatedPrice*quantity} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
+                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
 
               {:else}
                 <p class={`text-[#111827] font-bold md:text-2xl text-lg ${selectedPricingOption==='discount'? 'line-through':''}`}>₹{product.MRP*quantity}</p>
@@ -1038,7 +1045,7 @@
                 <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
                     on:click={decrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
+                    class="w-10 h-8 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     -
                   </button>
@@ -1046,17 +1053,17 @@
                     type="number"
                     bind:value={desiredQuantity}
                     min="1"
-                    class="w-16 h-10 text-center border-none text-lg focus:outline-none"
+                    class="w-12 h-8 text-center border-none text-base focus:outline-none"
                   />
                   <button
                     on:click={incrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
+                    class="w-10 h-8 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
                 <button
-                  class="bg-[#01A0E2] text-base text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  class="bg-[#01A0E2] text-base text-white px-4 py-2 rounded-lg hover:scale-105 transition-all mt-2 w-full"
                   on:click={addToCart}
                   disabled={$addToCartMutation.isPending}
                 >
@@ -1168,7 +1175,7 @@
                 {#each negotiation.attempts as attempt, index}
                   <div class="flex justify-between items-center">
                     <p class="text-sm text-gray-800">{index + 1}st attempt</p>
-                    <p class="text-sm text-gray-800">₹{attempt.amount}</p>
+                    <p class="text-sm text-gray-800">₹{attempt.amount.toFixed(2)}</p>
                   </div>
                 {/each}
                 {#if negotiation.attempts.length === 0}
@@ -1324,7 +1331,7 @@
         <div class="mt-8 bg-white ">
           {#if product}
           <div class="bg-[#F5F5F5] rounded-lg lg:mr-20">
-            <h2 class="text-xl font-bold text-[#4B5563] border rounded-lg border-[#0EA5E9] bg-[#F3FBFF] px-16 py-4 inline-block">
+            <h2 class="md:text-xl  text-lg font-bold text-[#4B5563] border rounded-lg border-[#0EA5E9] bg-[#F3FBFF] lg:px-16 md:px-10 px-8 md:py-4 py-2 inline-block">
               Specifications
             </h2>
           </div>
@@ -1476,7 +1483,7 @@
               {#each negotiation.attempts as attempt, index}
                 <div class="flex justify-between items-center">
                   <p class="text-sm text-gray-800">{index + 1}st attempt</p>
-                  <p class="text-sm text-gray-800">₹{attempt.amount}</p>
+                  <p class="text-sm text-gray-800">₹{attempt.amount.toFixed(2)}</p>
                 </div>
               {/each}
               {#if negotiation.attempts.length === 0}

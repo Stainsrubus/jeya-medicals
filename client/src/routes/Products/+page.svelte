@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createQuery } from '@tanstack/svelte-query';
+  import { createQuery, createInfiniteQuery } from '@tanstack/svelte-query';
   import { _axios } from '$lib/_axios';
   import { imgUrl } from '$lib/config';
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -10,7 +10,7 @@
   import { Slider } from "$lib/components/ui/slider/index.js";
   import { onMount, tick } from 'svelte';
   import Icon from '@iconify/svelte';
-  import { page } from '$app/stores'
+  import { page } from '$app/stores';
 
   interface Category {
     _id: string;
@@ -57,15 +57,14 @@
   let selectedCategoryIds: string[] = [];
   let selectedBrandIds: string[] = [];
   let priceRange = [0, 10000];
+  const limit = 5;
 
   let debounceTimeout: any;
 
   onMount(() => {
     const urlParams = new URLSearchParams($page.url.search);
-    // Try to get 'category' param or the first key as the category ID
     let categoryId = urlParams.get('category');
     if (!categoryId) {
-      // Fallback to the first query parameter key (e.g., ?67e4d42f239d2eaf3becbc44)
       const firstParam = Array.from(urlParams.keys())[0];
       if (firstParam && firstParam.match(/^[0-9a-fA-F]{24}$/)) {
         categoryId = firstParam;
@@ -73,14 +72,14 @@
     }
 
     if (categoryId && $categoryQuery.data) {
-      // Validate that the category ID exists in the categories
       const matchingCategory = $categoryQuery.data.find((cat) => cat._id === categoryId);
       if (matchingCategory && !selectedCategoryIds.includes(matchingCategory._id)) {
-        selectedCategoryIds = [matchingCategory._id]; // Set the category as selected
-        $productsQuery.refetch(); // Refetch products with the selected category
+        selectedCategoryIds = [matchingCategory._id];
+        $productsQuery.refetch();
       }
     }
   });
+
   function debounceSearch() {
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(async () => {
@@ -117,6 +116,7 @@
   function toggleMobileSidebar() {
     isMobileSidebarOpen = !isMobileSidebarOpen;
   }
+
   function handlePriceChange(newValue: number[]) {
     priceRange = newValue;
     $productsQuery.refetch();
@@ -179,14 +179,14 @@
     enabled: true,
   });
 
-  const productsQuery = createQuery<Product[]>({
+  const productsQuery = createInfiniteQuery<Product[]>({
     queryKey: ['products', searchTerm, selectedCategoryIds, selectedBrandIds, priceRange],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 1 }) => {
       const userId = isLoggedIn ? localStorage.getItem('_id') : null;
 
       const params: Record<string, any> = {
-        limit: 1000,
-        page: 1,
+        limit,
+        page: pageParam,
       };
 
       if (userId) params.userId = userId;
@@ -223,11 +223,16 @@
           categoryId: product.categoryId,
           categoryName: product.categoryName,
           favorite: product.favorite,
+          available:product.available
         }))
       );
 
-      return allProducts;
+      return {
+        products: allProducts,
+        nextPage: allProducts.length === limit ? pageParam + 1 : undefined,
+      };
     },
+    getNextPageParam: (lastPage, allPages) => lastPage?.nextPage ?? undefined,
   });
 
   $: categories = $categoryQuery.data ?? [];
@@ -238,9 +243,10 @@
   $: brandsLoading = $brandsQuery.isLoading;
   $: brandsError = $brandsQuery.error ? ($brandsQuery.error as Error).message : null;
 
-  $: products = $productsQuery.data ?? [];
-  $: productsLoading = $productsQuery.isLoading;
+  $: products = $productsQuery.data?.pages.flatMap(page => page.products) ?? [];
+  $: productsLoading = $productsQuery.isLoading || $productsQuery.isFetchingNextPage;
   $: productsError = $productsQuery.error ? ($productsQuery.error as Error).message : null;
+  $: hasNextPage = $productsQuery.hasNextPage;
 
   $: activeFilters = [
     ...selectedCategoryIds.map(id => categories.find(cat => cat._id === id)?.name || ''),
@@ -348,103 +354,103 @@
         <Icon icon={isMobileSidebarOpen ? "mdi:chevron-up" : "mdi:chevron-down"} class="w-4 h-4 ml-2" />
       </button>
       <!-- Mobile Sidebar Overlay -->
-<div
-class="fixed inset-0 z-50 transition-opacity duration-300 {isMobileSidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}"
-on:click={toggleMobileSidebar}
-></div>
+      <div
+        class="fixed inset-0 z-50 transition-opacity duration-300 {isMobileSidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}"
+        on:click={toggleMobileSidebar}
+      ></div>
 
-<!-- Mobile Sidebar Content -->
-<div
-class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transition-transform duration-700 ease-in-out {isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
->
-<div class="p-6 h-full overflow-y-auto">
-  <!-- Close Button -->
-  <button
-    on:click={toggleMobileSidebar}
-    class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-  >
-    <Icon icon="mdi:close" class="w-6 h-6" />
-  </button>
+      <!-- Mobile Sidebar Content -->
+      <div
+        class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transition-transform duration-700 ease-in-out {isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
+      >
+        <div class="p-6 h-full overflow-y-auto">
+          <!-- Close Button -->
+          <button
+            on:click={toggleMobileSidebar}
+            class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          >
+            <Icon icon="mdi:close" class="w-6 h-6" />
+          </button>
 
-  <!-- Filter Content -->
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
-    {#if categoriesLoading || categoriesError}
-      <div class="space-y-3">
-        {#each Array(5) as _}
-          <div class="flex items-center gap-2">
-            <Skeleton class="h-5 w-5" />
-            <Skeleton class="h-5 w-32" />
+          <!-- Filter Content -->
+          <div>
+            <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
+            {#if categoriesLoading || categoriesError}
+              <div class="space-y-3">
+                {#each Array(5) as _}
+                  <div class="flex items-center gap-2">
+                    <Skeleton class="h-5 w-5" />
+                    <Skeleton class="h-5 w-32" />
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="space-y-3">
+                {#each categories as category}
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      class="min-h-5 min-w-5 text-blue-600"
+                      checked={selectedCategoryIds.includes(category._id)}
+                      on:change={() => toggleCategory(category._id)}
+                    />
+                    <span class="text-lg text-[#4F585E]">{category.name}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
           </div>
-        {/each}
-      </div>
-    {:else}
-      <div class="space-y-3">
-        {#each categories as category}
-          <label class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              class="min-h-5 min-w-5 text-blue-600"
-              checked={selectedCategoryIds.includes(category._id)}
-              on:change={() => toggleCategory(category._id)}
-            />
-            <span class="text-lg text-[#4F585E]">{category.name}</span>
-          </label>
-        {/each}
-      </div>
-    {/if}
-  </div>
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
-    {#if brandsLoading || brandsError}
-      <div class="space-y-3">
-        {#each Array(5) as _}
-          <div class="flex items-center gap-2">
-            <Skeleton class="h-5 w-5" />
-            <Skeleton class="h-5 w-32" />
+          <div>
+            <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
+            {#if brandsLoading || brandsError}
+              <div class="space-y-3">
+                {#each Array(5) as _}
+                  <div class="flex items-center gap-2">
+                    <Skeleton class="h-5 w-5" />
+                    <Skeleton class="h-5 w-32" />
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="space-y-3">
+                {#each brands as brand}
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      class="min-h-5 min-w-5 text-blue-600"
+                      checked={selectedBrandIds.includes(brand._id)}
+                      on:change={() => toggleBrand(brand._id)}
+                    />
+                    <span class="text-lg text-[#4F585E]">{brand.name}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
           </div>
-        {/each}
-      </div>
-    {:else}
-      <div class="space-y-3">
-        {#each brands as brand}
-          <label class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              class="min-h-5 min-w-5 text-blue-600"
-              checked={selectedBrandIds.includes(brand._id)}
-              on:change={() => toggleBrand(brand._id)}
+          <div>
+            <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
+            <Slider
+              type="multiple"
+              bind:value={priceRange}
+              max={10000}
+              step={100}
+              onValueCommit={(e)=>{ $productsQuery.refetch();}}
             />
-            <span class="text-lg text-[#4F585E]">{brand.name}</span>
-          </label>
-        {/each}
+            <div class="flex justify-between mt-2 text-[#4F585E]">
+              <span>₹{priceRange[0]}</span>
+              <span>₹{priceRange[1]}</span>
+            </div>
+          </div>
+
+          <!-- Apply Button -->
+          <button
+            on:click={toggleMobileSidebar}
+            class="mt-2 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium"
+          >
+            Apply Filters
+          </button>
+        </div>
       </div>
-    {/if}
-  </div>
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
-    <Slider
-      type="multiple"
-      bind:value={priceRange}
-      max={10000}
-      step={100}
-      onValueCommit={(e)=>{ $productsQuery.refetch();}}
-    />
-    <div class="flex justify-between mt-2 text-[#4F585E]">
-      <span>₹{priceRange[0]}</span>
-      <span>₹{priceRange[1]}</span>
-    </div>
-  </div>
-  
-  <!-- Apply Button -->
-  <button
-    on:click={toggleMobileSidebar}
-    class="mt-2 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium"
-  >
-    Apply Filters
-  </button>
-</div>
-</div>
     </aside>
     {#if activeFilters.length > 0}
       <div class="mb-1 flex flex-wrap gap-2">
@@ -507,12 +513,11 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
     <!-- Product Grid -->
     <div class="mb-1 text-right text-xs md:text-sm text-[#4F585E]">
       {#if productsLoading}
-        {products.length} results found
+        Loading...
       {:else if productsError}
         Error: {productsError}
       {:else if products.length === 0}
-        <!-- No products found -->
-        {products.length} results found
+        No products found
       {:else}
         {products.length} results found
       {/if}
@@ -540,33 +545,49 @@ class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transiti
         <p class="text-lg text-[#4F585E]">No products found</p>
       </div>
     {:else}
-    <div class="">
-      <div class="card  md:flex  md:flex-wrap grid grid-cols-2 justify-center md:justify-normal lg:gap-10 gap-3">
-        {#each products as product (product.id)}
-          <ProductCard
-            id={product.id}
-            image={product.image}
-            discount={product.discount}
-            name={product.name}
-            MRP={product.MRP}
-            strikePrice={product.strikePrice}
-            favorite={product.favorite}
-          />
-        {/each}
+      <div class="">
+        <div class="card  md:flex  md:flex-wrap grid grid-cols-2 justify-center md:justify-normal lg:gap-10 gap-3">
+          {#each products as product (product.id)}
+            <ProductCard
+              id={product.id}
+              image={product.image}
+              discount={product.discount}
+              name={product.name}
+              MRP={product.MRP}
+              strikePrice={product.strikePrice}
+              favorite={product.favorite}
+              available={product.available}
+            />
+          {/each}
+        </div>
+        {#if hasNextPage}
+          <button
+            class="mt-4 w-full text-[#008ECC] underline py-3 rounded-lg font-medium"
+            on:click={() => $productsQuery.fetchNextPage()}
+            disabled={productsLoading}
+          >
+            {#if productsLoading}
+              Loading...
+            {:else}
+              Load More
+            {/if}
+          </button>
+        {:else}
+          <div class="text-center py-10">
+            <p class="text-sm text-[#939ca2]">End of products</p>
+          </div>
+        {/if}
       </div>
-    </div>
     {/if}
   </main>
 </div>
 <Footer />
 <style>
-
-
-@media (max-width: 768px) and (min-width: 500px) {
-  .card {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem; 
+  @media (max-width: 768px) and (min-width: 500px) {
+    .card {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
   }
-}
 </style>

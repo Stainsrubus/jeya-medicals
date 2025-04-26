@@ -356,7 +356,7 @@ let isDialogOpen = false;
                 {/if}
               </div>
               <div class="flex flex-col items-end lg:hidden">
-                <p class="font-semibold text-[#30363C] text-base">₹{order.totalPrice.toFixed(2)}</p>
+                <!-- <p class="font-semibold text-[#30363C] text-base">₹{order.totalPrice.toFixed(2)}</p> -->
                 {#if order.status === 'pending' || order.status === 'accepted'}
                   <button
                     class="text-[#FF080C] lg:text-lg text-base font-medium rounded-md"

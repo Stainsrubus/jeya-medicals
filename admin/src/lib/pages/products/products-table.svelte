@@ -257,6 +257,7 @@
 					<Table.Head>Product Code</Table.Head>
 					<Table.Head>Category</Table.Head>
 					<Table.Head>Price</Table.Head>
+					<Table.Head>Stock</Table.Head>
 					<Table.Head>Active</Table.Head>
 					<!-- <Table.Head>Top Seller</Table.Head> -->
 					<Table.Head>Actions</Table.Head>
@@ -270,6 +271,7 @@
 						<Table.Cell>{product.productCode}</Table.Cell>
 						<Table.Cell>{product.category?.name}</Table.Cell>
 						<Table.Cell>₹ {product.price}</Table.Cell>
+						<Table.Cell>{product.stock}</Table.Cell>
 						<Table.Cell>
 							<Switch
 							class="text-right"
@@ -319,8 +321,9 @@
 				brand:product.brand,
 				description: product.description,
 				productName: product.productName,
+				stock:product.stock,
 				price: product.price.toString(),
-				negotiationLimit:product.negotiateLimit.toString(),
+				// negotiationLimit:product.negotiateLimit.toString(),
 				strikePrice: product.strikePrice.toString(),
 				// rating: product.ratings.toString(),
 				productCode: product.productCode,

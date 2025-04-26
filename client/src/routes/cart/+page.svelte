@@ -510,7 +510,7 @@
                 {:else if item.selectedOffer?.offerType === 'Negotiate'}
                   <div class="flex flex-col items-center">
                     <span class="text-[#249B3E]">Negotiated</span>
-                    <span class="text-sm">₹{item.selectedOffer?.negotiate.negotiatedPrice}</span>
+                    <span class="text-sm">₹{item.selectedOffer?.negotiate.negotiatedPrice.toFixed(2)}</span>
                   </div>
                 {/if}
               {:else}
@@ -605,10 +605,10 @@
             <span class="text-[#30363C] font-semibold">Delivery Charge</span>
             <span class="free text-green-600">{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
           </div>
-          <div class="flex justify-between mb-2.5 text-sm">
+          <!-- <div class="flex justify-between mb-2.5 text-sm">
             <span class="text-[#30363C] font-semibold">Platform Fee</span>
             <span class="text-gray-800">₹{platformFee.toFixed(2)}</span>
-          </div>
+          </div> -->
           <div class="flex justify-between mb-2.5 text-sm">
             <span class="text-[#30363C] font-semibold">Tax</span>
             <span class="text-gray-800">₹{tax.toFixed(2)}</span>

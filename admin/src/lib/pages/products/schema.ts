@@ -27,9 +27,12 @@ export const _productsSchema = z.object({
 	price: z.string().refine((val) => /^[0-9]+$/.test(val), {
 		message: 'Price must be a numeric string'
 	}),
-	negotiationLimit:z.string({
-		message:'Limit must be a numeric string'
+	stock: z.string().refine((val) => /^[0-9]+$/.test(val), {
+		message: 'Stock must be a numeric string'
 	}),
+	// negotiationLimit:z.string({
+	// 	message:'Limit must be a numeric string'
+	// }),
 	strikePrice: z.string().refine((val) => /^[0-9]+$/.test(val), {
 		message: 'strikePrice must be a numeric string'
 	}),
@@ -63,13 +66,14 @@ export const productEditStore = writable({
 	productName: '',
 	brand: {} as TBrand,
 	price: '',
-	negotiationLimit:'',
+	// negotiationLimit:'',
 	strikePrice: '',
 	// rating: '',
 	productCode: '',
 	topSeller: null as boolean | null,
 	images: '',
 	gst: '',
+	stock:'',
 	active: true, // Default to true
 	options: [] as Option[], // Array of options
 	specifications:[] as Specifications[]

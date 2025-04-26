@@ -42,6 +42,13 @@ import logo from "$lib/assets/logo.png"
 			canManagerAccess: true
 		},
 		{
+			name: 'Employee Orders',
+			href: '/dashboard/empOrders/',
+			icon: 'solar:cart-check-broken',
+			subRoutes: '-',
+			canManagerAccess: true
+		},
+		{
 			name: "Today's Order",
 			href: "/dashboard/todayorder/",
 			icon: 'hugeicons:shopping-cart-check-in-02',

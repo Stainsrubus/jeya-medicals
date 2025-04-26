@@ -23,7 +23,7 @@
 	let modelOpen = $state(false);
 
 	const query = createQuery({
-		queryKey: ['quote fetch'],
+		queryKey: ['quotes fetch'],
 		queryFn: () => fetchQuote()
 	});
 
@@ -51,7 +51,7 @@
 			{#if $query.isLoading}
 				<Table.Caption>Loading....</Table.Caption>
 			{:else if $query?.data?.total === 0}
-				<Table.Caption>No FAQ Found!</Table.Caption>
+				<Table.Caption>No Quote Found!</Table.Caption>
 			{/if}
 			<Table.Header>
 				<Table.Row>

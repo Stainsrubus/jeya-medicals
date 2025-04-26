@@ -32,7 +32,7 @@
 		onSuccess({ data }) {
 			queryClient.refetchQueries({ queryKey: ['faqs fetch'] });
 			if (data.status) {
-				toast(edit ? 'FAQ Updated ✅' : 'FAQ Created ✅');
+				toast(edit ? 'Quote Updated ✅' : 'Quote Created ✅');
 				reset();
 				
 				quoteStore.update((store: any) => ({

@@ -26,6 +26,7 @@ import { employeeController } from "./employee-controller";
 import { comboOfferController } from "./combo-controller";
 import { offerController } from "./offer-controller";
 import { demandController } from "./demand-controller";
+import { adminEmpOrderController } from "./empOrder-controller";
 
 const adminController = new Elysia({
   prefix: "/admin",
@@ -82,4 +83,5 @@ const adminController = new Elysia({
 .use(employeeController)
 .use(comboOfferController)
 .use(offerController)
+.use(adminEmpOrderController)
 export { adminController };

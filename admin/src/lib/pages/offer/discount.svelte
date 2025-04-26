@@ -35,7 +35,7 @@
         productId: product._id || item.productId,
         productName: product.productName || '',
         price: product.price || 0,
-        discount: item.discount,
+        discount: item.discount.toString(), // Ensure discount is a string
         strikePrice: product.strikePrice || 0
       };
     });
@@ -73,8 +73,21 @@
     }
   }
 
-  function validateNumber(value: string): boolean {
-    return /^[0-9]+$/.test(value);
+  function validateDiscount(value: string): { isValid: boolean; error?: string } {
+    if (value === '') {
+      return { isValid: true }; // Allow empty input
+    }
+    const num = parseInt(value, 10);
+    if (isNaN(num) || !/^[0-9]+$/.test(value)) {
+      return { isValid: false, error: 'Discount must be a valid number' };
+    }
+    if (num < 1) {
+      return { isValid: false, error: 'Discount must be at least 1%' };
+    }
+    if (num > 99) {
+      return { isValid: false, error: 'Discount cannot exceed 99%' };
+    }
+    return { isValid: true };
   }
 
   function removeItem(index: number) {
@@ -132,8 +145,18 @@
   }
 
   async function addNewProduct() {
-    if (!newProduct.productId || !validateNumber(newProduct.discount)) {
-      toast.error('Please select a product and enter a valid discount percentage');
+    if (!newProduct.productId) {
+      toast.error('Please select a product');
+      return;
+    }
+
+    const discountValidation = validateDiscount(newProduct.discount);
+    if (!discountValidation.isValid) {
+      toast.error(discountValidation.error || 'Invalid discount value');
+      return;
+    }
+    if (newProduct.discount === '') {
+      toast.error('Please enter a discount percentage');
       return;
     }
     
@@ -174,20 +197,37 @@
   }
 
   function updateDiscount(index: number, value: string) {
-    if (validateNumber(value)) {
+    const validation = validateDiscount(value);
+    if (validation.isValid || value === '') {
       localItems = [...localItems];
       localItems[index].discount = value;
+    } else {
+      toast.error(validation.error || 'Invalid discount value');
     }
   }
 
-  function calculateDiscountedPrice(price: number, discount: number): number {
-    return price - (price * discount / 100);
+  function calculateDiscountedPrice(price: number, discount: string): number {
+    if (discount === '') return price;
+    return price - (price * parseInt(discount) / 100);
   }
 
   async function handleSubmit() {
     if (localItems.length === 0) {
       toast.error('Please add at least one product with discount');
       return;
+    }
+
+    // Validate all discounts
+    for (const item of localItems) {
+      const validation = validateDiscount(item.discount);
+      if (!validation.isValid) {
+        toast.error(`Invalid discount for ${item.productName}: ${validation.error}`);
+        return;
+      }
+      if (item.discount === '') {
+        toast.error(`Please enter a discount percentage for ${item.productName}`);
+        return;
+      }
     }
 
     isSubmitting = true;
@@ -258,6 +298,31 @@
       searchProducts(searchQuery, true);
     }
   }
+
+  function handleDiscountInput(event: Event, target: 'newProduct' | { index: number }) {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/\D/g, ''); // Remove non-digits
+    if (value === '') {
+      // Allow empty input
+      if (target === 'newProduct') {
+        newProduct.discount = '';
+      } else {
+        localItems = [...localItems];
+        localItems[target.index].discount = '';
+      }
+      return;
+    }
+    const num = parseInt(value, 10);
+    if (num > 99) {
+      value = '99'; // Cap at 99
+    }
+    if (target === 'newProduct') {
+      newProduct.discount = value;
+    } else {
+      localItems = [...localItems];
+      localItems[target.index].discount = value;
+    }
+  }
 </script>
 
 <div class="flex w-full gap-6 mt-10">
@@ -265,23 +330,23 @@
     <h3 class="text-lg font-medium mb-4">Add New Product Discount</h3>
     
     <div class="mb-4">
-        <Label class="block text-sm font-medium mb-1">Select Product</Label>
-        <div class="relative">
-            <Input
-                id="product-search"
-                type="text"
-                placeholder="Select or search for a product..."
-                bind:value={searchQuery}
-                autocomplete="off"
-                oninput={handleProductSearch}
-                onfocus={handleFocus}
-                onblur={handleBlur}
-                class="w-full"
-            />
-            {#if dropdownOpen}
-            <div
+      <Label class="block text-sm font-medium mb-1">Select Product</Label>
+      <div class="relative">
+        <Input
+          id="product-search"
+          type="text"
+          placeholder="Select or search for a product..."
+          bind:value={searchQuery}
+          autocomplete="off"
+          oninput={handleProductSearch}
+          onfocus={handleFocus}
+          onblur={handleBlur}
+          class="w-full"
+        />
+        {#if dropdownOpen}
+          <div
             class="dropdown-container absolute z-20 w-full bg-white dark:bg-gray-900 mt-1 border border-gray-200 dark:border-gray-700 rounded shadow-lg max-h-48 overflow-y-auto"
-            onscroll={handleScroll}
+            on:scroll={handleScroll}
           >
             {#if isSearching}
               <div class="p-2 text-gray-500">Searching...</div>
@@ -289,7 +354,7 @@
               {#each productResults as product}
                 <div
                   class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer flex justify-between items-center"
-                  onmousedown={() => selectProduct({
+                  on:mousedown={() => selectProduct({
                     _id: product._id,
                     productName: product.productName,
                     price: product.price,
@@ -307,41 +372,43 @@
               <div class="p-2 text-gray-500">No products found</div>
             {/if}
           </div>
-            {/if}
-        </div>
+        {/if}
+      </div>
     </div>
 
     <div class="mb-4">
-        <Label class="block text-sm font-medium mb-1">Discount Percentage (%)</Label>
-        <Input
-            type="number"
-            placeholder="Enter discount percentage"
-            bind:value={newProduct.discount}
-            class="w-full"
-        />
+      <Label class="block text-sm font-medium mb-1">Discount Percentage (%)</Label>
+      <Input
+        type="text"
+        placeholder="Enter discount percentage"
+        value={newProduct.discount}
+        oninput={(e) => handleDiscountInput(e, 'newProduct')}
+        class="w-full"
+        maxlength="2"
+      />
     </div>
 
     {#if newProduct.productId && newProduct.discount}
-        <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-md mb-4">
-            <div class="text-sm text-gray-500 dark:text-gray-400">Preview</div>
-            <div class="flex justify-between items-center mt-1">
-                <div>
-                    <div class="font-medium">{newProduct.productName}</div>
-                    <div class="text-sm">Original: ₹{newProduct.price.toFixed(2)}</div>
-                </div>
-                <div class="text-right">
-                    <div class="font-medium text-green-600 dark:text-green-400">
-                        ₹{calculateDiscountedPrice(newProduct.price, parseInt(newProduct.discount)).toFixed(2)}
-                    </div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400">Discount: {newProduct.discount}%</div>
-                </div>
+      <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-md mb-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">Preview</div>
+        <div class="flex justify-between items-center mt-1">
+          <div>
+            <div class="font-medium">{newProduct.productName}</div>
+            <div class="text-sm">Original: ₹{newProduct.price.toFixed(2)}</div>
+          </div>
+          <div class="text-right">
+            <div class="font-medium text-green-600 dark:text-green-400">
+              ₹{calculateDiscountedPrice(newProduct.price, newProduct.discount).toFixed(2)}
             </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Discount: {newProduct.discount}%</div>
+          </div>
         </div>
+      </div>
     {/if}
 
     <Button onclick={addNewProduct} class="w-full">
-        <Icon icon="lucide:plus" class="h-4 w-4 mr-2" />
-        Add Product
+      <Icon icon="lucide:plus" class="h-4 w-4 mr-2" />
+      Add Product
     </Button>
   </div>
   
@@ -367,7 +434,7 @@
             <tr>
               <th class="py-2 px-4 text-left font-medium">Product</th>
               <th class="py-2 px-4 text-left font-medium">Price</th>
-              <th class="py-2 px-4 text-left font-medium w-24">Discount</th>
+              <th class="py-2 px-4 text-left font-medium w-24 whitespace-nowrap">Discount (%)</th>
               <th class="py-2 px-4 text-left font-medium">Final</th>
               <th class="py-2 px-4 text-right font-medium w-16">Action</th>
             </tr>
@@ -389,12 +456,13 @@
                   <Input 
                     value={item.discount} 
                     class="h-8"
-                    oninput={(e) => updateDiscount(index, e.currentTarget.value)}
+                    oninput={(e) => handleDiscountInput(e, { index })}
+                    maxlength="2"
                   />
                 </td>
                 <td class="py-2 px-4 text-gray-600">
                   {#if item.price && item.discount}
-                    ₹{calculateDiscountedPrice(item.price, parseInt(item.discount)).toFixed(2)}
+                    ₹{calculateDiscountedPrice(item.price, item.discount).toFixed(2)}
                   {/if}
                 </td>
                 <td class="py-2 px-4 text-right">
@@ -414,10 +482,7 @@
       </div>
 
       <div class="mt-4 flex justify-between items-center">
-        <div>
-
-        </div>
-
+        <div></div>
         <Button onclick={handleSubmit} disabled={isSubmitting} class="px-6">
           {#if isSubmitting}
             <Icon icon="lucide:loader" class="h-4 w-4 animate-spin mr-2" />

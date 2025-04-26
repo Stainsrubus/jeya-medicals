@@ -7,6 +7,7 @@
     import { Skeleton } from "$lib/components/ui/skeleton/index.js"; // Import ShadCN Skeleton
 	import { goto } from '$app/navigation';
 	import { writableGlobalStore } from '$lib/stores/global-store';
+	import Icon from '@iconify/svelte';
   
     interface Product {
       id: string | number;
@@ -15,6 +16,7 @@
       discount: number;
       MRP: number;
       strikePrice: number;
+      available:boolean;
       description?: string;
       ratings?: number;
       categoryId?: string;
@@ -29,7 +31,7 @@
         const userId = isLoggedIn ? localStorage.getItem('_id') : null;
         const response = await _axios.get('/products/', {
           params: {
-            limit: 1000, // Fetch all products
+            limit: 7, // Fetch all products
             page: 1,
             userId 
           },
@@ -56,6 +58,7 @@
             categoryId: product.categoryId,
             categoryName: product.categoryName,
             favorite: product.favorite,
+            available:product.available,
           }))
         );
   
@@ -105,9 +108,13 @@
               MRP={product.MRP}
               strikePrice={product.strikePrice}
               favorite={product.favorite}
+              available={product.available}
             />
           </div>
         {/each}
+        <p onclick={()=>{goto('/Products')}} class="flex justify-center items-center text-[#01A0E2] underline whitespace-nowrap">view all <span>
+		  <Icon icon="mdi:arrow-right-thin"  />
+     </span></p>
       </div>
     {/if}
   </div>

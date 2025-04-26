@@ -14,7 +14,7 @@
 	import { toast } from 'svelte-sonner';
 
 	async function fetchOrder(id: string) {
-		const res = await _axios.get(`/orders/order?orderId=${id}`);
+		const res = await _axios.get(`/empOrders/order?orderId=${id}`);
 		return res.data;
 	}
 
@@ -252,31 +252,17 @@
 						<Card.Title>Delivery Address</Card.Title>
 					</Card.Header>
 					<Card.Content>
-						{#if order.addressId}
+						{#if order.address}
 							<div class="space-y-4">
 								<div>
-									<p class="font-semibold text-lg">{order.addressId.receiverName}</p>
-									<p class="text-muted-foreground">{order.addressId.receiverMobile}</p>
-								</div>
-								<div class="space-y-1">
-									<p>{order.addressId.flatorHouseno}</p>
-									<p>{order.addressId.area}</p>
-									<p>{order.addressId.landmark}</p>
+									<p class="font-semibold text-lg">{order.address.flatNo}</p>
+									<p class="text-muted-foreground">{order.address.area}</p>
+									<p class="text-muted-foreground">{order.address.nearbyPlaces}</p>
 								</div>
 								<div class="flex items-center gap-2">
 									<span class="px-3 p-2 bg-zinc-400 rounded-full text-sm">
-										{order.addressId.addressType}
+										{order.user.type}
 									</span>
-									{#if order.addressId.latitude && order.addressId.longitude}
-										<a
-											href={`https://www.google.com/maps?q=${order.addressId.latitude},${order.addressId.longitude}`}
-											target="_blank"
-											rel="noopener noreferrer"
-											class="text-sm text-primary hover:underline"
-										>
-											View on Map
-										</a>
-									{/if}
 								</div>
 							</div>
 						{:else}
@@ -318,67 +304,39 @@
 						<Table.Row>
 							<Table.Head>Sl No.</Table.Head>
 							<Table.Head>Item</Table.Head>
-							<Table.Head>Options</Table.Head>
-							<Table.Head>Selected Offer</Table.Head>
 							<Table.Head>Quantity</Table.Head>
 							<Table.Head>Price</Table.Head>
 							<Table.Head>Total</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
-						{#each order.products as product, index}
+						{#if order.products && order.products.length > 0}
+							{#each order.products as product, index}
+								{#if product}
+									<Table.Row>
+										<Table.Cell>{index + 1}</Table.Cell>
+										<Table.Cell>
+											<p class="font-medium capitalize">{product.productId?.productName}</p>
+										</Table.Cell>
+										
+								
+										<Table.Cell>{product.quantity}</Table.Cell>
+										<Table.Cell>₹{product.price||0}</Table.Cell>
+										<Table.Cell>₹{product.totalAmount||0}</Table.Cell>
+									</Table.Row>
+								{/if}
+							{/each}
+						{:else}
 							<Table.Row>
-								<Table.Cell>{index + 1}</Table.Cell>
-								<Table.Cell>
-									<p class="font-medium capitalize">{product.productId?.productName}</p>
-								</Table.Cell>
-								<Table.Cell>
-									{#if product.options.length > 0}
-										<div class="flex gap-2 flex-col flex-wrap">
-											{#each product.options as option}
-												<span class="text-sm ">
-													{option.title}: {option.value}
-												</span>
-											{/each}
-										</div>
-									{:else}
-										<p class="text-sm text-muted-foreground">-</p>
-									{/if}
-								</Table.Cell>
-								<Table.Cell>
-									{#if product.selectedOffer}
-										{#if product.selectedOffer.offerType === 'Discount'}
-											<p>Discount: {product.selectedOffer.discount}%</p>
-										{:else if product.selectedOffer.offerType === 'onMRP'}
-											<p>On MRP: {product.selectedOffer.onMRP.subType}</p>
-											<p>
-												{#if product.selectedOffer.offerType === 'onMRP' && product.selectedOffer.onMRP.subType === 'Need'}
-  {product.selectedOffer.onMRP.message}
-{:else}
-{product.selectedOffer.onMRP.productId.productName} - (worth ₹{product.selectedOffer.onMRP.reductionValue})
-{/if}
-
-											</p>
-										{:else if product.selectedOffer.offerType === 'Flat'}
-											<p>Flat Discount <br/>{product.selectedOffer.discount}%</p>
-										{:else if product.selectedOffer.offerType === 'Negotiate'}
-											<p>Negotiate: {product.selectedOffer.negotiate.negotiatedPrice.toFixed(2)}</p>
-										{/if}
-									{:else}
-										<p class="text-sm text-muted-foreground">-</p>
-									{/if}
-								</Table.Cell>
-								<Table.Cell>{product.quantity}</Table.Cell>
-								<Table.Cell>₹{product.price}</Table.Cell>
-								<Table.Cell>₹{product.totalAmount}</Table.Cell>
+								<Table.Cell colSpan={7} class="text-center">No products found</Table.Cell>
 							</Table.Row>
-						{/each}
+						{/if}
 					</Table.Body>
 				</Table.Root>
 			</Card.Content>
 		</Card.Root>
 
-		<Card.Root class="bg-zinc-100 border-blue-300 border-2 border-solid">
+		<!-- <Card.Root class="bg-zinc-100 border-blue-300 border-2 border-solid">
 			<Card.Header>
 				<Card.Title>Order Summary</Card.Title>
 			</Card.Header>
@@ -412,7 +370,7 @@
 					</div>
 				</div>
 			</Card.Content>
-		</Card.Root>
+		</Card.Root> -->
 	{:else}
 		<div class="text-center py-10"></div>
 	{/if}
@@ -433,36 +391,44 @@
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
-							{#each order?.products as product, index}
+							{#if order.products && order.products.length > 0}
+								{#each order.products as product, index}
+									{#if product}
+										<Table.Row>
+											<Table.Cell>{index + 1}</Table.Cell>
+											<Table.Cell>
+												<p class="font-medium capitalize">{product.productId?.productName}</p>
+											</Table.Cell>
+											<Table.Cell>
+												<Input
+													type="number"
+													bind:value={product.quantity}
+													class="w-16 px-1 py-1 border border-black rounded-md text-center"
+													min="1"
+													max={product.quantity}
+													oninput={(e: Event) => {
+														const target = e.target as HTMLInputElement;
+														const newQuantity = parseInt(target.value, 10) || 1;
+														handleQuantityChange(product.productId._id, newQuantity); // Update the quantity
+													}}
+													readonly={product.quantity === 1}
+												/>
+											</Table.Cell>
+											<Table.Cell class="flex justify-center items-center">
+												<Icon
+													onclick={() => removeProduct(product.productId._id)}
+													icon="gg:close-o"
+													class="w-6 h-6 mt-2 text-red-500 cursor-pointer font-bold"
+												/>
+											</Table.Cell>
+										</Table.Row>
+									{/if}
+								{/each}
+							{:else}
 								<Table.Row>
-									<Table.Cell>{index + 1}</Table.Cell>
-									<Table.Cell>
-										<p class="font-medium capitalize">{product.productId?.productName}</p>
-									</Table.Cell>
-									<Table.Cell>
-										<Input
-											type="number"
-											bind:value={product.quantity}
-											class="w-16 px-1 py-1 border border-black rounded-md text-center"
-											min="1"
-											max={product.quantity}
-											oninput={(e: Event) => {
-												const target = e.target as HTMLInputElement;
-												const newQuantity = parseInt(target.value, 10) || 1;
-												handleQuantityChange(product.productId._id, newQuantity); // Update the quantity
-											}}
-											readonly={product.quantity === 1}
-										/>
-									</Table.Cell>
-									<Table.Cell class="flex justify-center items-center">
-										<Icon
-											onclick={() => removeProduct(product.productId._id)}
-											icon="gg:close-o"
-											class="w-6 h-6 mt-2 text-red-500 cursor-pointer font-bold"
-										/>
-									</Table.Cell>
+									<Table.Cell colSpan={4} class="text-center">No products found</Table.Cell>
 								</Table.Row>
-							{/each}
+							{/if}
 						</Table.Body>
 					</Table.Root>
 				</Dialog.Description>

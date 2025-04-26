@@ -67,6 +67,7 @@
         $form.description = $productEditStore.description || '';
         $form.productName = $productEditStore.productName || '';
         $form.price = $productEditStore.price || '';
+		$form.stock = $productEditStore.stock || '';
 		$form.negotiationLimit=$productEditStore.negotiationLimit||'';
         $form.strikePrice = $productEditStore.strikePrice || '';
         $form.productCode = $productEditStore.productCode || '';
@@ -134,6 +135,7 @@
 					$productEditStore.description = '';
 					$productEditStore.productName = '';
 					$productEditStore.price = '';
+					$productEditStore.stock = '';
 					$productEditStore.negotiationLimit='';
 					$productEditStore.strikePrice = '';
 					$productEditStore.productCode = '';
@@ -193,6 +195,7 @@
 				formdata.append('category', $form.category.split(' -&- ')[0]);
 				formdata.append('brand', $form.brand.split(' -&- ')[0]);
 				formdata.append('price', $form.price);
+				formdata.append('stock', $form.stock);
 				formdata.append('negotiateLimit',$form.negotiationLimit);
 				formdata.append('strikePrice', $form.strikePrice);
 				formdata.append('productCode', $form.productCode);
@@ -419,6 +422,21 @@
 				<span class="invalid text-xs text-red-500">{$errors.negotiationLimit}</span>
 			{/if}
 		</div> -->
+		<div>
+			<Label for="stock">Available Stock (qty)</Label>
+			<Input
+				id="stock"
+				autocomplete="off"
+				class="pr-10 mt-1"
+				placeholder="Ex: 40"
+				aria-invalid={$errors.stock ? 'true' : undefined}
+				bind:value={$form.stock}
+				{...$constraints.stock}
+			/>
+			{#if $errors.stock}
+				<span class="invalid text-xs text-red-500">{$errors.stock}</span>
+			{/if}
+		</div>
 		<div>
 			<Label for="gst">Gst (%)</Label>
 			<Input
