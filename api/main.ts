@@ -7,7 +7,7 @@ const HOST = process.env.HOST || "localhost";
 let intervel: any;
 
 app.ws("/api/admin/ws", {
-  open: async (ws) => {
+  open: async (ws: { send: (arg0: string) => void; close: () => void; }) => {
     try {
       addWebSocket(ws);
       console.log("An Admin connected");
@@ -23,20 +23,20 @@ app.ws("/api/admin/ws", {
       ws.close();
     }
   },
-  message(ws, message) {
+  message(ws: any, message: any) {
     console.log("Message received", message);
   },
-  close(ws) {
+  close(ws: any) {
     removeWebSocket(ws);
     console.log("Admin closed!");
     clearInterval(intervel);
   },
   sendPings: true,
-  ping(message) {
+  ping(message: any) {
     return message;
   },
   idleTimeout: 600,
-  pong(message) {
+  pong(message: any) {
     return message;
   },
 });

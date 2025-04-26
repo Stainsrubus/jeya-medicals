@@ -14,23 +14,20 @@ export const employeeAuthController = new Elysia({
       const { email, password } = body;
 
       try {
-        let employee = await Employee.findOne({ email: email });
+        const employee = await Employee.findOne({ email });
 
         if (!employee) {
           set.status = 400;
           return { message: "Employee not found" };
         }
 
-        // let isMatched = await Bun.password.verify(password, employee.password);
-if(employee.password!=password){
-  set.status = 400;
-    return { message: "Invalid password" };
-}
-        // if (!isMatched) {
-        //   set.status = 400;
-        //   return { message: "Invalid password" };
-        // }
+        // Verify the password
+        if (employee.password !== password) {
+          set.status = 400;
+          return { message: "Invalid password" };
+        }
 
+        // Generate a token
         const token = await PasetoUtil.encodePaseto(
           {
             email: employee.email.toString(),
@@ -40,22 +37,38 @@ if(employee.password!=password){
           false
         );
 
-        
+        // Set the cookie and return the response
+        set.status = 200;
+        set.cookie = {
+          employee: {
+            value: token,
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            path: "/",
+            maxAge: 1000 * 60 * 60 * 24, // 1 day
+            expires: new Date(Date.now() + 1000 * 60 * 60 * 24), // 1 day
+          },
+        };
+
         return {
           message: "Employee authenticated successfully",
-          data: { token,
+          data: {
+            token,
             empDetails: {
               image: employee.image ?? "",
               email: employee.email,
-              mobile: employee.mobile??0,
+              mobile: employee.mobile ?? 0,
               name: employee.name,
               empId: employee._id.toString(),
-            } },
+            },
+          },
           status: true,
         };
       } catch (error) {
+        console.error("Login error:", error);
         return {
-          error,
+          error: error.message || "An unexpected error occurred",
           status: false,
         };
       }
@@ -65,7 +78,7 @@ if(employee.password!=password){
         email: t.String({
           format: "email",
         }),
-        password: t.String({}),
+        password: t.String(),
       }),
       detail: {
         summary: "Login as employee to get token",
@@ -87,9 +100,9 @@ if(employee.password!=password){
           status: true,
         };
       } catch (error) {
-        console.error(error);
+        console.error("Decrypt token error:", error);
         return {
-          error,
+          error: error.message || "An unexpected error occurred",
           status: false,
         };
       }
