@@ -134,8 +134,8 @@
         throw new Error('No token found. Please log in.');
       }
       const selectedUserData = $usersQuery.data?.pages
-      .flatMap(page => page.users)
-      .find(u => u.username === selectedUser);
+      .flatMap((page: { users: any; }) => page.users)
+      .find((u: { username: string; }) => u.username === selectedUser);
 
     if (!selectedUserData) {
       throw new Error('No user selected. Please select a user.');
@@ -166,7 +166,7 @@ const userId=selectedUserData._id
       }
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { order: { _id: any; }; }) => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       queryClient.invalidateQueries({ queryKey: ['cartCount'] });
       toast.success('Order placed successfully!');
@@ -355,7 +355,7 @@ const userId=selectedUserData._id
         throw error instanceof Error ? error : new Error('An unexpected error occurred');
       }
     },
-    getNextPageParam: (lastPage) => {
+    getNextPageParam: (lastPage: { pagination: { page: any; totalPages: any; }; }) => {
       const { page, totalPages } = lastPage.pagination;
       return page < totalPages ? page + 1 : undefined;
     },
@@ -417,7 +417,7 @@ const userId=selectedUserData._id
 
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { message: any; }) => {
       const userDisplay = `${formData.name}`;
       searchResults = [...searchResults, userDisplay];
       selectUser(userDisplay);
@@ -466,17 +466,17 @@ const userId=selectedUserData._id
   $: isCartLoading = showShimmer || $cartQuery.isLoading;
   $: isAddressesLoading = showShimmer || $addressesQuery.isLoading;
   $: error = $cartQuery.error ? ($cartQuery.error as Error).message : null;
-  $: primaryAddress = showShimmer ? null : ($addressesQuery.data?.find((address) => address.isPrimary) || null);
+  $: primaryAddress = showShimmer ? null : ($addressesQuery.data?.find((address: { isPrimary: any; }) => address.isPrimary) || null);
 
   $: totalAmount = isCartLoading ? 0 : (cartData?.cart?.subtotal || 0);
-  $: totalDiscount = isCartLoading ? 0 : cartItems.reduce((sum, item) => sum + (item.productId.discount || 0) * item.quantity, 0);
+  $: totalDiscount = isCartLoading ? 0 : cartItems.reduce((sum: number, item: { productId: { discount: any; }; quantity: number; }) => sum + (item.productId.discount || 0) * item.quantity, 0);
   $: deliveryFee = isCartLoading ? 0 : (cartData?.deliveryFee || 0);
   $: platformFee = isCartLoading ? 0 : (cartData?.platformFee || 0);
   $: tax = isCartLoading ? 0 : (cartData?.cart?.tax || 0);
   $: totalPrice = isCartLoading ? 0 : (cartData?.cart?.totalPrice || 0);
 
   function updateQuantity(productId: string, change: number) {
-    const item = cartItems.find((item) => item.productId._id === productId);
+    const item = cartItems.find((item: { productId: { _id: string; }; }) => item.productId._id === productId);
 
     if (item) {
       const newQuantity = Math.max(1, item.quantity + change);
@@ -487,7 +487,7 @@ const userId=selectedUserData._id
   }
 
   function removeProduct(productId: string) {
-    cartItems = cartItems.filter((item) => item.productId._id !== productId);
+    cartItems = cartItems.filter((item: { productId: { _id: string; }; }) => item.productId._id !== productId);
     $removeProductMutation.mutate(productId);
   }
 
@@ -519,7 +519,7 @@ const userId=selectedUserData._id
   };
 
   // Combine all pages of users into searchResults
-  $: searchResults = $usersQuery.data?.pages.flatMap(page => page.users.map(formatUserDisplay)) || [];
+  $: searchResults = $usersQuery.data?.pages.flatMap((page) => page.users.map(formatUserDisplay)) || [];
 
   // Debounced search function
   const debouncedSearch = debounce((query: string) => {
@@ -549,8 +549,8 @@ function handleOrderNow(){
 
     // Initialize editedAddress with selected user's address
     const selectedUserData = $usersQuery.data?.pages
-      .flatMap(page => page.users)
-      .find(u => u.username === usernameOnly);
+      .flatMap((page: { users: any; }) => page.users)
+      .find((u: { username: string; }) => u.username === usernameOnly);
 
     if (selectedUserData) {
       editedAddress = {
@@ -828,7 +828,7 @@ function handleOrderNow(){
           <div class="border bg-white rounded-lg shadow-lg p-4">
             <div class="flex justify-between items-start">
               <div class="space-y-2">
-                {#each $usersQuery.data?.pages.flatMap(page => page.users) as user}
+                {#each $usersQuery.data?.pages.flatMap((page: { users: any; }) => page.users) as user}
                   {#if user.username === selectedUser}
                     <div>
                       <p class="text-lg font-semibold text-[#30363C]">{user.username}</p>
@@ -916,7 +916,7 @@ function handleOrderNow(){
               placeholder="Search Users"
               class="w-full absolute top-1/2 border transform h-14 -translate-y-1/2 text-base md:pl-16 pl-10 rounded-full focus:outline-none focus:ring-0 text-gray-700"
               bind:value={searchQuery}
-              on:input={(e) => debouncedSearch(e.currentTarget.value)}
+              on:input={(e: { currentTarget: { value: any; }; }) => debouncedSearch(e.currentTarget.value)}
               on:click={openDrawer}
               bind:this={inputElement}
             />
@@ -944,7 +944,7 @@ function handleOrderNow(){
                     <button
                       class="w-full text-left px-4 py-2 text-base text-[#30363C] hover:bg-[#F3FBFF] rounded-md"
                       on:click={() => selectUser(result)}
-                      on:keydown={(e) => {
+                      on:keydown={(e: { key: string; }) => {
                         if (e.key === 'Enter' || e.key === ' ') selectUser(result);
                       }}
                       role="option"
@@ -963,7 +963,7 @@ function handleOrderNow(){
               <button
                 class="w-full text-center flex items-center justify-center gap-2 px-4 py-2 text-lg text-[#01A0E2] border-t border-gray-200 hover:bg-gray-100"
                 on:click|stopPropagation={openDialog}
-                on:keydown={(e) => {
+                on:keydown={(e: { key: string; }) => {
                   if (e.key === 'Enter' || e.key === ' ') openDialog();
                 }}
               >
@@ -1107,7 +1107,7 @@ function handleOrderNow(){
                   type="button"
                   class="px-4 py-2 text-base text-[#4F585E] hover:bg-gray-100 rounded-lg"
                   on:click={closeDialog}
-                  on:keydown={(e) => {
+                  on:keydown={(e: { key: string; }) => {
                     if (e.key === 'Enter' || e.key === ' ') closeDialog();
                   }}
                 >

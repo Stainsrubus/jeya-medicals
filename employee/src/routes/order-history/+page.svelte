@@ -114,7 +114,7 @@ let isDialogOpen = false;
   orderId:'',
   status:''
 };
-  $: filteredOrders = $ordersQuery.data?.orders.filter(order => {
+  $: filteredOrders = $ordersQuery.data?.orders.filter((order: { status: string; }) => {
     if (activeTab === 'not yet shipped' && order.status === 'pending') return true;
     if (activeTab === 'not yet shipped' && order.status === 'accepted') return true;
     if (activeTab === 'not yet shipped' && order.status === 'ready for delivery') return true;
@@ -125,7 +125,7 @@ let isDialogOpen = false;
   }) || [];
 
   const cancelOrderMutation = createMutation({
-    mutationFn: async (orderId) => {
+    mutationFn: async (orderId: any) => {
       const token = localStorage.getItem('empToken');
       if (!token) {
         throw new Error('No token found. Please log in.');
@@ -220,24 +220,24 @@ let isDialogOpen = false;
   // Handle reorder
   const handleReorder = async (orderId: string) => {
     try {
-      const order = $ordersQuery.data?.orders.find(o => o._id === orderId);
+      const order = $ordersQuery.data?.orders.find((o: { _id: string; }) => o._id === orderId);
       if (!order) {
         toast.error('Order details not available');
         return;
       }
 
-      const productsToReorder = order.products.map(product => ({
+      const productsToReorder = order.products.map((product: { productId: { _id: any; }; quantity: any; options: any; }) => ({
         productId: product.productId._id,
         quantity: product.quantity,
         options: product.options || [],
         // selectedOffer: product.selectedOffer?.offerType === 'Flat' ? product.selectedOffer : null,
       }));
 
-      const hasSelectedOffer = productsToReorder.some(product => product.selectedOffer !== null);
+      const hasSelectedOffer = productsToReorder.some((product: { selectedOffer: null; }) => product.selectedOffer !== null);
 
       if (hasSelectedOffer) {
         selectedOrderId = orderId;
-        selectedProductId = productsToReorder.find(product => product.selectedOffer !== null)?.productId;
+        selectedProductId = productsToReorder.find((product: { selectedOffer: null; }) => product.selectedOffer !== null)?.productId;
         showDialog = true;
       } else {
         $reorderMutation.mutate({ products: productsToReorder });
@@ -251,9 +251,9 @@ let isDialogOpen = false;
     if (action === 'revisit') {
       goto(`/Products/${selectedProductId}`);
     } else if (action === 'reorder') {
-      const order = $ordersQuery.data?.orders.find(o => o._id === selectedOrderId);
+      const order = $ordersQuery.data?.orders.find((o: { _id: string; }) => o._id === selectedOrderId);
       if (order) {
-        const productsToReorder = order.products.map(product => ({
+        const productsToReorder = order.products.map((product: { productId: { _id: any; }; quantity: any; options: any; selectedOffer: { offerType: string; }; }) => ({
           productId: product.productId._id,
           quantity: product.quantity,
           options: product.options || [],
@@ -434,6 +434,12 @@ let isDialogOpen = false;
       </div>
     {/if}
   </div>
+</div>
+
+{:else}
+<div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
+  <p class="text-lg font-medium">Please login to access Cart</p>
+  <button on:click={() => goto('/login')} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
 </div>
 {/if}
 
