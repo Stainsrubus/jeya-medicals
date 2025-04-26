@@ -8,83 +8,71 @@ export const employeeAuthController = new Elysia({
     tags: ["Employee - Auth"],
   },
 })
-.post(
-  "/login",
-  async ({ body, set }) => {
-    const { email, password } = body;
+  .post(
+    "/login",
+    async ({ body, set }) => {
+      const { email, password } = body;
 
-    try {
-      // Find the employee by email
-      const employee = await Employee.findOne({ email });
+      try {
+        let employee = await Employee.findOne({ email: email });
 
-      if (!employee) {
-        set.status = 400;
-        return { message: "Employee not found" };
-      }
+        if (!employee) {
+          set.status = 400;
+          return { message: "Employee not found" };
+        }
 
-      if(employee.password!=password){
-        set.status = 400;
-          return { message: "Invalid password" };
-      }
-      
-      const token = await PasetoUtil.encodePaseto(
-        {
-          email: employee.email.toString(),
-          id: employee._id.toString(),
-          role: "employee",
-        },
-        false
-      );
+        // let isMatched = await Bun.password.verify(password, employee.password);
+if(employee.password!=password){
+  set.status = 400;
+    return { message: "Invalid password" };
+}
+        // if (!isMatched) {
+        //   set.status = 400;
+        //   return { message: "Invalid password" };
+        // }
 
-      // Set the cookie and return the response
-      set.status = 200;
-      set.cookie = {
-        employee: {
-          value: token,
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-          path: "/",
-          maxAge: 1000 * 60 * 60 * 24, // 1 day
-          expires: new Date(Date.now() + 1000 * 60 * 60 * 24), // 1 day
-        },
-      };
-
-      return {
-        message: "Employee authenticated successfully",
-        data: {
-          token,
-          empDetails: {
-            image: employee.image ?? "",
-            email: employee.email,
-            mobile: employee.mobile ?? 0,
-            name: employee.name,
-            empId: employee._id.toString(),
+        const token = await PasetoUtil.encodePaseto(
+          {
+            email: employee.email.toString(),
+            id: employee._id.toString(),
+            role: "employee",
           },
-        },
-        status: true,
-      };
-    } catch (error) {
-      console.error("Login error:", error);
-      return {
-        error: error.message || "An unexpected error occurred",
-        status: false,
-      };
-    }
-  },
-  {
-    body: t.Object({
-      email: t.String({
-        format: "email",
-      }),
-      password: t.String(),
-    }),
-    detail: {
-      summary: "Login as employee to get token",
-      description: "Login as employee to get token",
+          false
+        );
+
+        
+        return {
+          message: "Employee authenticated successfully",
+          data: { token,
+            empDetails: {
+              image: employee.image ?? "",
+              email: employee.email,
+              mobile: employee.mobile??0,
+              name: employee.name,
+              empId: employee._id.toString(),
+            } },
+          status: true,
+        };
+      } catch (error) {
+        return {
+          error,
+          status: false,
+        };
+      }
     },
-  }
-)
+    {
+      body: t.Object({
+        email: t.String({
+          format: "email",
+        }),
+        password: t.String({}),
+      }),
+      detail: {
+        summary: "Login as employee to get token",
+        description: "Login as employee to get token",
+      },
+    }
+  )
   .post(
     "/decrypt-token",
     async ({ body }) => {
