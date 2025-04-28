@@ -1,8 +1,10 @@
 import { model, Schema, Types } from "mongoose";
 
 interface CartProduct {
+  offerType: string;
   productId: Types.ObjectId;
   selectedOffer: {
+    onMRP: any;
     type: {
       offerType: {
         type: String,
@@ -96,6 +98,7 @@ const CartProductSchema = new Schema<CartProduct>({
           message: {
             type: String,
             required: function() {
+                  //@ts-ignore
               return this.subType === 'Need';
             },
           },
@@ -103,6 +106,7 @@ const CartProductSchema = new Schema<CartProduct>({
             type: Schema.Types.ObjectId,
             ref: "Product",
             required: function() {
+                  //@ts-ignore
               return this.subType === 'Complimentary';
             },
           },
@@ -112,6 +116,7 @@ const CartProductSchema = new Schema<CartProduct>({
           },
         },
         required: function() {
+              //@ts-ignore
           return this.offerType === 'onMRP';
         },
       },

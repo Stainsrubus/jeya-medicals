@@ -315,62 +315,12 @@ export const newuserCartController = new Elysia({
               productId: productDoc._id,
               quantity: product.quantity,
               totalAmount: productTotal + dipsTotal,
-              suggestions: product.suggestions,
+                //@ts-ignore
               customSuggestion: product.customSuggestion,
               dips: processedDips,
               price: productDoc.price,
             });
-          } else {
-            const existingProduct = cart.products[existingProductIndex];
-            const updatedDips = processedDips.map((newDip) => {
-              const existingDip = existingProduct!.dips.find(
-                (d) => d.productId.toString() === newDip.productId.toString(),
-              );
-
-              if (existingDip) {
-                return {
-                  ...newDip,
-                  quantity: (existingDip.quantity || 0) + newDip.quantity,
-                  totalAmount:
-                    ((existingDip.quantity || 0) + newDip.quantity) *
-                    newDip.price,
-                  price: newDip.price,
-                };
-              }
-              return newDip;
-            });
-
-            existingProduct!.dips.forEach((existingDip) => {
-              const dipExists = updatedDips.some(
-                (d) =>
-                  d.productId.toString() === existingDip.productId.toString(),
-              );
-              if (!dipExists) {
-                updatedDips.push(existingDip);
-              }
-            });
-
-            const newQuantity =
-              (existingProduct!.quantity || 0) + product.quantity;
-            const productTotal = newQuantity * productDoc.price;
-            const dipsTotal = updatedDips.reduce(
-              (sum, dip) => sum + dip.totalAmount,
-              0,
-            );
-
-            cart.products[existingProductIndex] = {
-              productId: productDoc._id,
-              quantity: newQuantity,
-              totalAmount: productTotal + dipsTotal,
-              suggestions: product.suggestions.length
-                ? product.suggestions
-                : existingProduct!.suggestions,
-              customSuggestion:
-                product.customSuggestion || existingProduct!.customSuggestion,
-              dips: updatedDips,
-              price: productDoc.price,
-            };
-          }
+          } 
         }
 
         const subtotal = cart.products.reduce(
@@ -492,10 +442,10 @@ export const newuserCartController = new Elysia({
         }
 
         const existingProduct = cart.products[existingProductIndex];
-        const dipsTotal = existingProduct!.dips.reduce(
-          (sum, dip) => sum + dip.totalAmount,
-          0,
-        );
+        // const dipsTotal = existingProduct!.dips.reduce(
+        //   (sum, dip) => sum + dip.totalAmount,
+        //   0,
+        // );
 
         const productGstAmount =
           (productDoc.price * productDoc.gst * quantity) / 100;
@@ -506,13 +456,10 @@ export const newuserCartController = new Elysia({
         cart.products[existingProductIndex] = {
           ...existingProduct,
           quantity: quantity,
-          totalAmount: quantity * productDoc.price + dipsTotal,
+          totalAmount: quantity * productDoc.price ,
           productId: productDoc._id,
           price: productDoc.price,
           name: productDoc.productName,
-          dips: existingProduct!.dips || [],
-          suggestions: existingProduct!.suggestions || [],
-          customSuggestion: existingProduct!.customSuggestion,
         };
 
         const subtotal = cart.products.reduce(

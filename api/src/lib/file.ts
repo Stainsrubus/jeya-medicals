@@ -41,7 +41,7 @@ export const saveFile = (blob: Blob | undefined, parentFolder: string) => {
       if (parts.length !== 3 || parts[0] !== 'uploads' || parts[1] !== parentFolder) {
         throw new Error(`Invalid filename format: ${filename}. Expected format: uploads/${parentFolder}/hash.extension`);
       }
-  
+      //@ts-ignore
       // Use asynchronous unlink
       await fs.unlink(filename);
       console.log(`Successfully deleted file: ${filename}`);

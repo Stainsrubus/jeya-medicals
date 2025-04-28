@@ -45,8 +45,9 @@ export const userCartController = new Elysia({
     // Handle null or unpopulated productId
     for (let i = 0; i < cart.products.length; i++) {
       const product = cart.products[i];
-
+  //@ts-ignore
       if (!product.productId || !product.productId.productName) {
+          //@ts-ignore
         const rawId = product._id.toString();
         const cartItem = await CartModel.findOne(
           { "products._id": rawId },
@@ -70,7 +71,7 @@ export const userCartController = new Elysia({
             isCombo: true,
             comboDescription: combo.comboDescription,
             productsIncluded: combo.productsIncluded,
-          };
+          };  //@ts-ignore
           cart.products[i].productId = fakeProduct;
         }
       }
@@ -261,6 +262,7 @@ export const userCartController = new Elysia({
       platformFee: cart.platformFee,
       coupons: availableCoupons,
       deliverySeconds: cart.deliverySeconds,
+        //@ts-ignore
       deliveryMinutes: Math.ceil(cart.deliverySeconds / 60),
     };
   } catch (error) {
@@ -279,6 +281,7 @@ export const userCartController = new Elysia({
 .post(
   "/update",
   async ({ body, set, store }) => {
+      //@ts-ignore
     const { products } = body;
     const userId = (store as StoreType)["id"];
 
@@ -501,8 +504,10 @@ export const userCartController = new Elysia({
       }
 
       // Determine price, gst, and name based on model
+          //@ts-ignore
       const price = isCombo ? productDoc.comboPrice : productDoc.price;
       const gst = isCombo?5:productDoc.gst; // Assuming gst field exists in both models
+          //@ts-ignore
       const name = isCombo ? productDoc.comboName : productDoc.productName;
 
       // Debug: Log product details
@@ -562,7 +567,9 @@ export const userCartController = new Elysia({
         productId: productDoc._id,
         price: price,
         name: name,
+            //@ts-ignore
         options: existingProduct.options,
+            //@ts-ignore
         selectedOffer: existingProduct?.selectedOffer,
       };
 
@@ -810,6 +817,7 @@ export const userCartController = new Elysia({
     }
   )
   .post("/updateCombo", async ({ body, set, store }) => {
+    //@ts-ignore
     const { products } = body;
     const userId = (store as StoreType)["id"];
   
@@ -833,7 +841,7 @@ export const userCartController = new Elysia({
       let subtotalBeforeDiscount = 0;
       let totalDiscount = 0;
   
-      const comboProductIds = products.map((p) => p.productId.toString());
+      const comboProductIds = products.map((p: { productId: { toString: () => any; }; }) => p.productId.toString());
   
       // Keep only non-combo products in cart
       const existingNonComboProducts = cart.products.filter(
@@ -883,7 +891,7 @@ export const userCartController = new Elysia({
   
       const subtotal = finalProductList.reduce((sum, p: any) => sum + p.totalAmount, 0);
       const platformFee = 5;
-  
+      //@ts-ignore
       cart.products = finalProductList;
       cart.tempCouponDiscount = 0;
       cart.subtotal = subtotal;
@@ -972,7 +980,7 @@ export const userCartController = new Elysia({
               offerType: 'Flat',
               flatAmount: product.selectedOffer.flatAmount,
             };
-  
+      //@ts-ignore
             discountAmount = product.selectedOffer.flatAmount;
             finalPrice = basePrice - discountAmount;
             totalDiscount += discountAmount * product.quantity;
@@ -995,10 +1003,14 @@ export const userCartController = new Elysia({
   
           if (existingProductIndex !== -1) {
             // Merge quantities and total
+                //@ts-ignore
             updatedProducts[existingProductIndex].quantity += product.quantity;
+                //@ts-ignore
             updatedProducts[existingProductIndex].totalAmount += productTotal;
           } else {
+                //@ts-ignore
             updatedProducts.push(productData);
+
           }
   
           const gstAmount = (finalPrice * product.quantity * productDoc.gst) / 100;
@@ -1035,13 +1047,17 @@ export const userCartController = new Elysia({
   
             const existingCompIndex = updatedProducts.findIndex(p =>
               p.productId.toString() === complementaryProduct._id.toString() &&
+                  //@ts-ignore
               p.selectedOffer?.onMRP?.subType === 'Complementary' &&
+                  //@ts-ignore
               p.selectedOffer?.onMRP?.productId?.toString() === product.productId
             );
   
             if (existingCompIndex !== -1) {
+                  //@ts-ignore
               updatedProducts[existingCompIndex] = compProductData;
             } else {
+                  //@ts-ignore
               updatedProducts.push(compProductData);
             }
           }

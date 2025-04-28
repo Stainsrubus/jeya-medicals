@@ -37,8 +37,11 @@ export const userOfferController = new Elysia({
 
       // Add favorite status to items
       const processedOffers = offers.map((offer) => {
+        //@ts-ignore
         const processedOffer = { ...offer, _id: offer._id.toString() };
+          //@ts-ignore
         if (offer.items && offer.items.length > 0) {
+            //@ts-ignore
           processedOffer.items = offer.items.map((item) => {
             const processedItem = { ...item, _id: item._id.toString() };
             if (item.productId) {

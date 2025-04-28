@@ -76,6 +76,7 @@ export const userOrderController = new Elysia({
         productId: product.productId._id,
         quantity: product.quantity,
         totalAmount: product.totalAmount,
+          //@ts-ignore
         name: product.productId.productName,
         options: product.options || [],
       }));

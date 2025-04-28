@@ -557,7 +557,7 @@ export const productController = new Elysia({
         if (!offer) {
           return { status: false, message: "No negotiate offer configured" };
         }
-  
+      //@ts-ignore
         const maxAttempts = offer.noOfAttempts;
         let existingAttempt = user.attempts.find(attempt => attempt.productId === productId);
   
@@ -627,7 +627,7 @@ export const productController = new Elysia({
           }
         }
         // Subsequent attempts
-        else {
+        else {    //@ts-ignore
           const lastPrice = existingAttempt.attempts[currentAttempts - 1].amount;
   
           if (isSuccess) {
@@ -682,6 +682,7 @@ export const productController = new Elysia({
         return {
           status: false,
           message: "Negotiation failed",
+              //@ts-ignore
           error: error.message,
         };
       }

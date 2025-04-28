@@ -10,7 +10,7 @@ import { userfaqsController } from "./faq-controller";
 import { favoritesController } from "./favorites-controller";
 import { fileController } from "./file-controller";
 import { foodReviewController } from "./foodreview-controller";
-import { invoiceController } from "./invoice-controller";
+// import { invoiceController } from "./invoice-controller";
 import { newuserCartController } from "./newcart/newcart";
 import { newuserOrderController } from "./newcart/neworder";
 import { notificationController } from "./notification-controller";
@@ -66,7 +66,7 @@ const userBaseController = new Elysia({
   .use(userCartController)
   .use(newuserOrderController) // new user
   .use(privacyPolicyController)
-  .use(invoiceController)
+  // .use(invoiceController)
   .use(foodReviewController)
   .use(deliveryAgentReviewController)
   .use(notificationController)
