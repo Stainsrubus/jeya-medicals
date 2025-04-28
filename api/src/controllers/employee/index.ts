@@ -24,7 +24,7 @@ import { quoteController } from "./quote-controller";
 import { demandController } from "./demand-controller";
 import { userOfferController } from "./offer-controller";
 import { employeeController } from "./employee-controller";
-import { employeeAuthController } from "./employeeauth-controller";
+import { employeeAuthController } from "./employeeAuth-controller";
 
 const employeeBaseController = new Elysia({
   prefix: "/employee",
