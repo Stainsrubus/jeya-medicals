@@ -96,7 +96,9 @@ let isApplying=false;
   function toggleCoupon() {
     couponCode=''
     $cartQuery.refetch()
-    isCouponVisible = !isCouponVisible;
+    if(cartItems.length!=0){
+      isCouponVisible = !isCouponVisible;
+    }
   }
 
   $: isLoggedIn = $writableGlobalStore.isLogedIn;
@@ -840,7 +842,7 @@ let isApplying=false;
           </div>
          
           <div class="flex flex-col w-full  items-end mb-2.5">
-            <p disabled={cartItems.length<=0} on:click={toggleCoupon} class="text-sm text-[#009bde] hover:underline cursor-pointer">{isCouponVisible ? "Cancel" : 'Apply Coupon?'}</p>
+            <p on:click={toggleCoupon} class="text-sm text-[#009bde] hover:underline cursor-pointer">{isCouponVisible ? "Cancel" : 'Apply Coupon?'}</p>
             {#if isCouponVisible}
               <div class="relative w-full">
                 <input
