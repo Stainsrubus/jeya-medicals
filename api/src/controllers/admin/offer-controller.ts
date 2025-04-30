@@ -104,6 +104,13 @@ export const offerController = new Elysia({
       switch (type) {
         case "flat":
           updatedOffer = await FlatOffer.findByIdAndUpdate(id, updatedData, { new: true });
+          if (updatedOffer && updatedData.percentage !== undefined) {
+            // Update all products referenced in the flat offer's products array
+            await Product.updateMany(
+              { _id: { $in: updatedOffer.products } }, // Find all products whose IDs are in the offer's products array
+              { flat: updatedData.percentage }
+            );
+          }
           break;
         case "negotiate":
           updatedOffer = await NegotiateOffer.findByIdAndUpdate(id, updatedData, { new: true });

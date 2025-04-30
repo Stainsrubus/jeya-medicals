@@ -22,7 +22,7 @@ export const userCartController = new Elysia({
 })
 .get("/", async ({ store, set, query }) => {
   const userId = (store as StoreType)["id"];
-  const { addressId, couponId } = query;
+  const { addressId, couponCode } = query;
 
   try {
     const cart = await CartModel.findOne({
@@ -42,12 +42,12 @@ export const userCartController = new Elysia({
       return { message: "User not found", status: false };
     }
 
-    // Handle null or unpopulated productId
+    // Handle null or unpopulated productId (existing logic)
     for (let i = 0; i < cart.products.length; i++) {
       const product = cart.products[i];
-  //@ts-ignore
+      //@ts-ignore
       if (!product.productId || !product.productId.productName) {
-          //@ts-ignore
+        //@ts-ignore
         const rawId = product._id.toString();
         const cartItem = await CartModel.findOne(
           { "products._id": rawId },
@@ -57,7 +57,6 @@ export const userCartController = new Elysia({
 
         const combo = await ComboOffer.findById(actualId);
         if (combo) {
-          // Patch combo product with expected fields
           const fakeProduct: any = {
             _id: combo._id,
             productName: combo.comboName,
@@ -71,7 +70,8 @@ export const userCartController = new Elysia({
             isCombo: true,
             comboDescription: combo.comboDescription,
             productsIncluded: combo.productsIncluded,
-          };  //@ts-ignore
+          };
+          //@ts-ignore
           cart.products[i].productId = fakeProduct;
         }
       }
@@ -176,7 +176,27 @@ export const userCartController = new Elysia({
     }
 
     const roundedTax = Math.round(totalTax * 100) / 100;
-    const totalPrice = subtotal + roundedTax;
+    let totalPrice = subtotal + roundedTax;
+
+    // Coupon validation and application
+    let couponDiscount = 0;
+    let couponErrorMessage: string | null = null; // To store error message if coupon is invalid
+
+    if (couponCode) {
+      const coupon = await CouponModel.findOne({ code: couponCode, active: true, deletedAt: null });
+      if (coupon) {
+        const isValid = subtotal >= coupon.minPrice && subtotal <= coupon.maxPrice;
+        if (isValid) {
+          couponDiscount = (subtotal * coupon.discount) / 100;
+          totalPrice -= couponDiscount; // Apply coupon discount to total price
+          totalDiscount += couponDiscount; // Add coupon discount to total discount
+        } else {
+          couponErrorMessage = "Coupon not applicable: Subtotal does not meet price range";
+        }
+      } else {
+        couponErrorMessage = "Invalid or inactive coupon code";
+      }
+    }
 
     cart.tax = roundedTax;
     cart.subtotal = subtotal;
@@ -193,8 +213,6 @@ export const userCartController = new Elysia({
       lat: storeData?.latitude || "8.176293718844061",
       long: storeData?.longitude || "8.176293718844061",
     };
-
-
 
     if (addressId) {
       const config = await Config.findOne();
@@ -257,13 +275,15 @@ export const userCartController = new Elysia({
         subtotal,
         tax: roundedTax,
         totalPrice,
+        couponDiscount, // Include coupon discount in summary (will be 0 if coupon is invalid)
       },
       deliveryFee: cart.deliveryFee,
       platformFee: cart.platformFee,
       coupons: availableCoupons,
       deliverySeconds: cart.deliverySeconds,
-        //@ts-ignore
+      //@ts-ignore
       deliveryMinutes: Math.ceil(cart.deliverySeconds / 60),
+      couponError: couponErrorMessage, // Include coupon error message if applicable
     };
   } catch (error) {
     console.log(error);

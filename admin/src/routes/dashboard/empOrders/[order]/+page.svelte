@@ -49,7 +49,7 @@
 		}
 
 		try {
-			await _axios.patch(`/orders/update-status/${$query.data?.order?._id}`, {
+			await _axios.patch(`/empOrders/update-status/${$query.data?.order?._id}`, {
 				status: newStatus
 			});
 			toast.success('Order status updated successfully');
@@ -140,7 +140,7 @@
 
 	async function updateOrder() {
 		try {
-			await _axios.patch(`/orders/update-status/${$query.data?.order?._id}`, {
+			await _axios.patch(`/empOrders/update-status/${$query.data?.order?._id}`, {
 				status: 'accepted'
 			});
 			toast.success('Order status updated successfully');

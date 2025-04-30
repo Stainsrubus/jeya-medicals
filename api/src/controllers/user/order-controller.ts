@@ -167,7 +167,7 @@ export const userOrderController = new Elysia({
         }
 
         // Save the order
-        // await order.save({ session });
+        await order.save({ session });
 
         // Remove negotiation attempts for products in the cart
         const productIds = cart.products.map(product => product.productId._id.toString());
@@ -182,14 +182,14 @@ export const userOrderController = new Elysia({
         cart.deliverySeconds = 0;
         cart.platformFee = 0;
         cart.totalDistance = 0;
-        // await cart.save({ session });
+        await cart.save({ session });
 
         // Save the updated user with attempts removed
-        // await user.save({ session });
+        await user.save({ session });
 
         // Commit the transaction
-        // await session.commitTransaction();
-        // session.endSession();
+        await session.commitTransaction();
+        session.endSession();
 
         // Broadcast and notify
         broadcastMessage(

@@ -21,7 +21,7 @@
 	}
 
 	async function fetchStatusCount() {
-		const res = await _axios.get(`/orders/ordercount`);
+		const res = await _axios.get(`/empOrders/ordercount`);
 		const data = await res.data;
 		return data;
 	}

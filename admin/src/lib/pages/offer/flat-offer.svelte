@@ -250,12 +250,13 @@
     </div>
 
     <div class="mb-4">
-      <Label class="block text-sm font-medium mb-1">Minimum Products</Label>
+      <Label class="block text-sm font-medium mb-1">Minimum Products (static)</Label>
       <Input
         type="number"
         placeholder="Enter minimum product quantity"
         bind:value={minPrd}
         class="w-full"
+        disabled
       />
       {#if minPrd && !validateNumber(minPrd)}
         <span class="text-xs text-red-500">Must be a valid number</span>

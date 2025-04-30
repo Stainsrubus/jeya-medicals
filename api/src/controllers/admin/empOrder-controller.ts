@@ -7,6 +7,7 @@ import dayjs from "dayjs";
 import Elysia, { t } from "elysia";
 import  ComboOffer  from "@/models/combo-model";
 import { EmpOrderModel } from "@/models/emp/order-model";
+import { PreUser } from "@/models/emp/preUser-model";
 
 export const adminEmpOrderController = new Elysia({
   prefix: "/empOrders",
@@ -305,7 +306,7 @@ export const adminEmpOrderController = new Elysia({
         if (!order) {
           return { message: "Order not found", status: "error" };
         }
-        const user = await User.findById(order.user);
+        const user = await PreUser.findById(order.user);
 
         if (!user) {
           return { message: "User not found", status: "error" };
@@ -323,24 +324,24 @@ export const adminEmpOrderController = new Elysia({
 
           // console.log(refund);
 
-          await sendNotification(
-            user.fcmToken,
-            "Order Cancelled",
-            "Your order " +
-              order.orderId +
-              " has been cancelled. Contact support for assistance."
-          );
+          // await sendNotification(
+          //   user.fcmToken,
+          //   "Order Cancelled",
+          //   "Your order " +
+          //     order.orderId +
+          //     " has been cancelled. Contact support for assistance."
+          // );
         }
 
-        if (status == "picked") {
-          await sendNotification(
-            user.fcmToken,
-            "On the Way!",
-            "Your order " +
-              order.orderId +
-              "  is out for delivery. Track your order for updates."
-          );
-        }
+        // if (status == "picked") {
+        //   await sendNotification(
+        //     user.fcmToken,
+        //     "On the Way!",
+        //     "Your order " +
+        //       order.orderId +
+        //       "  is out for delivery. Track your order for updates."
+        //   );
+        // }
 
         if (status == "accepted") {
     
@@ -348,13 +349,13 @@ export const adminEmpOrderController = new Elysia({
 
           await order.save();
 
-          await sendNotification(
-            user.fcmToken,
-            "Dispatching Your Order",
-            "Your order " +
-              order.orderId +
-              " is being dispatched. We’ll notify you once it's out for delivery."
-          );
+          // await sendNotification(
+          //   user.fcmToken,
+          //   "Dispatching Your Order",
+          //   "Your order " +
+          //     order.orderId +
+          //     " is being dispatched. We’ll notify you once it's out for delivery."
+          // );
         }
 
         order.status = status;

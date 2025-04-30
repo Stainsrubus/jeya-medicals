@@ -61,6 +61,15 @@
     coupons: any[];
     deliverySeconds: number;
     deliveryMinutes: number;
+    couponError?: string; // Add couponError field
+    summary: {
+      subtotalBeforeDiscount: number;
+      totalDiscount: number;
+      subtotal: number;
+      tax: number;
+      totalPrice: number;
+      couponDiscount: number; // Add couponDiscount field
+    };
   }
 
   interface Address {
@@ -79,8 +88,20 @@
     isPrimary: boolean;
   }
 
+  let isCouponVisible = false;
+  let couponCode = '';
+  let couponError = ''; // Store coupon error message
+  let couponDiscount = 0; // Store coupon discount
+let isApplying=false;
+  function toggleCoupon() {
+    couponCode=''
+    $cartQuery.refetch()
+    isCouponVisible = !isCouponVisible;
+  }
+
   $: isLoggedIn = $writableGlobalStore.isLogedIn;
-let isPaying=false
+  let isPaying = false;
+
   // State to control shimmer effect
   let showShimmer = true;
 
@@ -93,86 +114,7 @@ let isPaying=false
     return () => clearTimeout(timer); // Cleanup on component destroy
   });
 
-  const placeOrderMutation = createMutation({
-    mutationFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
 
-      const addressId = primaryAddress?._id;
-      if (!addressId) {
-        throw new Error('Please select a delivery address');
-      }
-
-
-
-      const outOfStockItems = cartItems.filter(
-      item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
-    );
-    
-    if (outOfStockItems.length > 0) {
-      const outOfStockNames = outOfStockItems
-        .map(item => item.productId.productName)
-        .join(', ');
-      throw new Error(
-        `Cannot place order: The following items are out of stock: ${outOfStockNames}. Please remove them from the cart to proceed.`
-      );
-    }
-    
-    // Check for insufficient stock
-    const insufficientStockItems = cartItems.filter(
-      item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
-    );
-    
-    if (insufficientStockItems.length > 0) {
-      const itemDetails = insufficientStockItems.map(item => 
-        `Only ${item.productId.stock} units of ${item.productId.productName} are available`
-      ).join(', ');
-      
-      throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
-    }
-
-    try {
-      // Proceed with order creation only if stock checks pass
-      const response = await _axios.post(
-        '/orders/order',
-        { address, userId },
-        {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        }
-      );
-      isPaying=false
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to place order');
-      }
-      
-      return response.data;
-    } catch (error:any) {
-      isPaying=false
-      // Handle axios errors and extract response data if available
-      if (error.response && error.response.data) {
-        throw new Error(error.response.data.message || 'Server error occurred');
-      }
-      throw error; // Re-throw if it's not an axios error or doesn't have response data
-    }
-  },
-  onSuccess: (data) => {
-    queryClient.invalidateQueries({ queryKey: ['cart'] });
-    queryClient.invalidateQueries({ queryKey: ['cartCount'] });
-    toast.success('Order placed successfully!');
-    goto(`/order-confirmation/${data.order._id}`);
-  },
-  onError: (error:any) => {
-    if (error.response && error.response.data && error.response.data.message) {
-    toast.error(error.response.data.message);
-  } 
-  // Fall back to error object's message or default message
-  else {
-    toast.error(error.message || 'Failed to place order');
-  }
-  },
-});
 
   const addressesQuery = createQuery<Address[]>({
     queryKey: ['addresses'],
@@ -201,7 +143,7 @@ let isPaying=false
   });
 
   const cartQuery = createQuery<CartResponse>({
-    queryKey: ['cart'],
+    queryKey: ['cart', couponCode],
     queryFn: async () => {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -209,7 +151,8 @@ let isPaying=false
       }
 
       try {
-        const response = await _axios.get(`/cart`, {
+        const url = couponCode ? `/cart?couponCode=${couponCode}` : '/cart';
+        const response = await _axios.get(url, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -247,6 +190,8 @@ let isPaying=false
         }
 
         if (response.data.status) {
+          couponError = response.data.couponError || ''; // Set coupon error message
+          couponDiscount = response.data.summary.couponDiscount || 0; // Set coupon discount
           return response.data;
         }
 
@@ -259,7 +204,84 @@ let isPaying=false
     staleTime: 0,
     enabled: true,
   });
+  const placeOrderMutation = createMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found. Please log in.');
+      }
 
+      const addressId = primaryAddress?._id;
+      if (!addressId) {
+        throw new Error('Please select a delivery address');
+      }
+
+      const outOfStockItems = cartItems.filter(
+        item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
+      );
+
+      if (outOfStockItems.length > 0) {
+        const outOfStockNames = outOfStockItems
+          .map(item => item.productId.productName)
+          .join(', ');
+        throw new Error(
+          `Cannot place order: The following items are out of stock: ${outOfStockNames}. Please remove them from the cart to proceed.`
+        );
+      }
+
+      // Check for insufficient stock
+      const insufficientStockItems = cartItems.filter(
+        item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
+      );
+
+      if (insufficientStockItems.length > 0) {
+        const itemDetails = insufficientStockItems.map(item =>
+          `Only ${item.productId.stock} units of ${item.productId.productName} are available`
+        ).join(', ');
+
+        throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
+      }
+
+      try {
+        // Proceed with order creation only if stock checks pass
+        const response = await _axios.post(
+          '/orders/order',
+          { addressId},
+          {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          }
+        );
+        isPaying = false;
+        if (!response.data.status) {
+          throw new Error(response.data.message || 'Failed to place order');
+        }
+
+        return response.data;
+      } catch (error: any) {
+        isPaying = false;
+        // Handle axios errors and extract response data if available
+        if (error.response && error.response.data) {
+          throw new Error(error.response.data.message || 'Server error occurred');
+        }
+        throw error; // Re-throw if it's not an axios error or doesn't have response data
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: ['cartCount'] });
+      toast.success('Order placed successfully!');
+      goto(`/order-confirmation/${data.order._id}`);
+    },
+    onError: (error: any) => {
+      if (error.response && error.response.data && error.response.data.message) {
+        toast.error(error.response.data.message);
+      }
+      // Fall back to error object's message or default message
+      else {
+        toast.error(error.message || 'Failed to place order');
+      }
+    },
+  });
   const updateQuantityMutation = createMutation({
     mutationFn: async ({ productId, quantity }: { productId: string; quantity: number }) => {
       const token = localStorage.getItem('token');
@@ -315,40 +337,42 @@ let isPaying=false
       toast.error(error.message || 'Failed to remove product');
     },
   });
+
   async function validateStock() {
-  // Refetch cart to ensure latest stock data
-  await $cartQuery.refetch();
+    // Refetch cart to ensure latest stock data
+    await $cartQuery.refetch();
 
-  // Check for out-of-stock items (stock <= 0)
-  const outOfStockItems = cartItems.filter(
-    item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
-  );
+    // Check for out-of-stock items (stock <= 0)
+    const outOfStockItems = cartItems.filter(
+      item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
+    );
 
-  if (outOfStockItems.length > 0) {
-    const outOfStockNames = outOfStockItems
-      .map(item => item.productId.productName)
-      .join(', ');
+    if (outOfStockItems.length > 0) {
+      const outOfStockNames = outOfStockItems
+        .map(item => item.productId.productName)
+        .join(', ');
       throw new Error(
         `${outOfStockNames} are Out of Stock. Please remove to proceed.`
       );
+    }
+
+    // Check for insufficient stock
+    const insufficientStockItems = cartItems.filter(
+      item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
+    );
+
+    if (insufficientStockItems.length > 0) {
+      const itemDetails = insufficientStockItems.map(item =>
+        `Only ${item.productId.stock} units of ${item.productId.productName} are available`
+      ).join(', ');
+
+      throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
+    }
+    isPaying = false;
   }
 
-  // Check for insufficient stock
-  const insufficientStockItems = cartItems.filter(
-    item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
-  );
-
-  if (insufficientStockItems.length > 0) {
-    const itemDetails = insufficientStockItems.map(item =>
-      `Only ${item.productId.stock} units of ${item.productId.productName} are available`
-    ).join(', ');
-
-    throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
-  }
-  isPaying=false
-}
   async function handlePayNow() {
-    isPaying=true
+    isPaying = true;
     if (!primaryAddress) {
       toast.error('Please select a delivery address');
       return;
@@ -359,16 +383,17 @@ let isPaying=false
       return;
     }
     try {
-    // Validate stock before placing the order
-    await validateStock();
+      // Validate stock before placing the order
+      await validateStock();
 
-    // Proceed with order creation only if stock checks pass
-    $placeOrderMutation.mutate();
-  } catch (error: any) {
-    isPaying=false
-    // Handle stock validation errors
-    toast.error(error.message || 'Failed to place order');
-  }
+      // Proceed with order creation only if stock checks pass
+      $placeOrderMutation.mutate();
+      console.log('sdsd')
+    } catch (error: any) {
+      isPaying = false;
+      // Handle stock validation errors
+      toast.error(error.message || 'Failed to place order');
+    }
   }
 
   // Access cart data
@@ -388,32 +413,32 @@ let isPaying=false
   $: totalPrice = isCartLoading ? 0 : (cartData?.cart?.totalPrice || 0);
 
   function updateQuantity(productId: string, change: number, stock: number) {
-  const item = cartItems.find((item) => item.productId._id === productId);
+    const item = cartItems.find((item) => item.productId._id === productId);
 
-  if (item) {
-    let newQuantity;
-    // Determine the minimum quantity based on offer type
-    const minQuantity = item.selectedOffer?.offerType === 'Negotiate' 
-      ? (item.productId.negMOQ || 1) // Use negMOQ if available, default to 1
-      : 1;
+    if (item) {
+      let newQuantity;
+      // Determine the minimum quantity based on offer type
+      const minQuantity = item.selectedOffer?.offerType === 'Negotiate'
+        ? (item.productId.negMOQ || 1) // Use negMOQ if available, default to 1
+        : 1;
 
-    // Calculate new quantity with the appropriate minimum
-    newQuantity = item.quantity + change;
-    if (newQuantity < minQuantity) {
-      toast.error(`Minimum order quantity for ${item.productId.productName} is ${minQuantity}.`);
-      return;
+      // Calculate new quantity with the appropriate minimum
+      newQuantity = item.quantity + change;
+      if (newQuantity < minQuantity) {
+        toast.error(`Minimum order quantity for ${item.productId.productName} is ${minQuantity}.`);
+        return;
+      }
+      if (newQuantity > stock) {
+        toast.error(`Only ${stock} units of ${item.productId.productName} are available in stock. Please modify the quantity and proceed.`);
+        return;
+      }
+
+      // Update item quantity and total amount
+      item.quantity = newQuantity;
+      item.totalAmount = item.price * newQuantity;
+      $updateQuantityMutation.mutate({ productId, quantity: newQuantity });
     }
-    if (newQuantity > stock) {
-      toast.error(`Only ${stock} units of ${item.productId.productName} are available in stock. Please modify the quantity and proceed.`);
-      return;
-    }
-
-    // Update item quantity and total amount
-    item.quantity = newQuantity;
-    item.totalAmount = item.price * newQuantity;
-    $updateQuantityMutation.mutate({ productId, quantity: newQuantity });
   }
-}
 
   function removeProduct(productId: string) {
     cartItems = cartItems.filter((item) => item.productId._id !== productId);
@@ -501,7 +526,7 @@ let isPaying=false
               <div class="w-20 h-20 relative rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED]">
                 <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
-                  src={imgUrl + item.productId.images[0] }
+                  src={imgUrl + item.productId.images[0]}
                   alt="img"
                   class="p-3"
                 />
@@ -513,27 +538,27 @@ let isPaying=false
               </div>
               <div class="item-details flex-1">
                 <p
-                on:click={() => { 
+                on:click={() => {
                   if(item.productId.stock!=0){
                    goto(`/Products/${item.productId._id}`)
                   }
-                      }} 
+                      }}
                 class={` font-bold text-lg mb-0.5 ${item.productId.stock===0?'text-[#30363c6d]':'text-[#30363C] hover:underline hover:text-[#01A0E2]'}`}>{item.productId.productName}</p>
                 <p>
-                  <span 
+                  <span
                     class={`${item.productId.stock === 0 ? 'text-[#30363c6d] line-through' : 'line-through'}`}
                   >
                     ₹{item.productId.price}
-                  </span> 
-                  <span 
+                  </span>
+                  <span
                     class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}
                   >
-                    ₹{item.price} 
+                    ₹{item.price}
                   </span>
                   {#if item?.selectedOffer}
               {#if item?.selectedOffer?.offerType === 'Discount'}
                 <span class="text-sm">({item.selectedOffer?.discount}% OFF)</span>
-          
+
               {:else if item.selectedOffer?.offerType === 'onMRP'}
                 <div class="flex flex-col items-center">
                   {#if item.selectedOffer?.onMRP?.subType === 'Need'}
@@ -543,49 +568,49 @@ let isPaying=false
                     <span class="text-sm">₹{item.selectedOffer?.onMRP.reductionValue} OFF (Complementary)</span>
                   {/if}
                 </div>
-          
+
               {:else if item.selectedOffer?.offerType === 'Flat'}
                 <div>
-                
+
                   <span class="text-sm">{item.selectedOffer.discount}% OFF</span>
                 </div>
-          
+
               {:else if item.selectedOffer?.offerType === 'Negotiate'}
         <span class="text-xs">(Negotiated Price)</span>
               {/if}
-             
+
             {/if}
                 </p>
               </div>
             </div>
             <div class={`item-total text-center font-semibold text-base ${item.productId.stock===0?'text-[#30363c6d]':'text-[#30363C]'}`}>
               ₹{item.totalAmount.toFixed(2)}
-              <div 
-              class={`quantity flex items-center justify-between border rounded-md 
+              <div
+              class={`quantity flex items-center justify-between border rounded-md
                 ${item.productId.stock === 0 ? 'bg-[#e9e9eace] border-[#30363c6d]' : 'bg-[#F3FBFF] border-[#0EA5E9]'}
               `}
             >
               <button
                 on:click={() => updateQuantity(item.productId._id, -1, item.productId.stock)}
-                class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center 
+                class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center
                   ${item.quantity === 1 || item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}
                 `}
                disabled={$updateQuantityMutation.isPending || item.quantity <= (item.selectedOffer?.offerType === 'Negotiate' ? (item.productId.negMOQ) : 1) || item.productId.stock === 0}
               >
                 -
               </button>
-            
-              <span 
-                class={`w-7.5 text-center text-sm 
+
+              <span
+                class={`w-7.5 text-center text-sm
                   ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#4F585E]'}
                 `}
               >
                 {item.quantity}
               </span>
-            
+
               <button
                 on:click={() => updateQuantity(item.productId._id, 1, item.productId.stock)}
-                class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center 
+                class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center
                   ${item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}
                 `}
                 disabled={$updateQuantityMutation.isPending || item.productId.stock === 0}
@@ -593,7 +618,7 @@ let isPaying=false
                 +
               </button>
             </div>
-           
+
             </div>
             <button
             on:click={() => removeProduct(item.productId._id)}
@@ -647,7 +672,7 @@ let isPaying=false
               <div class="w-20 h-20 rounded-lg mr-3.75 relative bg-[#F5F5F5] border-[#EDEDED]">
                 <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
-                  src={imgUrl + item.productId.images[0] }
+                  src={imgUrl + item.productId.images[0]}
                   alt="img"
                   class="p-3"
                 />
@@ -658,8 +683,8 @@ let isPaying=false
               {/if}
               </div>
               <div class="item-details flex-1">
-                <p 
-                on:click={() => { 
+                <p
+                on:click={() => {
                if(item.productId.stock!=0){
                 goto(`/Products/${item.productId._id}`)
                }
@@ -673,15 +698,15 @@ let isPaying=false
               {/if}
               ₹{item.price.toFixed(2)}
             </div>
-            <div 
-            style="width: 17%;" 
+            <div
+            style="width: 17%;"
             class={`item-offer text-center font-semibold text-base ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#30363C]'}`}
           >
             {#if item?.selectedOffer}
               {#if item?.selectedOffer?.offerType === 'Discount'}
                 <div class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}>Discount</div>
                 <span class="text-sm">{item.selectedOffer?.discount}% OFF</span>
-          
+
               {:else if item.selectedOffer?.offerType === 'onMRP'}
                 <div class="flex flex-col items-center">
                   <span class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}>On MRP</span>
@@ -692,55 +717,55 @@ let isPaying=false
                     <span class="text-sm">₹{item.selectedOffer?.onMRP.reductionValue} OFF (Complementary)</span>
                   {/if}
                 </div>
-          
+
               {:else if item.selectedOffer?.offerType === 'Flat'}
                 <div>
                   <div class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}>Flat</div>
                   <span class="text-sm">{item.selectedOffer.discount}% OFF</span>
                 </div>
-          
+
               {:else if item.selectedOffer?.offerType === 'Negotiate'}
                 <div class="flex flex-col items-center">
                   <span class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}>Negotiated</span>
                   <span class="text-sm">₹{item.selectedOffer?.negotiate.negotiatedPrice.toFixed(2)}</span>
                 </div>
               {/if}
-          
+
             {:else}
               <span class="text-gray-400">-</span>
             {/if}
           </div>
-          
+
             <div style="width: 17%;" class={`item-total text-center font-semibold text-base  ${item.productId.stock===0?'text-[#30363c6d]':'text-[#30363C]'}`}>
               ₹{item.totalAmount.toFixed(2)}
             </div>
-            <div 
-            style="width: 17%;" 
-            class={`quantity flex items-center justify-between border rounded-md 
+            <div
+            style="width: 17%;"
+            class={`quantity flex items-center justify-between border rounded-md
               ${item.productId.stock === 0 ? 'bg-[#e9e9eace] border-[#30363c6d]' : 'bg-[#F3FBFF] border-[#0EA5E9]'}
             `}
           >
             <button
               on:click={() => updateQuantity(item.productId._id, -1, item.productId.stock)}
-              class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center 
+              class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center
                 ${item.quantity === 1 || item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}
               `}
             disabled={$updateQuantityMutation.isPending || item.quantity <= (item.selectedOffer?.offerType === 'Negotiate' ? (item.productId.negMOQ || 1) : 1) || item.productId.stock === 0}
             >
               -
             </button>
-          
-            <span 
-              class={`w-7.5 text-center text-sm 
+
+            <span
+              class={`w-7.5 text-center text-sm
                 ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#4F585E]'}
               `}
             >
               {item.quantity}
             </span>
-          
+
             <button
               on:click={() => updateQuantity(item.productId._id, 1, item.productId.stock)}
-              class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center 
+              class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center
                 ${item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}
               `}
               disabled={$updateQuantityMutation.isPending || item.productId.stock === 0}
@@ -748,7 +773,7 @@ let isPaying=false
               +
             </button>
           </div>
-          
+
             <div style="width: 7%;" class="remove flex items-center justify-center">
               <button
                 on:click={() => removeProduct(item.productId._id)}
@@ -809,10 +834,52 @@ let isPaying=false
           </div>
           <Skeleton class="w-full h-10 mt-5" />
         {:else}
-          <div class="flex justify-between mb-2.5 text-sm">
+          <div class="flex justify-between mb-1 text-sm">
             <span class="text-[#30363C] font-semibold">Subtotal</span>
             <span class="text-gray-800">₹{totalAmount.toFixed(2)}</span>
           </div>
+         
+          <div class="flex flex-col w-full  items-end mb-2.5">
+            <p disabled={cartItems.length<=0} on:click={toggleCoupon} class="text-sm text-[#009bde] hover:underline cursor-pointer">{isCouponVisible ? "Cancel" : 'Apply Coupon?'}</p>
+            {#if isCouponVisible}
+              <div class="relative w-full">
+                <input
+                  type="text"
+                  bind:value={couponCode}
+                  class="border-[#009bde] w-full border text-sm rounded-md p-1 pl-2 pr-20 placeholder:text-xs focus:ring-0 focus:outline-none"
+                  placeholder="Enter Coupon Code"
+                  disabled={couponDiscount > 0}
+                />
+                {#if couponCode.trim().length > 0}
+                  <button
+                  disabled={couponDiscount > 0||isApplying}
+                    on:click={() => {$cartQuery.refetch()}}
+                    class="absolute right-1 top-1/2 transform -translate-y-1/2 bg-white text-[#009bde] text-sm px-2 py-0.5 rounded-md hover:bg-gray-100"
+                  >
+                  {#if isApplying}
+    <!-- <span>Applying</span> -->
+    <Icon icon="mdi:loading" class="w-5 h-5 animate-spin" />
+  {:else if couponDiscount > 0}
+    <span>Applied</span>
+    <!-- <Icon icon="mdi:check-circle" class="w-5 h-5" /> -->
+  {:else}
+    <span>Apply Coupon</span>
+    <!-- <Icon icon="mdi:ticket-percent" class="w-5 h-5" /> -->
+  {/if}
+                  </button>
+                {/if}
+              </div>
+              {#if couponError}
+                <p class="text-red-500 text-xs mt-1">{couponError}</p>
+              {/if}
+            {/if}
+          </div>
+          {#if couponDiscount > 0}
+          <div class="flex justify-between mb-1 text-sm">
+            <span class="text-[#30363C] font-semibold">Coupon Discount</span>
+            <span class="text-green-600">-₹{couponDiscount.toFixed(2)}</span>
+          </div>
+        {/if}
           <div class="flex justify-between mb-2.5 text-sm">
             <span class="text-[#30363C] font-semibold">Delivery Charge</span>
             <span class="free text-green-600">{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
@@ -831,10 +898,10 @@ let isPaying=false
           </div>
           <button
             on:click={handlePayNow}
-            class={`pay-now-btn w-full py-2.5  text-white rounded-md  text-base mt-5 ${cartItems.length===0?'bg-[#30363c62] cursor-not-allowed':'bg-[#01A0E2]  cursor-pointer'}`}
-            disabled={$placeOrderMutation.isPending||cartItems.length===0||isPaying }
+            class={`pay-now-btn w-full py-2.5  text-white rounded-md  text-base mt-5 ${cartItems.length === 0 ? 'bg-[#30363c62] cursor-not-allowed' : 'bg-[#01A0E2]  cursor-pointer'}`}
+            disabled={$placeOrderMutation.isPending || cartItems.length === 0 || isPaying}
           >
-            {#if isPaying||$placeOrderMutation.isPending}
+            {#if isPaying || $placeOrderMutation.isPending}
               Processing...
             {:else}
               PAY NOW
