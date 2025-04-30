@@ -842,7 +842,7 @@ return
               <div>
                 <!-- <p class="md:text-lg text-base text-[#4F585E] mt-2"><span class="line-through">₹{product.strikePrice*quantity}</span></p> -->
 
-                {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
+                {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'&&desiredQuantity>=product.negMOQ}
                 <p class="text-[#111827] ">M.R.P <span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg lg:px-4 md:px-3 px-0"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium lg:px-4 md:px-3 px-0">(Negotiation Price)</span> </span></p>
 
               {:else}
@@ -899,7 +899,7 @@ return
             </div>
 
             {#each product.options || [] as option}
-              <div class="mt-4">
+              <div class="my-4 ">
                 <p class="text-sm text-[#4F585E] mb-2">{option.title.toUpperCase()}: {selectedOptions[option.title]?.toUpperCase()}</p>
                 <div class="flex gap-2">
                   {#each option.values as value}
@@ -1172,7 +1172,7 @@ No
               <div>
                 <!-- <p class="md:text-lg text-base text-[#4F585E] mt-2"> <span class="line-through">₹{product.strikePrice}</span></p> -->
 
-                {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
+                {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'&&desiredQuantity>=product.negMOQ}
                 <p class="text-[#111827] ">M.R.P<span class="line-through font-bold md:text-2xl text-lg pl-1">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg lg:px-4 md:px-3 px-1"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)}  </span></p>
                 <span class="text-[#C49814] text-xs font-medium lg:px-4 md:px-3 px-1">(Negotiation Price)</span>
 
