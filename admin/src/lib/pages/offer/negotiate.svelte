@@ -14,7 +14,7 @@
   let searchQuery = '';
   let productResults: any[] = [];
   let isLoading = false;
-  let newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' }; // Added limit
+  let newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '',MOQ:'' };
   let dropdownOpen = false;
   let isSearching = false;
   let page = 1;
@@ -35,6 +35,7 @@
         productId: product._id || item.productId,
         productName: product.productName || 'Unknown Product',
         price: product.price || 0,
+        MOQ: item.MOQ || 0,
         successPercentage: item.successPercentage || 0,
         failurePercentage: item.failurePercentage || 0,
         limit: product.negotiateLimit || 0, // Added limit
@@ -147,7 +148,7 @@
 
     if (existingProductIndex >= 0) {
       toast.error('This product is already in the negotiate list');
-      newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' };
+      newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '',MOQ:'' };
       searchQuery = '';
       return;
     }
@@ -163,7 +164,8 @@
         productId: newProduct.productId,
         successPercentage: parseInt(newProduct.successPercentage),
         failurePercentage: parseInt(newProduct.failurePercentage),
-        limit: parseInt(newProduct.limit) // Added limit
+        limit: parseInt(newProduct.limit),
+        MOQ:parseInt(newProduct.MOQ)
       });
 
       if (response.data.status) {
@@ -177,7 +179,7 @@
       toast.error('An error occurred while adding the product');
     }
 
-    newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '' };
+    newProduct = { productId: '', productName: '', successPercentage: '', failurePercentage: '', limit: '',MOQ:'' };
     searchQuery = '';
   }
 
@@ -196,6 +198,11 @@
   function updateLimit(index: number, value: string) {
     if (validateNumber(value)) {
       localItems = localItems.map((item, i) => i === index ? { ...item, limit: parseInt(value) } : item);
+    }
+  }
+  function updateMOQ(index: number, value: string) {
+    if (validateNumber(value)) {
+      localItems = localItems.map((item, i) => i === index ? { ...item, MOQ: parseInt(value) } : item);
     }
   }
 
@@ -219,7 +226,8 @@
         productId: item.productId,
         successPercentage: item.successPercentage,
         failurePercentage: item.failurePercentage,
-        limit: item.limit
+        limit: item.limit,
+        MOQ:item.MOQ
       }))
     }, {
       params: { id: offerId }
@@ -231,7 +239,8 @@
         productId: item.productId,
         successPercentage: item.successPercentage,
         failurePercentage: item.failurePercentage,
-        limit: item.limit
+        limit: item.limit,
+        MOQ:item.MOQ
       })));
 
       // Update active status
@@ -345,6 +354,19 @@
       {/if}
     </div>
     <div class="mb-4">
+      <Label class="block text-sm font-medium mb-1">Minimum order qunatity (pcs)</Label>
+      <Input
+        type="number"
+        placeholder="Enter MOQ"
+        bind:value={newProduct.MOQ}
+        class="w-full"
+        min="0"
+      />
+      {#if newProduct.MOQ && !validateNumber(newProduct.MOQ)}
+        <span class="text-xs text-red-500">Must be a valid number</span>
+      {/if}
+    </div>
+    <div class="mb-4">
       <Label class="block text-sm font-medium mb-1">Success Discount (%)</Label>
       <Input
         type="number"
@@ -400,6 +422,7 @@
               <th class="py-2 px-4 text-left font-medium">Product</th>
               <th class="py-2 px-4 text-left font-medium">Price</th>
               <th class="py-2 px-4 text-left font-medium w-32">Negotiation Limit (₹)</th>
+              <th class="py-2 px-4 text-left font-medium w-32">MOQ (pcs)</th>
               <th class="py-2 px-4 text-left font-medium w-32">Success Discount (%)</th>
               <th class="py-2 px-4 text-left font-medium w-32">Failure Discount (%)</th>
               <th class="py-2 px-4 text-right font-medium w-16">Action</th>
@@ -425,6 +448,15 @@
                     class="h-8"
                     min="0"
                     oninput={(e) => updateLimit(index, e.currentTarget.value)}
+                  />
+                </td>
+                <td class="py-2 px-4">
+                  <Input
+                    type="number"
+                    value={item.MOQ}
+                    class="h-8"
+                    min="0"
+                    oninput={(e) => updateMOQ(index, e.currentTarget.value)}
                   />
                 </td>
                 <td class="py-2 px-4">

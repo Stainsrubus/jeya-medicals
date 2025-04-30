@@ -438,7 +438,7 @@ let isDialogOpen = false;
 
 {:else}
 <div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
-  <p class="text-lg font-medium">Please login to access Cart</p>
+  <p class="text-lg font-medium">Please login to access Orders</p>
   <button on:click={() => goto('/login')} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
 </div>
 {/if}

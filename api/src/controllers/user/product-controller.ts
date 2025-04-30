@@ -437,7 +437,7 @@ export const productController = new Elysia({
       let _limit = limit || 10;
       let _page = page || 1;
 
-      let filter: any = { active: true };
+      let filter: any = { active: true, stock:{$gt:0}  };
 
       if (q) {
         filter.productName = {
@@ -454,14 +454,6 @@ export const productController = new Elysia({
           userFavorites = favorites?.products || [];
         }
 
-        let currentServerTime = format(new Date(), "HH:mm");
-
-        if (process.env.ENV === "PROD") {
-          const updatedTime = add(new Date(), { hours: 5, minutes: 30 });
-          currentServerTime = format(updatedTime, "HH:mm");
-        }
-
-        console.log(currentServerTime);
 
         const mergedFilter = { ...filter };
 
@@ -872,6 +864,7 @@ export const productController = new Elysia({
               description: 1,
               type: 1,
               favorite: 1,
+              stock:1
             },
           },
         ]);

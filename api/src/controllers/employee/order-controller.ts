@@ -33,6 +33,10 @@ export const userOrderController = new Elysia({
   async ({ set, store, body }) => {
     const empId = (store as StoreType)['id'];
     const { userId, address } = body;
+    
+    // Start a session for the transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
       // Fetch the employee
@@ -60,9 +64,60 @@ export const userOrderController = new Elysia({
         return { message: 'No active cart found for Employee', status: false };
       }
 
+      const stockValidationErrors = [];
+      const validProducts = [];
+      
+      for (const cartItem of cart.products) {
+        const product = await Product.findById(cartItem.productId);
+        
+        if (!product) {
+          stockValidationErrors.push({
+            productId: cartItem.productId,
+            message: "Product not found"
+          });
+          continue;
+        }
+
+        if (product.stock < cartItem.quantity) {
+          stockValidationErrors.push({
+            productId: cartItem.productId,
+            productName: product.productName,
+            requestedQuantity: cartItem.quantity,
+            availableStock: product.stock,
+            message: `Insufficient stock for ${product.productName}. Available: ${product.stock}, Requested: ${cartItem.quantity}`
+          });
+        } else {
+          validProducts.push({
+            cartItem,
+            product
+          });
+        }
+      }
+
+      // If any products have insufficient stock, return error
+      if (stockValidationErrors.length > 0) {
+        await session.abortTransaction();
+        session.endSession();
+        
+        set.status = 400;
+        return {
+          message: "Some products have insufficient stock",
+          status: false,
+          errors: stockValidationErrors,
+          validProducts: validProducts.map(item => ({
+            productId: item.cartItem.productId,
+            productName: item.product.productName,
+            availableStock: item.product.stock
+          }))
+        };
+      }
+      
       // Fetch the store
       const eStore = await StoreModel.findOne({});
       if (!eStore) {
+        await session.abortTransaction();
+        session.endSession();
+        
         set.status = 404;
         return { message: 'Store not found', status: false };
       }
@@ -71,16 +126,14 @@ export const userOrderController = new Elysia({
       const orderId = generateRandomString(6, 'JME');
       const invoiceId = generateRandomString(8, 'INV');
 
-      // Map cart products to order products
-      const orderProducts = cart.products.map((product) => ({
-        productId: product.productId._id,
+      const orderProducts = cart.products.map(product => ({
+        productId: product.productId,
         quantity: product.quantity,
         totalAmount: product.totalAmount,
-          //@ts-ignore
-        name: product.productId.productName,
-        options: product.options || [],
+        price: product.price,
+        options: product.options,
       }));
-
+      
       // Prepare address object for the order
       const orderAddress = {
         flatNo: address.flatNo,
@@ -106,16 +159,14 @@ export const userOrderController = new Elysia({
         paymentStatus: 'pending',
       });
 
-      await order.save();
-
-
-      // Broadcast and notify
-      broadcastMessage(`New Order with Order ID: ${orderId} is placed by Employee for ${user.username}`);
-      // await sendNotification(
-      //   user.fcmToken,
-      //   'Order Placed!',
-      //   `Your order #${orderId} has been placed successfully by an employee.`
-      // );
+      // Save order within the session
+      await order.save({ session });
+      
+      // Reduce product stock
+      for (const { cartItem, product } of validProducts) {
+        product.stock -= cartItem.quantity;
+        await product.save({ session });
+      }
 
       // Clear the cart
       cart.products = [];
@@ -126,7 +177,19 @@ export const userOrderController = new Elysia({
       cart.platformFee = 0;
       cart.totalDistance = 0;
       cart.deliverySeconds = 0;
-      await cart.save();
+      await cart.save({ session });
+      
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+      
+      // Broadcast and notify after successful commit
+      broadcastMessage(`New Order with Order ID: ${orderId} is placed by Employee for ${user.username}`);
+      // await sendNotification(
+      //   user.fcmToken,
+      //   'Order Placed!',
+      //   `Your order #${orderId} has been placed successfully by an employee.`
+      // );
 
       return {
         message: 'Order created successfully',
@@ -135,6 +198,10 @@ export const userOrderController = new Elysia({
         paymentRequired: false,
       };
     } catch (error) {
+      // Abort transaction on error
+      await session.abortTransaction();
+      session.endSession();
+      
       set.status = 500;
       return {
         message: 'Failed to create order',
@@ -365,56 +432,74 @@ export const userOrderController = new Elysia({
     "/cancel/:orderId",
     async ({ params, store, set }) => {
       const empId = (store as StoreType)["id"];
-
+  
+      const session = await mongoose.startSession();
+      session.startTransaction();
+  
       try {
         const { orderId } = params;
-
-        const order = await EmpOrderModel.findOne({ _id: orderId, employee: empId });
-
+  
+        // 1. Find the order for the current employee
+        const order = await EmpOrderModel.findOne({ _id: orderId, employee: empId }).session(session);
+  
         if (!order) {
+          await session.abortTransaction();
           set.status = 404;
           return { message: "Order not found", status: false };
         }
-
+  
+        // 2. Validate order status
         const cancelableStatus = ["pending", "accepted"];
-
         if (!cancelableStatus.includes(order.status)) {
-          return {
-            message: "Order cannot be cancelled",
-            status: false,
-          };
+          await session.abortTransaction();
+          set.status = 400;
+          return { message: "Order cannot be cancelled", status: false };
         }
-
-        const emp = await Employee.findById(order?.employee);
-
+  
+        // 3. Find employee
+        const emp = await Employee.findById(order.employee).session(session);
+  
         if (!emp) {
+          await session.abortTransaction();
           set.status = 404;
           return { message: "Employee not found", status: false };
         }
-
-        // await sendNotification(
-        //   emp.fcmToken,
-        //   "Order Cancelled",
-        //   `Your order ${order.orderId} has been cancelled. Contact support for assistance.`
-        // );
-
+  
+        // 4. Restore stock for each product
+        for (const item of order.products) {
+          const product = await Product.findById(item.productId).session(session);
+          if (product) {
+            product.stock += item.quantity;
+            await product.save({ session });
+          }
+        }
+  
+        // 5. Broadcast and update order status
         broadcastMessage(
-          `A Order with Order ID: ${order.orderId} is cancelled by User, ${emp.name}`
+          `An Order with Order ID: ${order.orderId} was cancelled by User ${emp.name}`
         );
-
+  
         order.status = "cancelled";
-
-        await order?.save();
-
+        await order.save({ session });
+  
+        // 6. Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+  
         return {
           message: "Order cancelled successfully",
           status: true,
         };
+  
       } catch (error) {
         console.error(error);
+        await session.abortTransaction();
+        session.endSession();
+        set.status = 500;
         return {
-          error,
-          status: "error",
+          message: "Internal server error",
+          error: error instanceof Error ? error.message : error,
+          status: false,
         };
       }
     },
@@ -427,4 +512,4 @@ export const userOrderController = new Elysia({
       },
     }
   )
- 
+  

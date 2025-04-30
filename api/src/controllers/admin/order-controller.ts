@@ -344,7 +344,13 @@ export const adminOrderController = new Elysia({
           // });
 
           // console.log(refund);
-
+          for (const product of order.products) {
+            await Product.findByIdAndUpdate(
+              product.productId,
+              { $inc: { stock: product.quantity } },
+              { new: true }
+            );
+          }
           await sendNotification(
             user.fcmToken,
             "Order Cancelled",

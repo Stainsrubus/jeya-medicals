@@ -111,12 +111,12 @@
           {#if brands.length === 0}
             <div class="text-center text-lg">No brands available</div>
           {:else}
-          <div class="overflow-x-auto flex gap-10 scrollbar-hide">
+          <div class="overflow-x-auto flex md:gap-10 gap-5 scrollbar-hide">
             {#each brands as brand}
             <img
               src={imgUrl + brand.image}
               alt={brand.name}
-              class="lg:max-h-20 md:max-h-14 max-h-12 object-contain"
+              class="lg:max-w-32 md:max-w-24 max-w-16 object-contain"
             />
           {/each}
           </div>

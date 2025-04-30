@@ -44,6 +44,7 @@
   }
 
   interface Product {
+    stock: any;
     id: string | number;
     name: string;
     images: string[];
@@ -119,7 +120,6 @@
       totalComplementaryValue = 0;
       complementaryError = '';
       hasFetchedFlatProducts = false;
-      desiredQuantity = cartQuantity || 1; // Initialize with cart quantity or 1
     }
   }
 
@@ -219,8 +219,8 @@
       (item: { productId: { _id: string } }) => item.productId._id === productId
     );
     cartQuantity = foundItem ? foundItem.quantity : 0;
-    if (!foundItem && desiredQuantity !== 1) {
-      desiredQuantity = 1; // Reset to 1 if no cart item exists
+    if (foundItem && desiredQuantity !== cartQuantity && isInitialLoad) {
+      desiredQuantity = cartQuantity;
     }
   }
 
@@ -235,23 +235,23 @@
 
   const queryClient = useQueryClient();
 
-  $: {
-    if (previousProductId !== productId) {
-      selectedImageIndex = 0;
-      negotiation = {
-        attemptNumber: 0,
-        currentPrice: 0,
-        negotiatedPrice: undefined,
-        maxAttempts: 3,
-        negotiateLimit: 0,
-        attempts: []
-      };
-      negotiationError = null;
-      desiredQuantity = cartQuantity || 1; // Reset quantity on product change
-      queryClient.cancelQueries({ queryKey: ['product', previousProductId] });
-      previousProductId = productId;
-    }
-  }
+  // $: {
+  //   if (previousProductId !== productId) {
+  //     selectedImageIndex = 0;
+  //     negotiation = {
+  //       attemptNumber: 0,
+  //       currentPrice: 0,
+  //       negotiatedPrice: undefined,
+  //       maxAttempts: 3,
+  //       negotiateLimit: 0,
+  //       attempts: []
+  //     };
+  //     negotiationError = null;
+  //     desiredQuantity = cartQuantity || 1; // Reset quantity on product change
+  //     queryClient.cancelQueries({ queryKey: ['product', previousProductId] });
+  //     previousProductId = productId;
+  //   }
+  // }
 
   const complementaryProductQuery = createMutation<Product>({
     mutationFn: async () => {
@@ -304,6 +304,7 @@
         onMRP: product.onMRP || 0,
         flat: product.flat || 0,
         MRP: product.price,
+        stock:product.stock,
         strikePrice: product.strikePrice || product.price,
         description: product.description,
         ratings: product.ratings,
@@ -348,7 +349,7 @@
           id: product._id,
           name: product.productName,
           images: product.images,
-  
+          stock:product.stock,
           description: product.description,
           ratings: product.ratings,
           categoryId: product.categoryId,
@@ -443,7 +444,6 @@
         (item: { productId: { _id: string } }) => item.productId._id === productId
       );
       cartQuantity = foundItem ? foundItem.quantity : 0;
-      desiredQuantity = cartQuantity || 1; // Reset to cart quantity on error
 
       if (error.message === 'Please log in to add to cart') {
         toast.error(error.message);
@@ -454,7 +454,7 @@
     },
   });
 
-  let desiredQuantity: number = 1; // Local quantity for input
+  let desiredQuantity: number = cartQuantity || 1; // Local quantity for input
 
   function addToCart() {
     if (!product) return;
@@ -462,8 +462,15 @@
       toast.error('Quantity must be at least 1');
       desiredQuantity = 1;
       return;
-    }
-    $addToCartMutation.mutate(desiredQuantity);
+    }else if (desiredQuantity > (product.stock)) {
+  toast.error(`Maximum purchase quantity is ${product.stock}`);
+  console.log('quantity: ', desiredQuantity);
+  desiredQuantity = product.stock;
+  return;
+} else {
+  console.log('quantity: ', desiredQuantity);
+  $addToCartMutation.mutate(desiredQuantity);
+}
   }
 
   function incrementQuantity() {
@@ -584,6 +591,12 @@
                 alt={product.name}
                 class="lg:h-96 h-52 w-96 object-contain"
               />
+              {#if product.stock === 0}
+              <!-- Overlay for Out of Stock -->
+              <div class="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
+                <span class="text-white text-2xl">Out of Stock</span>
+              </div>
+            {/if}
             </div>
             {#if product.images.length > 1}
               <div class="flex md:flex-col flex-row gap-2 md:w-16 w-full">
@@ -629,10 +642,10 @@
             <div class="lg:flex justify-between hidden flex-wrap mt-4 pr-20">
             
               <div class="mt-4 self-end">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
                     on:click={decrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border border-[#0EA5E9] rounded-lg"
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     -
                   </button>
@@ -640,19 +653,19 @@
                     type="number"
                     bind:value={desiredQuantity}
                     min="1"
-                    class="w-16 h-10 text-center border border-[#0EA5E9] rounded-lg text-lg"
+                    class="w-16 h-10 text-center border-none text-lg focus:outline-none"
                   />
                   <button
                     on:click={incrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border border-[#0EA5E9] rounded-lg"
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
                 <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  class={`${product.stock<=0?'bg-[#5a5e5f58]':'bg-[#01A0E2]'} text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full`}
                   on:click={addToCart}
-                  disabled={$addToCartMutation.isPending}
+                  disabled={$addToCartMutation.isPending||product.stock<=0}
                 >
                   {#if $addToCartMutation.isPending}
                     Adding...
@@ -682,10 +695,10 @@
             <div class="flex justify-between lg:hidden flex-wrap">
              
               <div class="mt-4 self-end">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
                     on:click={decrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border border-[#0EA5E9] rounded-lg"
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     -
                   </button>
@@ -693,19 +706,19 @@
                     type="number"
                     bind:value={desiredQuantity}
                     min="1"
-                    class="w-16 h-10 text-center border border-[#0EA5E9] rounded-lg text-lg"
+                    class="w-16 h-10 text-center border-none text-lg focus:outline-none"
                   />
                   <button
                     on:click={incrementQuantity}
-                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border border-[#0EA5E9] rounded-lg"
+                    class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
                 <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  class={`${product.stock<=0?'bg-[#5a5e5f58]':'bg-[#01A0E2]'} text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full`}
                   on:click={addToCart}
-                  disabled={$addToCartMutation.isPending}
+                  disabled={$addToCartMutation.isPending||product.stock<=0}
                 >
                   {#if $addToCartMutation.isPending}
                     Adding...
@@ -783,7 +796,7 @@
       </div>
     </div>
 
-    {#if hasSameBrandProducts && selectedPricingOption !== 'flatOffer'}
+    <!-- {#if hasSameBrandProducts && selectedPricingOption !== 'flatOffer'}
       <div class="mt-8 overflow-x-auto pb-2 pl-2">
         <h2 class="text-xl font-bold text-[#30363C] mb-4">More from {product?.brand || 'this brand'}</h2>
         {#if sameBrandProductsLoading}
@@ -856,7 +869,7 @@
           </div>
         {/if}
       </div>
-    {/if}
+    {/if} -->
   {/if}
 </div>
 

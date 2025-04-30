@@ -31,7 +31,7 @@
   }
 </style>
 
-<div class="bg-[#01A0E2] px-1 md:px-8 w-screen lg:px-8 flex z-50 items-center md:justify-start justify-between h-[50px] text-white">
+<div class="bg-[#01A0E2] px-1 md:px-8 w-screen lg:px-8 flex z-50 items-center md:justify-start justify-between h-[44px] text-white">
   {#each navItems as item, index}
     <div
       class="nav-item flex  items-center lg:gap-2 gap-1 md:px-4  px-2  h-full cursor-pointer hover:bg-[#156aa3] transition-colors duration-200"

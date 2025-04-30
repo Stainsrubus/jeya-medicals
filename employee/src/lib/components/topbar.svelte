@@ -391,7 +391,7 @@ let showPassword=false;
           <!-- <span class="absolute -top-1 -right-1 bg-[#01A0E2] rounded-full w-4 h-4"></span> -->
         {:else if cartCount > 0}
           <span
-            class={`absolute -top-2 -right-2 bg-[#01A0E2] text-white rounded-full flex items-center justify-center text-xs font-semibold ${
+            class={`absolute -top-2 -right-2 bg-[#01A0E2] text-white rounded-full flex items-center justify-center text-xs font-semibold min-h-5 min-w-5 ${
               currentPath === '/cart' ? 'border border-white p-0.5' : 'border-none p-0.5'
             }`}
           >

@@ -112,7 +112,7 @@
             />
           </div>
         {/each}
-        <p onclick={()=>{goto('/Products')}} class="flex justify-center items-center text-[#01A0E2] underline whitespace-nowrap">view all <span>
+        <p onclick={()=>{goto('/Products')}} class="flex cursor-pointer justify-center items-center text-[#01A0E2] underline whitespace-nowrap">view all <span>
 		  <Icon icon="mdi:arrow-right-thin"  />
      </span></p>
       </div>

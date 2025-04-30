@@ -19,19 +19,17 @@ export const productController = new Elysia({
 .get(
   "/",
   async ({ query }) => {
-    const { page, limit, q, rating, empId, category, brand} = query;
+    const { page, limit, q, rating, userId, category, brand, minPrice, maxPrice } = query;
 
-    const _limit = limit || 10;
-    const _page = page || 1;
+    const _limit = parseInt(limit as any) || 10;
+    const _page = parseInt(page as any) || 1;
 
     let matchFilter: any = { active: true, isDeleted: false };
 
-    // Search filter
     if (q) {
       matchFilter.$or = [{ productName: { $regex: q, $options: "i" } }];
     }
 
-    // Rating filter
     if (rating) {
       const ratingNumber = parseInt(rating, 10);
       if (ratingNumber >= 1 && ratingNumber <= 5) {
@@ -40,24 +38,17 @@ export const productController = new Elysia({
     }
 
 
-
     try {
-      // Convert category and brand to arrays if they're comma-separated strings
-      const categoryIds = category 
+      const categoryIds = category
         ? category.split(',').map((id: string) => new Types.ObjectId(id.trim()))
         : [];
-      
-      const brandIds = brand 
+
+      const brandIds = brand
         ? brand.split(',').map((id: string) => new Types.ObjectId(id.trim()))
         : [];
 
-      const totalPromise = Product.countDocuments(matchFilter);
-      
       const aggregationPipeline: any[] = [
-        {
-          $match: matchFilter,
-        },
-        // Lookup for categories
+        { $match: matchFilter },
         {
           $lookup: {
             from: "productcategories",
@@ -66,16 +57,13 @@ export const productController = new Elysia({
             as: "categoryDetails",
           },
         },
-        {
-          $unwind: "$categoryDetails",
-        },
+        { $unwind: "$categoryDetails" },
         {
           $match: {
             "categoryDetails.active": true,
             ...(categoryIds.length > 0 ? { "categoryDetails._id": { $in: categoryIds } } : {})
           },
         },
-        // Lookup for brands
         {
           $lookup: {
             from: "brands",
@@ -84,55 +72,54 @@ export const productController = new Elysia({
             as: "brandDetails",
           },
         },
-        {
-          $unwind: "$brandDetails",
-        },
+        { $unwind: "$brandDetails" },
         {
           $match: {
             "brandDetails.active": true,
             ...(brandIds.length > 0 ? { "brandDetails._id": { $in: brandIds } } : {})
           },
         },
-        // Add priority fields for sorting
         {
           $addFields: {
             categoryPriority: {
               $cond: [
                 { $in: ["$categoryDetails._id", categoryIds] },
-                0, // Higher priority for selected categories
+                0,
                 1
               ]
             },
             brandPriority: {
               $cond: [
                 { $in: ["$brandDetails._id", brandIds] },
-                0, // Higher priority for selected brands
+                0,
                 1
               ]
             },
-            // Add a combined priority field
             combinedPriority: {
               $add: [
                 { $cond: [{ $in: ["$categoryDetails._id", categoryIds] }, 0, 1] },
                 { $cond: [{ $in: ["$brandDetails._id", brandIds] }, 0, 1] }
               ]
+            },
+            available: {
+              $cond: [{ $gt: ["$stock", 0] }, true, false]
             }
           },
         },
         {
-          $sort: { 
-            combinedPriority: 1, // Sort by combined priority first
-            categoryPriority: 1, 
-            brandPriority: 1, 
-            productName: 1 
+          $sort: {
+            combinedPriority: 1,
+            categoryPriority: 1,
+            brandPriority: 1,
+            productName: 1,
           },
         },
-        // Group by category
         {
           $group: {
             _id: "$categoryDetails._id",
             categoryName: { $first: "$categoryDetails.name" },
-            totalProducts: { $sum: 1 },
+            categoryPriority: { $first: "$categoryPriority" },
+            brandPriority: { $first: "$brandPriority" },
             products: {
               $push: {
                 _id: "$_id",
@@ -143,47 +130,67 @@ export const productController = new Elysia({
                 categoryName: "$categoryDetails.name",
                 brandId: "$brandDetails._id",
                 brandName: "$brandDetails.name",
+                available: "$available"
               },
             },
-            categoryPriority: { $first: "$categoryPriority" },
-            brandPriority: { $first: "$brandPriority" },
           },
         },
         {
-          $sort: { 
-            categoryPriority: 1, 
-            brandPriority: 1, 
-            categoryName: 1 
+          $sort: {
+            categoryPriority: 1,
+            brandPriority: 1,
+            categoryName: 1,
           },
-        },
-        // Pagination at the category level
-        {
-          $skip: (_page - 1) * _limit,
-        },
-        {
-          $limit: _limit,
-        },
+        }
       ];
 
-      const [total, products] = await Promise.all([
-        totalPromise, 
-        Product.aggregate(aggregationPipeline)
-      ]);
+      const allCategories = await Product.aggregate(aggregationPipeline);
 
       let userFavorites: string[] = [];
 
-      if (empId) {
-        const favorites = await Favorites.findOne({ emp: empId });
+      if (userId) {
+        const favorites = await Favorites.findOne({ user: userId });
         userFavorites = favorites?.products?.map((p: any) => p.toString()) || [];
       }
 
-      const paginatedCategories = products.map((category: any) => ({
-        ...category,
-        products: category.products.map((product: any) => ({
-          ...product,
-          favorite: userFavorites.includes(product._id.toString()),
-        })),
-      }));
+      // Flatten all products from categories to apply pagination
+      const allProducts: any[] = [];
+      const categoryMap = new Map<string, any>();
+
+      for (const category of allCategories) {
+        for (const product of category.products) {
+          allProducts.push({
+            ...product,
+            categoryId: category._id,
+            categoryName: category.categoryName,
+          });
+
+          if (!categoryMap.has(category._id.toString())) {
+            categoryMap.set(category._id.toString(), {
+              _id: category._id,
+              categoryName: category.categoryName,
+              categoryPriority: category.categoryPriority,
+              brandPriority: category.brandPriority,
+              products: [],
+            });
+          }
+        }
+      }
+
+      const total = allProducts.length;
+      const paginatedProducts = allProducts.slice((_page - 1) * _limit, _page * _limit);
+
+      for (const product of paginatedProducts) {
+        const cat = categoryMap.get(product.categoryId.toString());
+        if (cat) {
+          cat.products.push({
+            ...product,
+            favorite: userFavorites.includes(product._id.toString()),
+          });
+        }
+      }
+
+      const paginatedCategories = Array.from(categoryMap.values()).filter(c => c.products.length > 0);
 
       return {
         data: paginatedCategories,
@@ -211,9 +218,11 @@ export const productController = new Elysia({
       limit: t.Optional(t.Number({ default: 10 })),
       q: t.Optional(t.String({ default: "" })),
       rating: t.Optional(t.String()),
-      empId: t.Optional(t.String()),
+      userId: t.Optional(t.String()),
       category: t.Optional(t.String({ description: "Comma-separated category IDs" })),
       brand: t.Optional(t.String({ description: "Comma-separated brand IDs" })),
+      minPrice: t.Optional(t.String()),
+      maxPrice: t.Optional(t.String()),
     }),
   }
 )

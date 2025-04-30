@@ -50,7 +50,8 @@ function mapApiDataToStoreData(item: any, mode: string) {
         items: item.items?.map((i: any) => ({
         productId: i.productId,
         successPercentage: i.successPercentage,
-        failurePercentage:i.failurePercentage
+        failurePercentage:i.failurePercentage,
+        MOQ:i.MOQ
         })) || [],
         isActive: item.isActive !== undefined ? item.isActive : true,
       };

@@ -1,120 +1,308 @@
 <script lang="ts">
-    import { _axios } from '$lib/_axios';
-    import { createQuery } from '@tanstack/svelte-query';
-    import { Skeleton } from '$lib/components/ui/skeleton/index.js';
-    import { imgUrl } from '$lib/config';
-    import * as Table from '$lib/components/ui/table';
-	import * as Tabs from '$lib/components/ui/tabs';
-	import Icon from '@iconify/svelte';
-  
-    // Define the query to fetch demand data
-    const demandQuery = createQuery({
-      queryKey: ['demand'],
-      queryFn: async () => {
-        const response = await _axios.get('/demand/');
-        return response.data;
-      },
-      select: (data) => data.data,
-      retry: 1,
-      staleTime: 0,
-      enabled: true,
-    });
-  
-    // Reactive variables
-    $: demandData = $demandQuery.data || [];
-    $: isLoading = $demandQuery.isLoading;
-  </script>
-  
-  <div>
-    <Tabs.Root
-	value={"list"}
-	class="w-full p-4"
->
-	<Tabs.List>
-		<Tabs.Trigger value="list" class="flex items-center gap-2">
-			<Icon class="w-4 h-4" icon="tabler:table" />
-			<span>Demand List</span>
-		</Tabs.Trigger>
-	</Tabs.List>
-	<Tabs.Content value="list">
+  import { _axios } from '$lib/_axios';
+  import { createQuery } from '@tanstack/svelte-query';
+  import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+  import { imgUrl } from '$lib/config';
+  import * as Table from '$lib/components/ui/table';
+  import * as Tabs from '$lib/components/ui/tabs';
+  import Icon from '@iconify/svelte';
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
+	import { toast } from 'svelte-sonner';
 
-	</Tabs.Content>
-	
-</Tabs.Root>
-    <!-- Table Structure -->
-    <div class="overflow-x-auto mx-auto  w-[calc(100vw-420px)]">
-      <Table.Root>
-        <Table.Header>
-          <Table.Row>
-            <Table.Head class="w-[100px]">Sl.No</Table.Head>
-            <Table.Head>Product Name</Table.Head>
-            <Table.Head>Message</Table.Head>
-            <Table.Head class="flex items-center justify-center">Image</Table.Head>
-            <Table.Head>Created By</Table.Head>
-            <Table.Head>Created At</Table.Head>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {#if isLoading}
-            <!-- Skeleton Loader in Table Rows -->
-            {#each Array(1) as _}
-              <Table.Row>
-                
-                <Table.Cell>
-                  <Skeleton class="h-6 w-32 bg-gray-200" />
-                </Table.Cell>
-                <Table.Cell>
-                  <Skeleton class="h-6 w-64 bg-gray-200" />
-                </Table.Cell>
-                <Table.Cell class="flex items-center justify-center">
-                  <Skeleton class="w-16 h-16 rounded-lg bg-gray-200" />
-                </Table.Cell>
-                <Table.Cell>
-                  <Skeleton class="h-6 w-48 bg-gray-200" />
-                </Table.Cell>
-                <Table.Cell>
-                  <Skeleton class="h-6 w-32 bg-gray-200" />
-                </Table.Cell>
-              </Table.Row>
-            {/each}
-          {:else if demandData.length > 0}
-            <!-- Display Demand Data -->
-            {#each demandData as demand,i}
-              <Table.Row>
-                <Table.Cell>{i + 1}</Table.Cell>
-                <Table.Cell>{demand.productName}</Table.Cell>
-                <Table.Cell>{demand.message}</Table.Cell>
-                <Table.Cell class="flex items-center justify-center">
-                  <img
-                    src={imgUrl + demand.file}
-                    alt={demand.productName}
-                    class="w-16 h-16 object-contain rounded-lg"
-                  />
-                </Table.Cell>
-                <Table.Cell>
-                  {#if demand.userId}
-                    <div>
-                      <p>User: {demand.userId.username || 'N/A'}</p>
-                      <p>Mobile: {demand.userId.mobile || 'N/A'}</p>
-                    </div>
-                  {:else}
-                    <p>User: N/A</p>
-                    <p>Mobile: N/A</p>
-                  {/if}
-                </Table.Cell>
-                <Table.Cell>{new Date(demand.createdAt).toLocaleString()}</Table.Cell>
-              </Table.Row>
-            {/each}
-          {:else}
-            <!-- No Data Message -->
+  // Define the query to fetch demand data
+  const demandQuery = createQuery({
+    queryKey: ['demand'],
+    queryFn: async () => {
+      const response = await _axios.get('/demand/');
+      return response.data;
+    },
+    select: (data) => data.data,
+    retry: 1,
+    staleTime: 0,
+    enabled: true,
+  });
+
+  // Reactive variables
+  $: demandData = $demandQuery.data || [];
+  $: isLoading = $demandQuery.isLoading;
+
+  // Image Dialog control
+  let imageDialogOpen = false;
+  let currentImageUrl = '';
+
+  // Function to open the dialog with a specific image
+  function openImageDialog(imageUrl: string) {
+    currentImageUrl = imageUrl;
+    imageDialogOpen = true;
+  }
+  
+  // Function to close the dialog
+  function closeImageDialog() {
+    imageDialogOpen = false;
+  }
+  
+  // Handle click outside
+  function handleOutsideClick(event: MouseEvent) {
+    // Check if the click is outside the image
+    const target = event.target as HTMLElement;
+    if (target.classList.contains('dialog-backdrop')) {
+      closeImageDialog();
+    }
+  }
+
+  // Notification Dialog control
+  let notificationDialogOpen = false;
+  let selectedUserId = '';
+  let selectedUserName = '';
+  let selectedUserMobile = '';
+  let notificationTitle = '';
+  let notificationDescription = '';
+  let isSubmitting = false;
+
+  // Function to open notification dialog
+  function openNotificationDialog(userId: string, username: string, mobile: string) {
+    selectedUserId = userId;
+    selectedUserName = username || 'N/A';
+    selectedUserMobile = mobile || 'N/A';
+    notificationTitle = '';
+    notificationDescription = '';
+    notificationDialogOpen = true;
+  }
+
+  // Function to close notification dialog
+  function closeNotificationDialog() {
+    notificationDialogOpen = false;
+  }
+
+  // Function to handle notification form submission
+  async function handleNotificationSubmit() {
+    if (!notificationTitle || !notificationDescription) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    isSubmitting = true;
+    
+    try {
+      const response = await _axios.post('/notification/create', {
+        userId: selectedUserId,
+        title: notificationTitle,
+        description: notificationDescription,
+        type:"other"
+      });
+      
+      if (response.status === 200 || response.status === 201) {
+        toast.success('Notification sent successfully');
+        closeNotificationDialog();
+      } else {
+        toast.error('Failed to send notification');
+      }
+    } catch (error) {
+      toast.error('Error sending notification');
+      console.error('Notification error:', error);
+    } finally {
+      isSubmitting = false;
+    }
+  }
+</script>
+
+<div>
+  <Tabs.Root value="list" class="w-full p-4">
+    <Tabs.List>
+      <Tabs.Trigger value="list" class="flex items-center gap-2">
+        <Icon class="w-4 h-4" icon="tabler:table" />
+        <span>Demand List</span>
+      </Tabs.Trigger>
+    </Tabs.List>
+    <Tabs.Content value="list">
+      <!-- Table Structure -->
+      <div class="overflow-x-auto mx-auto w-[calc(100vw-420px)]">
+        <Table.Root>
+          <Table.Header>
             <Table.Row>
-              <Table.Cell colspan="5" class="text-center text-gray-500 py-4">
-                No demand data available.
-              </Table.Cell>
+              <Table.Head class="w-[100px]">Sl.No</Table.Head>
+              <Table.Head>Product Name</Table.Head>
+              <Table.Head class="flex items-center justify-center">Image</Table.Head>
+              <Table.Head>Quantity</Table.Head>
+              <Table.Head>Preferred Brand</Table.Head>
+              <Table.Head>Time Preference</Table.Head>
+              <Table.Head>Rate Preference</Table.Head>
+              <Table.Head>Message</Table.Head>
+              <Table.Head>Created By</Table.Head>
+              <Table.Head>Notify</Table.Head>
             </Table.Row>
-          {/if}
-        </Table.Body>
-      </Table.Root>
+          </Table.Header>
+          <Table.Body>
+            {#if isLoading}
+              <!-- Skeleton Loader in Table Rows -->
+              {#each Array(5) as _}
+                <Table.Row>
+                  <Table.Cell>
+                    <Skeleton class="h-6 w-32 bg-gray-200" />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Skeleton class="h-6 w-64 bg-gray-200" />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Skeleton class="h-6 w-64 bg-gray-200" />
+                  </Table.Cell>
+                  <Table.Cell class="flex items-center justify-center">
+                    <Skeleton class="w-16 h-16 rounded-lg bg-gray-200" />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Skeleton class="h-6 w-48 bg-gray-200" />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Skeleton class="h-6 w-32 bg-gray-200" />
+                  </Table.Cell>
+                </Table.Row>
+              {/each}
+            {:else if demandData.length > 0}
+              <!-- Display Demand Data -->
+              {#each demandData as demand, i}
+                <Table.Row>
+                  <Table.Cell>{i + 1}</Table.Cell>
+                  <Table.Cell>{demand.productName}</Table.Cell>
+                  <Table.Cell class="flex items-center justify-center">
+                    <img 
+                      src={imgUrl + demand.file} 
+                      alt={demand.productName} 
+                      class="w-16 h-16 object-contain rounded-lg cursor-pointer hover:opacity-80"
+                      on:click={() => openImageDialog(imgUrl + demand.file)}
+                      on:keydown={(e) => e.key === 'Enter' && openImageDialog(imgUrl + demand.file)}
+                      tabindex="0"
+                    >
+                  </Table.Cell>
+                  <Table.Cell>{demand.quantity}</Table.Cell>
+                  <Table.Cell>{demand.brandName}</Table.Cell>
+                  <Table.Cell>{demand.timePreference}</Table.Cell>
+                  <Table.Cell>{demand.ratePreference}</Table.Cell>
+                  <Table.Cell>{demand.message}</Table.Cell>
+                  
+                  <Table.Cell>
+                    {#if demand.userId}
+                      <div>
+                        <p>User: {demand.userId.username || 'N/A'}</p>
+                        <p>Mobile: {demand.userId.mobile || 'N/A'}</p>
+                        <p>
+                          {new Date(demand.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    {:else}
+                      <p>User: N/A</p>
+                      <p>Mobile: N/A</p>
+                      <p>
+                        {new Date(demand.createdAt).toLocaleString()}
+                      </p>
+                    {/if}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <button 
+                      class="text-blue-600 hover:text-blue-800 transition-colors"
+                      on:click={() => demand.userId && openNotificationDialog(
+                        demand.userId._id,
+                        demand.userId.username,
+                        demand.userId.mobile
+                      )}
+                    >
+                      <Icon class="w-6 h-6" icon="mdi:bell-check" />
+                    </button>
+                  </Table.Cell>
+                </Table.Row>
+              {/each}
+            {:else}
+              <!-- No Data Message -->
+              <Table.Row>
+                <Table.Cell colspan="6" class="text-center text-gray-500 py-4">
+                  No demand data available.
+                </Table.Cell>
+              </Table.Row>
+            {/if}
+          </Table.Body>
+        </Table.Root>
+      </div>
+    </Tabs.Content>
+  </Tabs.Root>
+</div>
+
+<!-- Custom Dialog for Image Preview -->
+{#if imageDialogOpen}
+  <div 
+    class="fixed inset-0 z-50 flex items-center justify-center dialog-backdrop bg-black bg-opacity-60" 
+    on:click={handleOutsideClick}
+  >
+    <div class="relative max-w-[80%] max-h-[80vh] rounded-lg overflow-hidden shadow-xl">
+      <button 
+        class="absolute top-2 right-2 z-10 bg-gray-800 hover:bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center"
+        on:click={closeImageDialog}
+      >
+        <Icon icon="mdi:close" class="w-5 h-5" />
+      </button>
+      
+      <div class="flex justify-center items-center p-2">
+        <img 
+          src={currentImageUrl} 
+          alt="Demand Image" 
+          class="max-w-full max-h-[70vh] object-contain rounded-lg"
+        />
+      </div>
     </div>
   </div>
-  
+{/if}
+
+<!-- Notification Dialog -->
+<Dialog.Root bind:open={notificationDialogOpen}>
+  <Dialog.Content class="sm:max-w-md">
+    <Dialog.Header>
+      <Dialog.Title>Send Notification</Dialog.Title>
+      <Dialog.Description>
+        Send a notification to the user regarding their demand
+      </Dialog.Description>
+    </Dialog.Header>
+    
+    <form on:submit|preventDefault={handleNotificationSubmit} class="grid gap-4 py-4">
+      
+      <div class="grid grid-cols-4 items-center gap-4">
+        <label for="title" class="text-right font-medium">Notification Title:</label>
+        <input 
+          id="title" 
+          type="text" 
+          bind:value={notificationTitle} 
+          class="col-span-3 h-10 rounded-md border bg-white focus:ring-0 focus:outline-none border-gray-300 px-3 py-2"
+          placeholder="Enter notification title"
+          required
+        />
+      </div>
+      
+      <div class="grid grid-cols-4 items-center gap-4">
+        <label for="description" class="text-right font-medium">Notification Content:</label>
+        <textarea 
+          id="description" 
+          bind:value={notificationDescription} 
+          class="col-span-3 h-24 rounded-md border bg-white border-gray-300  focus:ring-0 focus:outline-none px-3 py-2"
+          placeholder="Enter notification description"
+          required
+        ></textarea>
+      </div>
+      
+      <Dialog.Footer>
+        <div class="flex justify-end gap-2">
+          <button 
+            type="button" 
+            class="inline-flex h-10 items-center justify-center rounded-md border  border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            on:click={closeNotificationDialog}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            class="inline-flex h-10 items-center justify-center rounded-md  bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Sending...' : 'Notify'}
+          </button>
+        </div>
+      </Dialog.Footer>
+    </form>
+  </Dialog.Content>
+</Dialog.Root>

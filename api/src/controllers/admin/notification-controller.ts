@@ -9,42 +9,44 @@ const notificationController = new Elysia({
     tags: ["Admin - Notifications"],
   },
 })
-  .post(
-    "/create",
-    async ({ body }) => {
-      try {
-        const { title, description, type } = body;
+.post(
+  "/create",
+  async ({ body }) => {
+    try {
+      const { title, description, type, userId } = body;
 
-        const notification = await NotificationModel.create({
-          title,
-          description,
-          type,
-        });
+      const notification = await NotificationModel.create({
+        title,
+        description,
+        type,
+        userId,
+      });
 
-        return {
-          message: "Notification Created Successfully",
-          data: notification,
-          status: "success",
-        };
-      } catch (error) {
-        console.error(error);
-        return {
-          error,
-          status: "error",
-        };
-      }
-    },
-    {
-      body: t.Object({
-        title: t.String(),
-        description: t.String(),
-        type: t.String(),
-      }),
-      detail: {
-        summary: "Create a new notification",
-      },
+      return {
+        message: "Notification Created Successfully",
+        data: notification,
+        status: "success",
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        error,
+        status: "error",
+      };
     }
-  )
+  },
+  {
+    body: t.Object({
+      title: t.String(),
+      description: t.String(),
+      type: t.String(),
+      userId: t.String(), 
+    }),
+    detail: {
+      summary: "Create a new notification",
+    },
+  }
+)
   .get(
     "/all",
     async ({ query }) => {

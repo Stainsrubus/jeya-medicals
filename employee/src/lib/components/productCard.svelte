@@ -12,6 +12,7 @@
   export let discount: number | null = null;
   export let name: string;
   export let MRP: number;
+  export let available: boolean = true;
   export let strikePrice: number;
   export let id: string | number;
   export let favorite: boolean = false; // New prop to track favorite status
@@ -22,22 +23,23 @@ export let offerType:string | null = null;
 
   // Handle click to navigate to product details page or combo offer page
   function handleClick() {
+    if (!available) return;
+
     if (comboOffer) {
       goto(`/comboOffers/${id}`);
     } else {
-      if(offerType==='negotiation'||offerType==='discount'||offerType==='onMRP'){
-      goto(`/Products/${id}?offerType=${offerType}`);
+      if (offerType === 'negotiation' || offerType === 'discount' || offerType === 'onMRP') {
+        goto(`/Products/${id}?offerType=${offerType}`);
+      } else {
+        goto(`/Products/${id}`);
       }
-    else{
-      goto(`/Products/${id}`);
     }
-  }
   }
 
   // Handle favorite toggle
   async function handleFavorite() {
-    const token = localStorage.getItem('token');
-    if (!$writableGlobalStore.isLogedIn) {
+    const token = localStorage.getItem('empToken');
+    if (!$writableGlobalStore.isLoggedIn) {
       toast.error('Please log in to add to favorites');
       goto('/login');
       return;
@@ -78,8 +80,8 @@ export let offerType:string | null = null;
 
   const addToCartMutation = createMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token || !$writableGlobalStore.isLogedIn) {
+      const token = localStorage.getItem('empToken');
+      if (!token || !$writableGlobalStore.isLoggedIn) {
         throw new Error('Please log in to add to cart');
       }
 
@@ -127,8 +129,9 @@ export let offerType:string | null = null;
 </script>
 
 <div
-  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40  transition-transform duration-200 cursor-pointer group"
+  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-full  transition-transform duration-200 cursor-pointer group"
   on:click={handleClick}
+  style="{available ? 'cursor-pointer' : 'cursor-not-allowed'}"
   role="button"
   tabindex="0"
   on:keydown={(e) => e.key === 'Enter' && handleClick()}
@@ -150,12 +153,13 @@ export let offerType:string | null = null;
       alt={name}
     />
     <!-- Overlay on hover -->
+    {#if available}
     <div
       class="absolute inset-0 bg-black bg-opacity-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex justify-center items-center gap-4"
     >
       <!-- Heart Icon -->
       <!-- <button
-        class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+        class="bg-white h-10 w-10 flex justify-center items-center rounded-full transition-all hover:scale-110 duration-200"
         on:click|stopPropagation={handleFavorite}
         aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
       >
@@ -167,13 +171,14 @@ export let offerType:string | null = null;
       </button> -->
       <!-- Cart Icon -->
       <button
-        class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+        class="bg-white h-10 w-10 flex justify-center items-center rounded-full transition-all hover:scale-110 duration-200"
         on:click|stopPropagation={handleAddToCart}
         aria-label="Add to cart"
       >
         <img class="p-2" src="/svg/cart.svg" alt="Cart" />
       </button>
     </div>
+  {/if}
   </div>
 
   <!-- Product Details -->
@@ -184,7 +189,11 @@ export let offerType:string | null = null;
     </h3>
 
  
-
+    {#if !available}
+    <div class="absolute inset-0 bg-black/60 flex justify-center items-center text-white text-lg font-medium">
+      Out of Stock
+    </div>
+  {/if}
    
   </div>
 </div>

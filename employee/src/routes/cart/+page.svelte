@@ -23,6 +23,7 @@
     gst: number;
     discount: number;
     onMRP: number;
+    stock: number; // Add stock property
   }
 
   interface CartItem {
@@ -118,64 +119,160 @@
   $: isLoggedIn = $writableGlobalStore.isLoggedIn;
 
   let showShimmer = true;
-
+let isOrdering=false;
   onMount(() => {
     showShimmer = true;
     const timer = setTimeout(() => {
       showShimmer = false;
-    }, 1000);
+    }, 1000); // 1-second delay
     return () => clearTimeout(timer);
   });
 
-  const placeOrderMutation = createMutation({
-    mutationFn: async () => {
-      const token = localStorage.getItem('empToken');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-      const selectedUserData = $usersQuery.data?.pages
-      .flatMap((page: { users: any; }) => page.users)
-      .find((u: { username: string; }) => u.username === selectedUser);
+  async function handleOrderNow() {
+  try {
+    isOrdering=true
+    // Validate stock before placing the order
+    await validateStock();
 
+    // Proceed with order creation only if stock checks pass
+    $placeOrderMutation.mutate();
+  } catch (error: any) {
+    isOrdering=false
+    // Handle stock validation errors
+    toast.error(error.message || 'Failed to place order');
+  }
+}
+async function validateStock() {
+  // Refetch cart to ensure latest stock data
+  await $cartQuery.refetch();
+
+  // Check for out-of-stock items (stock <= 0)
+  const outOfStockItems = cartItems.filter(
+    item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
+  );
+
+  if (outOfStockItems.length > 0) {
+    const outOfStockNames = outOfStockItems
+      .map(item => item.productId.productName)
+      .join(', ');
+      throw new Error(
+        `${outOfStockNames} are Out of Stock. Please remove to proceed.`
+      );
+  }
+  isOrdering=false
+  // Check for insufficient stock
+  const insufficientStockItems = cartItems.filter(
+    item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
+  );
+
+  if (insufficientStockItems.length > 0) {
+    const itemDetails = insufficientStockItems.map(item =>
+      `Only ${item.productId.stock} units of ${item.productId.productName} are available`
+    ).join(', ');
+
+    throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
+  }
+  isOrdering=false
+}
+
+
+  const placeOrderMutation = createMutation({
+  mutationFn: async () => {
+    const token = localStorage.getItem('empToken');
+    if (!token) {
+      throw new Error('No token found. Please log in.');
+    }
+    
+    const selectedUserData = $usersQuery.data?.pages
+      .flatMap((page) => page.users)
+      .find((u) => u.username === selectedUser);
+    
     if (!selectedUserData) {
       throw new Error('No user selected. Please select a user.');
     }
-
-const userId=selectedUserData._id
-    // Use editedAddress if modified, otherwise use selectedUserData's address
+    
+    const userId = selectedUserData._id;
+    
     const address = {
       flatNo: editedAddress.flatNo || selectedUserData.address.flatNo,
       area: editedAddress.area || selectedUserData.address.area,
       nearbyPlaces: editedAddress.nearbyPlaces || selectedUserData.address.nearbyPlaces,
     };
-
-    if (!address.flatNo || !address.area || !address.nearbyPlaces) {
+    
+    if (!address.flatNo || !address.area) {
       throw new Error('Complete address details are required.');
     }
-
+    
+    // Refetch cart to ensure latest stock data
+    await $cartQuery.refetch();
+    
+    // Check for out-of-stock items (stock <= 0)
+    const outOfStockItems = cartItems.filter(
+      item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
+    );
+    
+    if (outOfStockItems.length > 0) {
+      const outOfStockNames = outOfStockItems
+        .map(item => item.productId.productName)
+        .join(', ');
+      throw new Error(
+        `${outOfStockNames} are Out of Stock. Please remove to proceed.`
+      );
+    }
+    
+    // Check for insufficient stock
+    const insufficientStockItems = cartItems.filter(
+      item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
+    );
+    
+    if (insufficientStockItems.length > 0) {
+      const itemDetails = insufficientStockItems.map(item => 
+        `Only ${item.productId.stock} units of ${item.productId.productName} are available`
+      ).join(', ');
+      
+      throw new Error(`Insufficient stock: ${itemDetails}. Please modify the quantities and try again.`);
+    }
+    
+    try {
+      // Proceed with order creation only if stock checks pass
       const response = await _axios.post(
         '/orders/order',
-        { address ,userId},
+        { address, userId },
         {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         }
       );
-
+      isOrdering=false;
       if (!response.data.status) {
         throw new Error(response.data.message || 'Failed to place order');
       }
+      
       return response.data;
-    },
-    onSuccess: (data: { order: { _id: any; }; }) => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cartCount'] });
-      toast.success('Order placed successfully!');
-      goto(`/order-confirmation/${data.order._id}`);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to place order');
-    },
-  });
+    } catch (error:any) {
+      isOrdering=false
+      // Handle axios errors and extract response data if available
+      if (error.response && error.response.data) {
+        throw new Error(error.response.data.message || 'Server error occurred');
+      }
+      throw error; // Re-throw if it's not an axios error or doesn't have response data
+    }
+  },
+  onSuccess: (data) => {
+    queryClient.invalidateQueries({ queryKey: ['cart'] });
+    queryClient.invalidateQueries({ queryKey: ['cartCount'] });
+    toast.success('Order placed successfully!');
+    goto(`/order-confirmation/${data.order._id}`);
+  },
+  onError: (error:any) => {
+    if (error.response && error.response.data && error.response.data.message) {
+    toast.error(error.response.data.message);
+  } 
+  // Fall back to error object's message or default message
+  else {
+    toast.error(error.message || 'Failed to place order');
+  }
+  },
+});
 
   const addressesQuery = createQuery<Address[]>({
     queryKey: ['addresses'],
@@ -260,7 +357,7 @@ const userId=selectedUserData._id
     },
     retry: 1,
     staleTime: 0,
-    enabled: isLoggedIn,
+    enabled: true,
   });
 
   const updateQuantityMutation = createMutation({
@@ -304,7 +401,7 @@ const userId=selectedUserData._id
       });
 
       if (!response.data.status) {
-         throw new Error(response.data.message || 'Failed to remove product');
+        throw new Error(response.data.message || 'Failed to remove product');
       }
       return response.data;
     },
@@ -377,13 +474,6 @@ const userId=selectedUserData._id
         throw new Error('Phone number must be 10 digits');
       }
 
-      // if (userType === 'firm') {
-      //   const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-      //   if (!gstinRegex.test(formData.gstin)) {
-      //     throw new Error('Invalid GSTIN format');
-      //   }
-      // }
-
       const payload = {
         mobile: parseInt(formData.phone),
         username: formData.name.toLowerCase().replace(/\s+/g, ''),
@@ -439,7 +529,7 @@ const userId=selectedUserData._id
 
       const response = await _axios.patch(
         `/user/updateAddress`,
-        { address ,userId},
+        { address, userId },
         {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         }
@@ -460,7 +550,6 @@ const userId=selectedUserData._id
     },
   });
 
-
   $: cartData = $cartQuery.data;
   $: cartItems = showShimmer ? [] : (cartData?.cart?.products || []);
   $: isCartLoading = showShimmer || $cartQuery.isLoading;
@@ -480,6 +569,10 @@ const userId=selectedUserData._id
 
     if (item) {
       const newQuantity = Math.max(1, item.quantity + change);
+      if (newQuantity > item.productId.stock) {
+        toast.error(`Only ${item.productId.stock} units of ${item.productId.productName} are available in stock. Please modify the quantity and proceed.`);
+        return;
+      }
       item.quantity = newQuantity;
       item.totalAmount = item.price * newQuantity;
       $updateQuantityMutation.mutate({ productId, quantity: newQuantity });
@@ -530,9 +623,8 @@ const userId=selectedUserData._id
   function handleSearch(query: string) {
     debouncedSearch(query);
   }
-function handleOrderNow(){
-  $placeOrderMutation.mutate()
-}
+
+
   function openDrawer() {
     isDrawerOpen = true;
   }
@@ -635,7 +727,7 @@ function handleOrderNow(){
   });
 </script>
 
-<section class="bg-[#F2F4F5] py-4 px-4 md:px-6 lg:px-8 mb-10">
+<section class="bg-[#F2F4F5] py-4 px-4 md:px-6 lg:px-8 lg:mb-10 mb-4">
   <Breadcrumb.Root>
     <Breadcrumb.List>
       <Breadcrumb.Item>
@@ -651,35 +743,163 @@ function handleOrderNow(){
 
 {#if isLoggedIn}
 <div class="!flex !justify-center !items-center">
-  <div class="flex lg:flex-row flex-col lg:w-full md:w-[65%] justify-between lg:px-20 px-4 md:px-6 gap-5">
-    <!-- Mobile Address Section -->
-    <div class="border bg-white max-w-2xl lg:hidden flex justify-between rounded-lg shadow-lg p-3">
-      <div>
-        <h3 class="text-base text-[#4F585E] font-medium mb-3">Deliver To</h3>
-        {#if isAddressesLoading}
+  <div class="flex lg:flex-row flex-col lg:w-full md:w-[65%] w-full justify-between lg:px-20 px-4 md:px-6 gap-5">
+   <!--Mobile  User Selection Section -->
+   <div class="bg-white mb-1 relative lg:hidden flex">
+    {#if selectedUser}
+      <!-- Selected User Display -->
+      <div class="border w-full bg-white rounded-lg shadow-lg p-4">
+        <div class="flex justify-between items-start">
           <div class="space-y-2">
-            <Skeleton class="h-6 w-full" />
-            <Skeleton class="h-6 w-3/4" />
+            {#each $usersQuery.data?.pages.flatMap((page: { users: any; }) => page.users) as user}
+              {#if user.username === selectedUser}
+                <div>
+                  <p class="text-lg font-semibold text-[#30363C]">{user.username}</p>
+                  <p class="text-base text-[#4F585E]">☎ {user.mobile}</p>
+                  {#if user.type === 'FirmUser'}
+                    <p class="text-base text-[#4F585E]">Hospital/Medical Name: {user.HospitalMedicalName || 'N/A'}</p>
+                    <p class="text-base text-[#4F585E]">GSTIN: {user.GSTIN || 'N/A'}</p>
+                  {/if}
+                </div>
+                <!-- Address Section -->
+                <div class="mt-4">
+                  <div class="flex justify-between items-center">
+                    <h4 class="text-base font-medium text-[#4F585E]">Address</h4>
+                    <button
+                      on:click={() => {
+                        if (isEditingAddress) {
+                          $updateUserAddressMutation.mutate({
+                            userId: user._id,
+                            address: editedAddress
+                          });
+                        } else {
+                          isEditingAddress = true;
+                        }
+                      }}
+                      class="text-[#01A0E2] text-sm font-medium"
+                      disabled={$updateUserAddressMutation.isPending}
+                    >
+                      {isEditingAddress ? ($updateUserAddressMutation.isPending ? 'Saving...' : 'Save') : 'Edit'}
+                    </button>
+                  </div>
+                  {#if isEditingAddress}
+                    <div class="gap-5 items-center flex flex-wrap mt-2">
+                      <div>
+                        <label class="block text-sm text-[#4F585E] mb-1">Area</label>
+                        <input
+                          type="text"
+                          bind:value={editedAddress.area}
+                          class="w-full border border-gray-300 rounded-lg p-2 text-base text-[#4F585E] focus:outline-none focus:ring-2 focus:ring-[#01A0E2]"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-sm text-[#4F585E] mb-1">Flat Number</label>
+                        <input
+                          type="text"
+                          bind:value={editedAddress.flatNo}
+                          class="w-full border border-gray-300 rounded-lg p-2 text-base text-[#4F585E] focus:outline-none focus:ring-2 focus:ring-[#01A0E2]"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-sm text-[#4F585E] mb-1">Nearby Landmark</label>
+                        <input
+                          type="text"
+                          bind:value={editedAddress.nearbyPlaces}
+                          class="w-full border border-gray-300 rounded-lg p-2 text-base text-[#4F585E] focus:outline-none focus:ring-2 focus:ring-[#01A0E2]"
+                        />
+                      </div>
+                    </div>
+                  {:else}
+                    <p class="text-base text-[#4F585E] mt-2">
+                      {user.address.flatNo}, {user.address.area}, {user.address.nearbyPlaces}
+                    </p>
+                  {/if}
+                </div>
+              {/if}
+            {/each}
           </div>
-        {:else if $addressesQuery.error && !showShimmer}
-          <p class="text-red-500 text-sm">Error fetching address: {$addressesQuery.error.message}</p>
-        {:else if !primaryAddress && !showShimmer}
-          <p class="text-gray-500 text-sm">No address available</p>
-        {:else if primaryAddress}
-          <p class="text-lg text-[#30363C] font-semibold mb-2">{primaryAddress.flatHouseno}, {primaryAddress.area}, {primaryAddress.landmark}</p>
-          <p class="text-base text-[#4F585E] mb-1.25">☎ {primaryAddress.receiverMobile} - {primaryAddress.receiverName}</p>
-        {/if}
+          <button
+            on:click={() => {
+              selectedUser = '';
+              searchQuery = '';
+              isEditingAddress = false;
+              $usersQuery.refetch();
+            }}
+            class="text-red-500"
+          >
+            <Icon icon="mdi:cancel-octagon-outline" class="w-5 h-5" />
+          </button>
+        </div>
       </div>
-      <button
-        on:click={handleAddressClick}
-        class="h-fit bg-[#01A0E2] text-white px-3 py-1.5 rounded-md cursor-pointer lg:text-lg text-base whitespace-nowrap font-medium"
-      >
-        {primaryAddress && !showShimmer ? 'Edit address' : 'Add address'}
-      </button>
-    </div>
+    {:else}
+      <!-- Search Box -->
+      <div class="relative w-full h-12">
+        <input
+          type="text"
+          placeholder="Search Users"
+          class="w-full absolute top-1/2 border transform h-14 -translate-y-1/2 text-base md:pl-16 pl-10 rounded-full focus:outline-none focus:ring-0 text-gray-700"
+          bind:value={searchQuery}
+          on:input={(e: { currentTarget: { value: any; }; }) => debouncedSearch(e.currentTarget.value)}
+          on:click|stopPropagation={openDrawer}
+          bind:this={inputElement}
+        />
+        <img
+          class="absolute left-1 md:w-[45px] w-[32px] top-1/2 transform -translate-y-1/2 text-gray-400"
+          src="/svg/search.svg"
+          alt="search"
+        />
+      </div>
+      {#if isDrawerOpen}
+        <div
+          class="absolute top-12  left-0 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-[300px] overflow-y-auto"
+          role="dialog"
+          aria-label="User search results"
+          bind:this={drawerElement}
+          bind:this={scrollContainer}
+        >
+          <div class="p-4">
+            {#if $usersQuery.isLoading}
+              <p class="text-base text-[#4F585E] text-center py-4">Loading users...</p>
+            {:else if $usersQuery.error}
+              <p class="text-base text-red-500 text-center py-4">Error: {$usersQuery.error.message}</p>
+            {:else if searchResults.length > 0}
+              {#each searchResults as result}
+                <button
+                  class="w-full text-left px-4 py-2 text-base text-[#30363C] hover:bg-[#F3FBFF] rounded-md"
+                  on:click={() => selectUser(result)}
+                  on:keydown={(e: { key: string; }) => {
+                    if (e.key === 'Enter' || e.key === ' ') selectUser(result);
+                  }}
+                  role="option"
+                  aria-selected={selectedUser === result}
+                >
+                  {result}
+                </button>
+              {/each}
+              {#if $usersQuery.isFetchingNextPage}
+                <p class="text-base text-[#4F585E] text-center py-4">Loading more users...</p>
+              {/if}
+            {:else}
+              <p class="text-base text-[#4F585E] text-center py-4">No users found</p>
+            {/if}
+          </div>
+          <button
+            class="w-full text-center flex items-center justify-center gap-2 px-4 py-2 text-lg text-[#01A0E2] border-t border-gray-200 hover:bg-gray-100"
+            on:click|stopPropagation={openDialog}
+            on:keydown={(e: { key: string; }) => {
+              if (e.key === 'Enter' || e.key === ' ') openDialog();
+            }}
+          >
+            <Icon icon="mdi:add-to-photos" />
+            Add User
+          </button>
+        </div>
+      {/if}
+    {/if}
+  </div>
 
     <!-- Mobile Cart Items Section -->
-    <div class="cart-items max-w-2xl lg:hidden block bg-white rounded-lg shadow-lg p-2 h-fit border">
+    <div class="cart-items max-w-3xl lg:hidden block bg-white rounded-lg shadow-lg p-2 h-fit border">
       {#if isCartLoading}
         <div class="space-y-4 py-4">
           {#each Array(3) as _}
@@ -706,39 +926,62 @@ function handleOrderNow(){
         {#each cartItems as item}
           <div class="cart-item gap-5 grid grid-cols-3 items-center py-3.5 border-b border-gray-300">
             <div class="flex gap-4 col-span-2 items-center">
-              <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED]">
+              <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED] relative">
                 <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
                   src={imgUrl + item.productId.images[0] || 'placeholder.png'}
                   alt="Product Image"
                   class="p-3"
                 />
+                {#if item.productId.stock === 0}
+                  <div class="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                    <span class="text-white text-sm font-bold text-center">Out of Stock</span>
+                  </div>
+                {/if}
               </div>
               <div class="item-details flex-1">
                 <p class="text-[#30363C] font-bold text-lg mb-0.5">{item.productId.productName}</p>
-                <p><span class="line-through">₹{item.productId.strikePrice}</span> <span class="text-[#249B3E]">₹{item.price}</span></p>
+                <!-- <p>
+                  <span class={`${item.productId.stock === 0 ? 'text-[#30363c6d] line-through' : ''}`}>
+                    ₹{item.productId.strikePrice}
+                  </span>
+                  <span class={`${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#249B3E]'}`}>
+                    ₹{item.price}
+                  </span>
+                </p> -->
               </div>
             </div>
-            <div class="item-total text-center font-semibold text-base text-[#4F585E]">
-              ₹{item.totalAmount.toFixed(2)}
-              <div class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
+            <div class={`item-total text-center font-semibold text-base ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#30363C]'}`}>
+              <!-- ₹{item.totalAmount.toFixed(2)} -->
+              <div
+                class={`quantity flex items-center justify-between border rounded-md ${item.productId.stock === 0 ? 'bg-[#e9e9eace] border-[#30363c6d]' : 'bg-[#F3FBFF] border-[#0EA5E9]'}`}
+              >
                 <button
                   on:click={() => updateQuantity(item.productId._id, -1)}
-                  class="w-7.5 h-7.5 pl-2 border-gray-300 cursor-pointer text-base flex items-center justify-center text-[#01A0E2]"
-                  disabled={$updateQuantityMutation.isPending}
+                  class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center ${item.quantity === 1 || item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
+                  disabled={$updateQuantityMutation.isPending || item.quantity === 1 || item.productId.stock === 0}
                 >
                   -
                 </button>
-                <span class="w-7.5 text-center text-sm text-[#4F585E]">{item.quantity}</span>
+                <span class={`w-7.5 text-center text-sm ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#4F585E]'}`}>
+                  {item.quantity}
+                </span>
                 <button
                   on:click={() => updateQuantity(item.productId._id, 1)}
-                  class="w-7.5 h-7.5 pr-2 border-gray-300 cursor-pointer text-base flex items-center justify-center text-[#01A0E2]"
-                  disabled={$updateQuantityMutation.isPending}
+                  class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center ${item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
+                  disabled={$updateQuantityMutation.isPending || item.productId.stock === 0}
                 >
                   +
                 </button>
               </div>
             </div>
+            <button
+              on:click={() => removeProduct(item.productId._id)}
+              class="text-red-500 cursor-pointer absolute top-0 right-0"
+              disabled={$removeProductMutation.isPending}
+            >
+              <Icon icon="mdi:close-circle" class="w-5 h-5" />
+            </button>
           </div>
         {/each}
       {/if}
@@ -746,7 +989,7 @@ function handleOrderNow(){
 
     <!-- Desktop Cart Items Section -->
     <div class="cart-items hidden lg:block bg-white rounded-lg shadow-lg p-2 lg:w-[65%] h-fit border">
-      <div class="cart-header flex items-center justify-between rounded-sm text-sm py-2 text-[#475156] border border-gray-300 bg-[#F2F4F5]">
+      <div class="cart-header flex items-center justify-between text-sm py-2 text-[#475156] border border-gray-300 bg-[#F2F4F5]">
         <span style="width: 70%; text-align: left; padding-left: 20px;">PRODUCT</span>
         <span style="width: 20%; text-align: center;">QUANTITY</span>
         <span style="width: 10%; text-align: center;"></span>
@@ -759,6 +1002,8 @@ function handleOrderNow(){
                 <Skeleton class="w-12 h-12" />
                 <Skeleton class="h-6 w-3/4" />
               </div>
+              <Skeleton style="width: 17%;" class="h-6" />
+              <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 17%;" class="h-6" />
               <Skeleton style="width: 7%;" class="h-6" />
@@ -774,33 +1019,47 @@ function handleOrderNow(){
         </div>
       {:else}
         {#each cartItems as item}
-          <div class="cart-item flex items-center justify-between py-3.5 border-b border-gray-300">
+          <div class="cart-item py-3.5 flex items-center border-b border-gray-300">
             <div style="width: 70%;" class="flex gap-4 items-center">
-              <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED]">
+              <div class="w-20 h-20 rounded-lg mr-3.75 bg-[#F5F5F5] border-[#EDEDED] relative">
                 <!-- svelte-ignore a11y_img_redundant_alt -->
                 <img
                   src={imgUrl + item.productId.images[0] || 'placeholder.png'}
                   alt="Product Image"
                   class="p-3"
                 />
+                {#if item.productId.stock === 0}
+                  <div class="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                    <span class="text-white text-sm font-bold text-center">Out of Stock</span>
+                  </div>
+                {/if}
               </div>
               <div class="item-details flex-1">
-                <p class="text-[#30363C] font-bold text-lg mb-0.5">{item.productId.productName}</p>
+                <p on:click={()=>{
+                  goto(`/Products/${item.productId._id}`)
+                }} class="text-[#30363C] cursor-pointer hover:text-[#0EA5E9] hover:underline font-bold text-lg mb-0.5">{item.productId.productName}</p>
               </div>
             </div>
-            <div style="width: 20%;" class="quantity flex items-center justify-between border rounded-md bg-[#F3FBFF] border-[#0EA5E9]">
+           
+        
+            <div
+              style="width: 20%;"
+              class={`quantity flex items-center justify-between border rounded-md ${item.productId.stock === 0 ? 'bg-[#e9e9eace] border-[#30363c6d]' : 'bg-[#F3FBFF] border-[#0EA5E9]'}`}
+            >
               <button
                 on:click={() => updateQuantity(item.productId._id, -1)}
-                class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center ${item.quantity === 1 ? 'text-[#019ee27a] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
-                disabled={$updateQuantityMutation.isPending || item.quantity === 1}
+                class={`w-7.5 h-7.5 pl-2 border-gray-300 text-base flex items-center justify-center ${item.quantity === 1 || item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
+                disabled={$updateQuantityMutation.isPending || item.quantity === 1 || item.productId.stock === 0}
               >
                 -
               </button>
-              <span class="w-7.5 text-center text-sm text-[#4F585E]">{item.quantity}</span>
+              <span class={`w-7.5 text-center text-sm ${item.productId.stock === 0 ? 'text-[#30363c6d]' : 'text-[#4F585E]'}`}>
+                {item.quantity}
+              </span>
               <button
                 on:click={() => updateQuantity(item.productId._id, 1)}
-                class="w-7.5 h-7.5 pr-2 border-gray-300 cursor-pointer text-base flex items-center justify-center text-[#01A0E2]"
-                disabled={$updateQuantityMutation.isPending}
+                class={`w-7.5 h-7.5 pr-2 border-gray-300 text-base flex items-center justify-center ${item.productId.stock === 0 ? 'text-[#30363c6d] cursor-not-allowed' : 'text-[#01A0E2] cursor-pointer'}`}
+                disabled={$updateQuantityMutation.isPending || item.productId.stock === 0}
               >
                 +
               </button>
@@ -820,12 +1079,12 @@ function handleOrderNow(){
     </div>
 
     <!-- Billing Section -->
-    <div class="billing lg:w-[35%] max-w-2xl">
+    <div class="billing lg:w-[35%] md:max-w-2xl max-w-3xl">
       <!-- User Selection Section -->
-      <div class="bg-white mb-5 relative">
+      <div class="bg-white mb-5 relative hidden lg:flex">
         {#if selectedUser}
           <!-- Selected User Display -->
-          <div class="border bg-white rounded-lg shadow-lg p-4">
+          <div class="border bg-white rounded-lg w-full shadow-lg p-4">
             <div class="flex justify-between items-start">
               <div class="space-y-2">
                 {#each $usersQuery.data?.pages.flatMap((page: { users: any; }) => page.users) as user}
@@ -860,7 +1119,7 @@ function handleOrderNow(){
                         </button>
                       </div>
                       {#if isEditingAddress}
-                        <div class=" gap-5 items-center  flex  flex-wrap mt-2">
+                        <div class="gap-5 items-center flex flex-wrap mt-2">
                           <div>
                             <label class="block text-sm text-[#4F585E] mb-1">Area</label>
                             <input
@@ -1131,10 +1390,18 @@ function handleOrderNow(){
       {/if}
 
       <!-- Desktop Address Section -->
-      <div class="border hidden bg-white lg:flex justify-between rounded-lg shadow-lg p-3">
-      <div on:click={()=>{$placeOrderMutation.mutate()}} class="bg-[#01A0E2] w-full text-center py-2  rounded-md text-white font-medium  lg:text-lg md:text-md text-sm">
-        Order Now
-      </div>
+      <div class="border  bg-white  justify-between rounded-lg shadow-lg p-3">
+        <button 
+        disabled={isOrdering||$placeOrderMutation.isPending||cartItems.length===0 }
+        on:click={handleOrderNow} 
+        class="bg-[#01A0E2] w-full text-center py-2 rounded-md text-white font-medium lg:text-lg md:text-md text-sm">
+          {#if isOrdering||$placeOrderMutation.isPending}
+          Processing...
+        {:else}
+          ORDER NOW
+        {/if}
+      </button>
+        
       </div>
     </div>
   </div>

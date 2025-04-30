@@ -130,7 +130,7 @@
 </script>
 
 <div
-  class="relative bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-40 transition-transform duration-200"
+  class="relative group bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-full transition-transform duration-200"
   style="{available ? 'cursor-pointer' : 'cursor-not-allowed'}"
   on:click={handleClick}
   role="button"
@@ -147,7 +147,7 @@
   {/if}
 
   <!-- Product Image with Overlay and Icons -->
-  <div class="relative md:h-48 h-32 bg-gray-100 flex justify-center items-center">
+  <div class="relative md:h-48 h-32 bg-gray-100 flex justify-center items-center ">
     <img
       class="object-cover max-h-full max-w-full"
       src={imgUrl + image}
@@ -160,7 +160,7 @@
       >
         <!-- Heart Icon -->
         <button
-          class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+          class="bg-white h-10 w-10 flex justify-center items-center rounded-full transition-all hover:scale-110 duration-200"
           on:click|stopPropagation={handleFavorite}
           aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
         >
@@ -172,7 +172,7 @@
         </button>
         <!-- Cart Icon -->
         <button
-          class="bg-white h-10 w-10 flex justify-center rounded-full transition-all hover:scale-110 duration-200"
+          class="bg-white h-10 w-10 flex justify-center items-center rounded-full transition-all hover:scale-110 duration-200"
           on:click|stopPropagation={handleAddToCart}
           aria-label="Add to cart"
         >

@@ -199,7 +199,7 @@
 					type="single"
 					bind:value={selectedStatus}
 					onValueChange={updateOrderStatus}
-					disabled={['cancelled', 'delivered'].includes(order.status)}
+					disabled={['cancelled', 'delivered','rejected'].includes(order.status)}
 				>
 					<Select.Trigger class="w-[180px]">
 						<span class="capitalize">{selectedStatus}</span>

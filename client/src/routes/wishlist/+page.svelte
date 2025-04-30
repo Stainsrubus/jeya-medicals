@@ -7,11 +7,12 @@
   import * as Breadcrumb from "$lib/components/ui/breadcrumb";
   import Footer from '$lib/components/footer.svelte';
   import { writableGlobalStore } from '$lib/stores/global-store';
-  import { tick } from 'svelte';
+  import { tick, onMount } from 'svelte';
   import { Slider } from "$lib/components/ui/slider/index.js";
-	import Icon from '@iconify/svelte';
-	import { goto } from '$app/navigation';
+  import Icon from '@iconify/svelte';
+  import { goto } from '$app/navigation';
 
+  // ... (Interfaces remain unchanged)
   interface Category {
     _id: string;
     name: string;
@@ -23,6 +24,7 @@
   }
 
   interface Product {
+    stock: number;
     id: string | number;
     name: string;
     image: string;
@@ -51,14 +53,49 @@
     message: string;
   }
 
-  $: isLoggedIn = $writableGlobalStore.isLogedIn;
+  // Corrected typo: isLoggedIn instead of isLogedIn
+  $: isLoggedIn = $writableGlobalStore.isLoggedIn;
 
   let searchTerm = '';
   let selectedCategoryIds: string[] = [];
   let selectedBrandIds: string[] = [];
   let priceRange = [0, 10000];
+  let isMobileSidebarOpen = false;
+  let isDesktopFilterOpen = false;
+  let desktopFilterElement: HTMLDivElement | null = null;
+  let toggleTimeout: NodeJS.Timeout | null = null;
 
   let debounceTimeout: any;
+
+  onMount(() => {
+    // Initialize isLoggedIn based on token
+    const token = localStorage.getItem('token');
+    if (token && !$writableGlobalStore.isLoggedIn) {
+      writableGlobalStore.update((store) => ({ ...store, isLoggedIn: true }));
+    }
+    console.log("Wishlist mounted, isLoggedIn:", isLoggedIn, "token:", token);
+
+    // Trigger refetch if logged in
+    if (isLoggedIn) {
+      $wishlistQuery.refetch();
+    }
+
+    // Handle outside click for desktop filter
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (isDesktopFilterOpen && desktopFilterElement && !desktopFilterElement.contains(target)) {
+        isDesktopFilterOpen = false;
+      }
+    };
+
+    document.addEventListener('click', handleOutsideClick);
+
+    return () => {
+      document.removeEventListener('click', handleOutsideClick);
+      clearTimeout(debounceTimeout);
+      if (toggleTimeout) clearTimeout(toggleTimeout);
+    };
+  });
 
   function debounceSearch() {
     clearTimeout(debounceTimeout);
@@ -90,17 +127,24 @@
     }
     $wishlistQuery.refetch();
   }
-  
-  let isMobileSidebarOpen = false;
 
   function toggleMobileSidebar() {
     isMobileSidebarOpen = !isMobileSidebarOpen;
+  }
+
+  function toggleDesktopFilter() {
+    if (toggleTimeout) return;
+    toggleTimeout = setTimeout(() => {
+      isDesktopFilterOpen = !isDesktopFilterOpen;
+      toggleTimeout = null;
+    }, 300);
   }
 
   function handlePriceChange(newValue: number[]) {
     priceRange = newValue;
     $wishlistQuery.refetch();
   }
+
   function clearCategory(categoryId: string) {
     selectedCategoryIds = selectedCategoryIds.filter((id) => id !== categoryId);
     $wishlistQuery.refetch();
@@ -116,6 +160,13 @@
     $wishlistQuery.refetch();
   }
 
+  function clearAllFilters() {
+    selectedCategoryIds = [];
+    selectedBrandIds = [];
+    priceRange = [0, 10000];
+    searchTerm = '';
+    $wishlistQuery.refetch();
+  }
 
   const categoryQuery = createQuery<Category[]>({
     queryKey: ['category'],
@@ -155,15 +206,19 @@
     queryKey: ['wishlist', searchTerm, selectedCategoryIds, selectedBrandIds, priceRange],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found. Please log in.');
+      if (!token) {
+        writableGlobalStore.update((store) => ({ ...store, isLoggedIn: false }));
+        goto('/login');
+        throw new Error('No token found. Redirecting to login.');
+      }
       const params: Record<string, any> = {};
-      
+
       if (searchTerm.trim() !== '') params.search = searchTerm;
       if (selectedCategoryIds.length > 0) params.category = selectedCategoryIds.join(',');
       if (selectedBrandIds.length > 0) params.brand = selectedBrandIds.join(',');
       if (priceRange[0] > 0 || priceRange[1] < 10000) {
-        params.minPrice = priceRange[0];
-        params.maxPrice = priceRange[1];
+        params.minPrice = priceRange[0].toString();
+        params.maxPrice = priceRange[1].toString();
       }
       const response = await _axios.get('/favorites/getfavorites', {
         params,
@@ -177,13 +232,13 @@
         throw new Error(response.data.message || 'Failed to fetch wishlist');
       }
 
-      // Transform the response to match the Product interface
       return response.data.favorites.flatMap((favorite: any) =>
         favorite.products.map((product: any) => ({
           id: product._id,
           name: product.productName,
           image: product.images?.[0] || '',
           discount: product.discount || 0,
+          stock: product.stock,
           MRP: product.price,
           strikePrice: product.strikePrice || product.price,
           description: product.description,
@@ -192,13 +247,19 @@
           brandName: product.brand?.name,
           categoryId: product.category?._id,
           categoryName: product.category?.name,
-          favorite: true // All items in wishlist are favorites
+          favorite: true
         }))
       );
     },
     enabled: isLoggedIn,
     retry: 1,
     staleTime: 0,
+    onError: (error: any) => {
+      console.error("Wishlist query error:", error.message);
+      if (error.message.includes('token')) {
+        goto('/login');
+      }
+    }
   });
 
   $: categories = $categoryQuery.data ?? [];
@@ -213,23 +274,23 @@
   $: productsLoading = $wishlistQuery.isLoading;
   $: productsError = $wishlistQuery.error ? ($wishlistQuery.error as Error).message : null;
 
-  // Active filters for display
   $: activeFilters = [
     ...selectedCategoryIds.map(id => categories.find(cat => cat._id === id)?.name || ''),
     ...selectedBrandIds.map(id => brands.find(brand => brand._id === id)?.name || ''),
     priceRange[0] > 0 || priceRange[1] < 10000 ? `₹${priceRange[0]} - ₹${priceRange[1]}` : '',
   ].filter(filter => filter !== '');
 
-  function clearAllFilters() {
-    selectedCategoryIds = [];
-    selectedBrandIds = [];
-    priceRange = [0, 10000];
-    searchTerm = '';
-    $wishlistQuery.refetch();
-  }
+  // Debug logs
+  $: console.log("isLoggedIn:", isLoggedIn, "token:", localStorage.getItem('token'));
+  $: console.log("wishlistQuery status:", {
+    enabled: $wishlistQuery.isEnabled,
+    loading: $wishlistQuery.isLoading,
+    error: $wishlistQuery.error,
+    data: $wishlistQuery.data
+  });
 </script>
 
-<section class="bg-[#F2F4F5] py-4 px-4 md:px-6 lg:px-8">
+<section class="bg-[#F2F4F5] py-1 px-4 md:px-6 lg:px-8">
   <Breadcrumb.Root>
     <Breadcrumb.List>
       <Breadcrumb.Item>
@@ -242,326 +303,354 @@
     </Breadcrumb.List>
   </Breadcrumb.Root>
 </section>
-{#if isLoggedIn}
-<div class="flex min-h-screen px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-  <!-- Sidebar: Filters -->
-  <aside class="w-64 p-6 border rounded-lg h-fit bg-white shadow-md lg:block hidden">
-    <div>
-      <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
-      {#if categoriesLoading || categoriesError}
-        <div class="space-y-3">
-          {#each Array(5) as _}
-            <div class="flex items-center gap-2">
-              <Skeleton class="h-5 w-5" />
-              <Skeleton class="h-5 w-32" />
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="space-y-3">
-          {#each categories as category}
-            <label class="flex items-center gap-2">
-              <input
-                type="checkbox"
-                class="h-5 w-5 text-blue-600"
-                checked={selectedCategoryIds.includes(category._id)}
-                onchange={() => toggleCategory(category._id)}
-              />
-              <span class="text-lg text-[#4F585E]">{category.name}</span>
-            </label>
-          {/each}
-        </div>
-      {/if}
-    </div>
-    <div>
-      <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
-      {#if brandsLoading || brandsError}
-        <div class="space-y-3">
-          {#each Array(5) as _}
-            <div class="flex items-center gap-2">
-              <Skeleton class="h-5 w-5" />
-              <Skeleton class="h-5 w-32" />
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="space-y-3">
-          {#each brands as brand}
-            <label class="flex items-center gap-2">
-              <input
-                type="checkbox"
-                class="h-5 w-5 text-blue-600"
-                checked={selectedBrandIds.includes(brand._id)}
-                onchange={() => toggleBrand(brand._id)}
-              />
-              <span class="text-lg text-[#4F585E]">{brand.name}</span>
-            </label>
-          {/each}
-        </div>
-      {/if}
-    </div>
-    <div>
-      <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
-      <Slider
-        type="multiple"
-        bind:value={priceRange}
-        max={10000}
-        step={100}
-        onValueCommit={(e)=>{ $wishlistQuery.refetch();}}
-      />
-      <div class="flex justify-between mt-2 text-[#4F585E]">
-        <span>₹{priceRange[0]}</span>
-        <span>₹{priceRange[1]}</span>
+
+<div class="flex min-h-screen px-4 md:px-6 lg:px-8 pb-4 md:pb-6 lg:pb-8 pt-4 relative">
+  <!-- Desktop Filter Drawer -->
+  <div
+    class="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 {isDesktopFilterOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}"
+  ></div>
+  <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+  <aside
+     class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transition-transform duration-300 ease-in-out {isDesktopFilterOpen ? 'translate-x-0' : '-translate-x-full'}"
+    bind:this={desktopFilterElement}
+    role="dialog"
+    aria-label="Filter drawer"
+  >
+    <div class="p-6 h-full overflow-y-auto">
+      <!-- Close Button -->
+      <button
+        on:click={() => (isDesktopFilterOpen = false)}
+        class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+      >
+        <Icon icon="mdi:close" class="w-6 h-6" />
+      </button>
+      <!-- Desktop Filter Content -->
+      <div>
+        <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
+        {#if categoriesLoading || categoriesError}
+          <div class="space-y-3">
+            {#each Array(5) as _}
+              <div class="flex items-center gap-2">
+                <Skeleton class="h-5 w-5" />
+                <Skeleton class="h-5 w-32" />
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="space-y-3">
+            {#each categories as category}
+              <label class="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="min-h-5 min-w-5 text-blue-600"
+                  checked={selectedCategoryIds.includes(category._id)}
+                  on:change={() => toggleCategory(category._id)}
+                />
+                <span class="text-lg text-[#4F585E]">{category.name}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
       </div>
+      <div>
+        <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
+        {#if brandsLoading || brandsError}
+          <div class="space-y-3">
+            {#each Array(5) as _}
+              <div class="flex items-center gap-2">
+                <Skeleton class="h-5 w-5" />
+                <Skeleton class="h-5 w-32" />
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="space-y-3">
+            {#each brands as brand}
+              <label class="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="min-h-5 min-w-5 text-blue-600"
+                  checked={selectedBrandIds.includes(brand._id)}
+                  on:change={() => toggleBrand(brand._id)}
+                />
+                <span class="text-lg text-[#4F585E]">{brand.name}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <div>
+        <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
+        <Slider
+          type="multiple"
+          bind:value={priceRange}
+          max={10000}
+          step={100}
+          onValueCommit={() => $wishlistQuery.refetch()}
+        />
+        <div class="flex justify-between mt-2 text-[#4F585E]">
+          <span>₹{priceRange[0]}</span>
+          <span>₹{priceRange[1]}</span>
+        </div>
+      </div>
+      <!-- Apply Button -->
+      <button
+        on:click={() => (isDesktopFilterOpen = false)}
+        class="mt-6 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium hover:bg-[#0077A8] transition-colors"
+      >
+        Apply Filters
+      </button>
     </div>
   </aside>
 
   <!-- Main Content -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <main class="flex-1 lg:px-3 py-0 p-0">
-    <aside class="lg:hidden block mb-1">
+    <!-- Filter Button and Active Filters -->
+    <div class="flex items-center justify-between mb-4">
       <button
-        onclick={toggleMobileSidebar}
-        class="bg-[#008ECC] w-fit text-white text-base px-6 py-2 rounded-full flex items-center"
+        on:click|stopPropagation={toggleDesktopFilter}
+        class="bg-[#008ECC] text-white text-base px-6 py-2 rounded-full items-center hidden lg:flex"
       >
+        <Icon icon="mdi:filter" class="w-5 h-5 mr-2" />
         Filters
-        <Icon icon={isMobileSidebarOpen ? "mdi:chevron-up" : "mdi:chevron-down"} class="w-4 h-4 ml-2" />
       </button>
-      <!-- Mobile Sidebar Overlay -->
-<div
-class="fixed inset-0 z-50 transition-opacity duration-300 {isMobileSidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}"
-onclick={toggleMobileSidebar}
-></div>
-
-<!-- Mobile Sidebar Content -->
-<div
-class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transition-transform duration-700 ease-in-out {isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
->
-<div class="p-6 h-full overflow-y-auto">
-  <!-- Close Button -->
-  <button
-    onclick={toggleMobileSidebar}
-    class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-  >
-    <Icon icon="mdi:close" class="w-6 h-6" />
-  </button>
-
-  <!-- Filter Content -->
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
-    {#if categoriesLoading || categoriesError}
-      <div class="space-y-3">
-        {#each Array(5) as _}
-          <div class="flex items-center gap-2">
-            <Skeleton class="h-5 w-5" />
-            <Skeleton class="h-5 w-32" />
-          </div>
-        {/each}
-      </div>
-    {:else}
-      <div class="space-y-3">
-        {#each categories as category}
-          <label class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              class="h-5 w-5 text-blue-600"
-              checked={selectedCategoryIds.includes(category._id)}
-              onchange={() => toggleCategory(category._id)}
-            />
-            <span class="text-lg text-[#4F585E]">{category.name}</span>
-          </label>
-        {/each}
-      </div>
-    {/if}
-  </div>
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
-    {#if brandsLoading || brandsError}
-      <div class="space-y-3">
-        {#each Array(5) as _}
-          <div class="flex items-center gap-2">
-            <Skeleton class="h-5 w-5" />
-            <Skeleton class="h-5 w-32" />
-          </div>
-        {/each}
-      </div>
-    {:else}
-      <div class="space-y-3">
-        {#each brands as brand}
-          <label class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              class="h-5 w-5 text-blue-600"
-              checked={selectedBrandIds.includes(brand._id)}
-              onchange={() => toggleBrand(brand._id)}
-            />
-            <span class="text-lg text-[#4F585E]">{brand.name}</span>
-          </label>
-        {/each}
-      </div>
-    {/if}
-  </div>
-  <div>
-    <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
-    <Slider
-      type="multiple"
-      bind:value={priceRange}
-      max={10000}
-      step={100}
-      onValueCommit={(e)=>{ $wishlistQuery.refetch();}}
-    />
-    <div class="flex justify-between mt-2 text-[#4F585E]">
-      <span>₹{priceRange[0]}</span>
-      <span>₹{priceRange[1]}</span>
-    </div>
-  </div>
-  
-  <!-- Apply Button -->
-  <button
-    onclick={toggleMobileSidebar}
-    class="mt-6 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium"
-  >
-    Apply Filters
-  </button>
-</div>
-</div>
-    </aside>
-    <!-- Active Filters -->
-    {#if activeFilters.length > 0}
-      <div class="mb-1 flex flex-wrap gap-2">
-        <span class="bg-[#008ECC] hidden text-white text-base px-6 py-2 rounded-full lg:flex items-center">
-          Active filters
+      <!-- Mobile Filter Button -->
+      <button
+        on:click|stopPropagation={toggleMobileSidebar}
+        class="bg-[#008ECC] text-white text-base px-6 py-2 rounded-full flex items-center lg:hidden"
+      >
+        <Icon icon="mdi:filter" class="w-5 h-5 mr-2" />
+        Filters
+      </button>
+      <!-- Active Filters -->
+      {#if activeFilters.length > 0}
+        <div class="flex flex-wrap gap-2">
+          {#each activeFilters as filter}
+            <span class="bg-[#F3F9FB] text-[#222222] text-base px-4 py-1 rounded-full flex items-center">
+              {filter}
+              <button
+                on:click={() => {
+                  if (categories.find(cat => cat.name === filter)) {
+                    clearCategory(categories.find(cat => cat.name === filter)?._id || '');
+                  } else if (brands.find(brand => brand.name === filter)) {
+                    clearBrand(brands.find(brand => brand.name === filter)?._id || '');
+                  } else if (filter.startsWith('₹')) {
+                    clearPriceRange();
+                  }
+                }}
+                class="ml-2 text-[#01A0E2]"
+              >
+                <Icon icon="mdi:close" class="w-4 h-4" />
+              </button>
+            </span>
+          {/each}
           <button
-            onclick={clearAllFilters}
-            class="ml-2 text-white"
+            on:click={clearAllFilters}
+            class="bg-[#008ECC] text-white text-base px-4 py-1 rounded-full flex items-center"
           >
-            <Icon icon="mdi:close" class="w-4 h-4" />
+            Clear All
+            <Icon icon="mdi:close" class="w-4 h-4 ml-2" />
           </button>
-        </span>
-        {#each activeFilters as filter}
-          <span class="bg-[#F3F9FB] text-[#222222] text-base px-6 py-2 rounded-full flex items-center">
-            {filter}
-            <button
-              onclick={() => {
-                if (categories.find(cat => cat.name === filter)) {
-                  clearCategory(categories.find(cat => cat.name === filter)?._id || '');
-                } else if (brands.find(brand => brand.name === filter)) {
-                  clearBrand(brands.find(brand => brand.name === filter)?._id || '');
-                } else if (filter.startsWith('₹')) {
-                  clearPriceRange();
-                }
-              }}
-              class="ml-2 text-[#01A0E2]"
-            >
-              <Icon icon="mdi:close" class="w-4 h-4" />
-            </button>
-          </span>
-        {/each}
-      </div>
-    {/if}
-
-    <!-- Header -->
-    <div class="flex items-center mb-1">
-      <div class="w-1/2 md:block hidden">
-        <!-- <h1 class="text-2xl font-bold text-[#30363C]">Wishlist</h1> -->
-      </div>
-      <div class="md:w-1/2 w-full flex">
-        <div class="lg:w-1/3 w-1/6 md:block hidden"></div>
-        <div class="border md:py-7 py-5 flex lg:w-2/3 w-full  rounded-full bg-white md:p-1 p-0.5">
-          <div class="relative w-full">
-            <input
-              type="text"
-              placeholder="Search medical products"
-              class="w-full absolute top-1/2 transform -translate-y-1/2 lg:text-xl text-base md:pl-16 pl-10 rounded-full focus:outline-none focus:ring-0 text-gray-700"
-              oninput={handleSearch}
-            />
-            <img
-              class="absolute left-1 md:w-[45px] w-[32px]   top-1/2 transform -translate-y-1/2 text-gray-400"
-              src="/svg/search.svg"
-              alt="search"
-            />
-          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Product Grid -->
-    <div class="mb-1 text-xs md:text-sm text-right text-[#4F585E]">
-      {#if isLoggedIn}
-      {#if productsLoading}
-      {products.length} results found
-    {:else if productsError}
-      Error: {productsError}
-    {:else if products.length === 0}
-      <!-- No products found -->
-      {products.length} results found
-    {:else}
-      {products.length} results found
-    {/if}
-      {:else}
-        Please login to view your wishlist
       {/if}
     </div>
 
-    {#if !isLoggedIn}
-      <div class="text-center py-10">
-        <p class="text-lg text-[#4F585E] mb-4">You need to be logged in to view your wishlist</p>
-        <a href="/login" class="text-blue-500 hover:underline">Login here</a>
-      </div>
-    {:else if productsLoading}
-      <div class="flex flex-wrap lg:gap-10 gap-5">
-        {#each Array(12) as _}
-          <div class="w-56 bg-white rounded-xl shadow-md overflow-hidden">
-            <Skeleton class="h-48 w-56" />
-            <div class="px-4 py-2 space-y-2">
-              <Skeleton class="h-5 w-3/4" />
-              <div class="flex items-center gap-2">
-                <Skeleton class="h-4 w-12" />
-                <Skeleton class="h-4 w-12" />
-              </div>
-              <Skeleton class="h-4 w-20" />
+    <!-- Mobile Sidebar Overlay -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="fixed inset-0 z-50 transition-opacity duration-300 {isMobileSidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}"
+      on:click|stopPropagation={toggleMobileSidebar}
+    ></div>
+
+    <!-- Mobile Sidebar Content -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="fixed top-0 left-0 h-full w-80 bg-white z-50 shadow-xl transform transition-transform duration-300 ease-in-out {isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}"
+    >
+      <div class="p-6 h-full overflow-y-auto">
+        <!-- Close Button -->
+        <button
+          on:click|stopPropagation={toggleMobileSidebar}
+          class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+        >
+          <Icon icon="mdi:close" class="w-6 h-6" />
+        </button>
+        <!-- Filter Content -->
+        <div>
+          <h2 class="text-2xl font-bold text-[#30363C] mb-4">Categories</h2>
+          {#if categoriesLoading || categoriesError}
+            <div class="space-y-3">
+              {#each Array(5) as _}
+                <div class="flex items-center gap-2">
+                  <Skeleton class="h-5 w-5" />
+                  <Skeleton class="h-5 w-32" />
+                </div>
+              {/each}
             </div>
-          </div>
-        {/each}
-      </div>
-    {:else if productsError}
-      <div class="text-red-500 text-center py-10">{productsError}</div>
-    {:else if products.length === 0}
-      <div class="text-center py-10">
-        <p class="text-lg text-[#4F585E]">        No products found</p>
-        <!-- <a href="/Products" class="text-blue-500 hover:underline">Browse products</a> -->
-      </div>
-    {:else}
-    <div class="">
-      <div class="card  md:flex  md:flex-wrap grid grid-cols-2 justify-center md:justify-normal lg:gap-10 gap-3">
-        {#each products as product (product.id)}
-          <ProductCard
-            id={product.id}
-            image={product.image}
-            discount={product.discount}
-            name={product.name}
-            MRP={product.MRP}
-            strikePrice={product.strikePrice}
-            favorite={true}
+          {:else}
+            <div class="space-y-3">
+              {#each categories as category}
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="min-h-5 min-w-5 text-blue-600"
+                    checked={selectedCategoryIds.includes(category._id)}
+                    on:change={() => toggleCategory(category._id)}
+                  />
+                  <span class="text-lg text-[#4F585E]">{category.name}</span>
+                </label>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-[#30363C] my-4">Brands</h2>
+          {#if brandsLoading || brandsError}
+            <div class="space-y-3">
+              {#each Array(5) as _}
+                <div class="flex items-center gap-2">
+                  <Skeleton class="h-5 w-5" />
+                  <Skeleton class="h-5 w-32" />
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="space-y-3">
+              {#each brands as brand}
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="min-h-5 min-w-5 text-blue-600"
+                    checked={selectedBrandIds.includes(brand._id)}
+                    on:change={() => toggleBrand(brand._id)}
+                  />
+                  <span class="text-lg text-[#4F585E]">{brand.name}</span>
+                </label>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-[#30363C] my-4">Price Range</h2>
+          <Slider
+            type="multiple"
+            bind:value={priceRange}
+            max={10000}
+            step={100}
+            onValueCommit={() => $wishlistQuery.refetch()}
           />
-        {/each}
+          <div class="flex justify-between mt-2 text-[#4F585E]">
+            <span>₹{priceRange[0]}</span>
+            <span>₹{priceRange[1]}</span>
+          </div>
+        </div>
+        <!-- Apply Button -->
+        <button
+          on:click={toggleMobileSidebar}
+          class="mt-6 w-full bg-[#008ECC] text-white py-3 rounded-lg font-medium hover:bg-[#0077A8] transition-colors"
+        >
+          Apply Filters
+        </button>
       </div>
     </div>
+
+    <!-- Header -->
+    {#if !isLoggedIn}
+      <div class="text-center py-10">
+        <p class="text-lg text-[#4F585E]">Please log in to view your wishlist.</p>
+        <button
+          on:click={() => goto('/login')}
+          class="mt-4 bg-[#008ECC] text-white px-6 py-2 rounded-lg font-medium"
+        >
+          Log In
+        </button>
+      </div>
+    {:else}
+      <!-- <div class="flex items-center mb-1">
+        <div class="w-1/2 md:block hidden"></div>
+        <div class="md:w-1/2 w-full flex">
+          <div class="lg:w-1/3 w-1/6 md:block hidden"></div>
+          <div class="border md:py-7 py-5 flex lg:w-2/3 w-full rounded-full bg-white md:p-1 p-0.5">
+            <div class="relative w-full">
+              <input
+                type="text"
+                placeholder="Search wishlist products"
+                class="w-full absolute top-1/2 transform -translate-y-1/2 lg:text-xl text-base md:pl-16 pl-10 rounded-full focus:outline-none focus:ring-0 text-gray-700"
+                on:input={handleSearch}
+              />
+              <img
+                class="absolute left-1 md:w-[45px] w-[32px] top-1/2 transform -translate-y-1/2 text-gray-400"
+                src="/svg/search.svg"
+                alt="search"
+              />
+            </div>
+          </div>
+        </div>
+      </div> -->
+
+      <!-- Product Grid -->
+      <!-- <div class="mb-1 text-right text-xs md:text-sm text-[#4F585E]">
+        {#if productsLoading}
+          Loading...
+        {:else if productsError}
+          Error: {productsError}
+        {:else if products.length === 0}
+          No products found
+        {:else}
+          {products.length} results found
+        {/if}
+      </div> -->
+      {#if productsLoading}
+        <div class="flex flex-wrap lg:gap-10 gap-5">
+          {#each Array(12) as _}
+            <div class="w-56 bg-white rounded-xl shadow-md overflow-hidden">
+              <Skeleton class="h-48 w-56" />
+              <div class="px-4 py-2 space-y-2">
+                <Skeleton class="h-5 w-3/4" />
+                <div class="flex items-center gap-2">
+                  <Skeleton class="h-4 w-12" />
+                  <Skeleton class="h-4 w-12" />
+                </div>
+                <Skeleton class="h-4 w-20" />
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else if productsError}
+        <div class="text-red-500 text-center py-10">{productsError}</div>
+      {:else if products.length === 0}
+        <div class="text-center py-10">
+          <p class="text-lg text-[#4F585E]">No products in your wishlist.</p>
+        </div>
+      {:else}
+        <div>
+          <div class="card md:flex md:flex-wrap grid grid-cols-2 justify-center md:justify-normal lg:gap-10 gap-3">
+            {#each products as product (product.id)}
+              <ProductCard
+                id={product.id}
+                image={product.image}
+                discount={product.discount}
+                name={product.name}
+                MRP={product.MRP}
+                strikePrice={product.strikePrice}
+                favorite={product.favorite}
+                available={product.stock === 0 ? false : true}
+              />
+            {/each}
+          </div>
+        </div>
+      {/if}
     {/if}
   </main>
 </div>
-{:else}
-<div class="container max-w-2xl my-20 py-20 rounded-lg shadow-lg flex-col gap-3 flex justify-center items-center">
-  <p class="text-lg font-medium">Please login to access Wishlist</p>
-  <button onclick={()=>{goto('/login')}} class="bg-[#01A0E2] hover:bg-[#01A0E2] rounded-lg px-4 text-lg text-white py-2">Login</button>
-  </div>
-  {/if}
 <Footer />
 <style>
   @media (max-width: 768px) and (min-width: 500px) {
     .card {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 1rem; 
+      gap: 1rem;
     }
   }
-  </style>
+</style>

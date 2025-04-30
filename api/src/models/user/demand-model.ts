@@ -4,6 +4,10 @@ interface Demand {
   userId: Schema.Types.ObjectId;
   productName: string;
   message: string;
+  brandName:string;
+  quantity:number;
+  timePreference:string;
+  ratePreference:string;
   file: string; // Assuming file paths or URLs are stored as strings
 }
 
@@ -18,6 +22,20 @@ const DemandSchema = new Schema<Demand>(
     productName: {
       type: String,
       required: true,
+    },
+    timePreference:{
+type:String,
+    },
+    ratePreference:{
+      type:String,
+          },
+    quantity:{
+type:Number,
+required:true
+    },
+    brandName:{
+      type:String,
+      required:true,
     },
     message: {
       type: String,

@@ -31,6 +31,7 @@ interface ProductInterface {
   specifications?: Specification[];
   negotiateLimit:number;
   negotiate:boolean;
+  negMOQ:number;
 }
 
 
@@ -61,6 +62,9 @@ const ProductSchema = new Schema<ProductInterface>(
     negotiate:{
 type:Boolean,
 default:false
+    },
+    negMOQ:{
+type:Number
     },
     flat:{
       type:Number,

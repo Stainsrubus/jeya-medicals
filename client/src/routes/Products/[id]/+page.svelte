@@ -18,20 +18,46 @@
   let productId: string | null = null;
   let isInitialLoad = false;
   let offerType: string | null = null;
-
+  let discountConfirmed=false;
+  let isOfferLocked=false;
+  let lockedOffer='';
   onMount(() => {
-    isInitialLoad = false;
+    console.log('Component mounted');
+    isInitialLoad = true;
     productId = $page.params.id;
-    offerType = $page.url.searchParams.get('offerType');
-    queryClient.invalidateQueries(['product', productId]); // Invalidate the query to refetch data
+  // console.log('Product ID:', productId);
+  queryClient.invalidateQueries(['product', productId] );
   });
 
+ 
   $: {
-    if (productId !== $page.params.id) {
-      productId = $page.params.id;
-      queryClient.invalidateQueries(['product', productId]); // Invalidate the query to refetch data
-    }
+  const currentProductId = $page.params.id;
+
+  // Only invalidate queries when the product ID actually changes
+  if (productId !== currentProductId) {
+    productId = currentProductId;
+    // Invalidate the product query to fetch fresh data when ID changes
+    queryClient.invalidateQueries(['product', productId]);
   }
+
+if(cartData.products){
+
+  const matchedProduct = cartData?.products.find((p: { productId: { _id: any; }; }) => {
+    if (!p.productId) return false;
+    
+    const productIdToCompare = typeof p.productId === 'object' ? p.productId._id : p.productId;   
+    return productIdToCompare === currentProductId;
+  });
+  if (matchedProduct?.selectedOffer) {
+    lockedOffer = matchedProduct.selectedOffer.offerType;
+  } else {
+    lockedOffer = ''; 
+  }
+}
+}
+function toggleOption(option: string) {
+  selectedPricingOption = selectedPricingOption === option ? '' : option;
+}
 
   let hasFetchedFlatProducts = false;
   interface Option {
@@ -51,7 +77,9 @@
   }
 
   interface Product {
+	available: boolean;
     id: string | number;
+    stock:number;
     name: string;
     images: string[];
     discount: number;
@@ -71,6 +99,7 @@
     specifications?: Specification[];
     negotiateLimit?: number;
     negotiate?: boolean;
+    negMOQ?:number;
   }
 
   interface NegotiationAttempt {
@@ -106,16 +135,19 @@
   let complementaryError = '';
 
   $: if (product) {
-    if (product.flat > 0 && !hasFetchedFlatProducts) {
-      selectedPricingOption = 'flatOffer';
-      $flatProductQuery.mutate(),
-      hasFetchedFlatProducts = true;
-    }
-    if (offerType === 'negotiation') {
+    isInitialLoad=false;
+    //@ts-ignore
+    
+    // if (product.flat > 0 && !hasFetchedFlatProducts) {
+    //   selectedPricingOption = 'flatOffer';
+    //   hasFetchedFlatProducts = true;
+    //   queryClient.invalidateQueries({ queryKey: ['flatProducts', productId,userData?.userId] });
+    // }
+    if (offerType === 'negotiation'||lockedOffer==='Negotiate'||negotiation.attemptNumber!=0) {
       selectedPricingOption = 'negotiation'
-    } else if (offerType === 'discount') {
+    } else if (offerType === 'discount'||lockedOffer==='Discount') {
       selectedPricingOption = 'discount'
-    } else if (offerType === 'onMRP') {
+    } else if (offerType === 'onMRP'||lockedOffer==='onMRP') {
       selectedPricingOption = 'onMRP'
     }
     negotiation.currentPrice = product.MRP;
@@ -226,9 +258,9 @@
     );
     cartQuantity = foundItem ? foundItem.quantity : 0;
     // Sync desiredQuantity with cartQuantity only if the product is in the cart
-    // if (foundItem && desiredQuantity !== cartQuantity) {
-    //   desiredQuantity = cartQuantity;
-    // }
+    if (foundItem && desiredQuantity !== cartQuantity && isInitialLoad) {
+      desiredQuantity = cartQuantity;
+    }
   }
 
   const userData = JSON.parse(localStorage.getItem('userData') || '{}');
@@ -242,28 +274,28 @@
 
   const queryClient = useQueryClient();
 
-  $: {
-    if (previousProductId !== productId) {
-      selectedImageIndex = 0;
-      negotiation = {
-        attemptNumber: 0,
-        currentPrice: 0,
-        negotiatedPrice: undefined,
-        maxAttempts: 3,
-        negotiateLimit: 0,
-        attempts: []
-      };
-      negotiationError = null;
-      desiredQuantity = cartQuantity || 1;
-      queryClient.cancelQueries({ queryKey: ['product', previousProductId] });
-      previousProductId = productId;
-    }
-  }
+  // $: {
+  //   if (previousProductId !== productId) {
+  //     selectedImageIndex = 0;
+  //     negotiation = {
+  //       attemptNumber: 0,
+  //       currentPrice: 0,
+  //       negotiatedPrice: undefined,
+  //       maxAttempts: 3,
+  //       negotiateLimit: 0,
+  //       attempts: []
+  //     };
+  //     negotiationError = null;
+  //     desiredQuantity = cartQuantity || 1;
+  //     queryClient.cancelQueries({ queryKey: ['product', previousProductId] });
+  //     previousProductId = productId;
+  //   }
+  // }
 
   const complementaryProductQuery = createMutation<Product>({
     mutationFn: async () => {
       const response = await _axios.get(`/products/complementary`, {
-        params: { q: product.onMRP },
+        params: { q: product?.onMRP },
         headers: { 'Content-Type': 'application/json' },
       });
 
@@ -275,20 +307,35 @@
     },
   });
 
-  const flatProductQuery = createMutation<Product>({
-    mutationFn: async () => {
-      const response = await _axios.get(`/products/flat-discount`, {
-        params: { userId: userData?.userId, productId: productId },
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to fetch product');
-      }
-
-      return response.data;
-    },
-  });
+  const flatProductQuery = createQuery<Product[]>({
+  queryKey: ['flatProducts', productId, userData?.userId],
+  queryFn: async () => {
+    if (!productId || !userData?.userId) {
+      throw new Error('Missing productId or userId');
+    }
+    // console.log('Fetching flat products for productId:', productId, 'userId:', userData.userId); // Debug log
+    const response = await _axios.get(`/products/flat-discount`, {
+      params: { userId: userData.userId, productId },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    // console.log('Flat products response:', response.data); // Debug log
+    if (!response.data.status) {
+      throw new Error(response.data.message || 'Failed to fetch flat products');
+    }
+    // Ensure the response data is an array of products
+    const products = response.data.data || [];
+    return products.map((product: any) => ({
+      id: product._id,
+      name: product.productName,
+      images: product.images,
+      MRP: product.price,
+      strikePrice: product.strikePrice || product.price,
+      favorite: product.favorite,
+      stock:product.stock
+      // Add other fields as needed
+    }));
+  },
+});
 
   const productQuery = createQuery<Product>({
     queryKey: ['product', productId],
@@ -307,6 +354,7 @@
         name: product.productName,
         images: product.images,
         discount: product.discount || 0,
+        stock:product.stock,
         onMRP: product.onMRP || 0,
         flat: product.flat || 0,
         MRP: product.price,
@@ -324,12 +372,14 @@
         specifications: product.specifications,
         negotiateLimit: product.negotiateLimit,
         negotiate: product.negotiate,
+        negMOQ:product.negMOQ||null,
       };
     },
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnReconnect: true,
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
+    // enabled: !!productId,
   });
 
   const sameBrandProductsQuery = createQuery<Product[]>({
@@ -358,6 +408,7 @@
           images: product.images,
           discount: product.discount || 0,
           MRP: product.price,
+          stock:product.stock,
           strikePrice: product.strikePrice || product.price,
           description: product.description,
           ratings: product.ratings,
@@ -366,6 +417,7 @@
           brandId: product.brandId,
           brandName: product.brandName,
           favorite: product.favorite,
+          available:product.available,
         }))
       );
 
@@ -445,7 +497,7 @@
 
   function getSelectedOffer() {
     let selectedOffer = null;
-    if (selectedPricingOption === 'discount') {
+    if (selectedPricingOption === 'discount'&&discountConfirmed) {
       selectedOffer = {
         offerType: 'Discount',
         discount: product?.discount,
@@ -460,6 +512,7 @@
           ...(selectedMessageOption === 'Complementary' && { 
             productId:
               selectedComplementaryProducts.length > 0
+              //@ts-ignore
                 ? selectedComplementaryProducts[0]._id
                 : null,
            }),
@@ -468,6 +521,7 @@
     } else if (selectedPricingOption === 'flatOffer') {
       selectedOffer = {
         offerType: 'Flat',
+        //@ts-ignore
         flatAmount: product.MRP, // Assuming flatAmount is the MRP for simplicity
       };
     } else if (selectedPricingOption === 'negotiation') {
@@ -525,8 +579,8 @@
       cartQuantity = quantity;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['cart']);
-      queryClient.invalidateQueries(['cartCount']);
+      queryClient.invalidateQueries({queryKey:['cart']});
+      queryClient.invalidateQueries({queryKey:['cartCount']});
     },
     onError: (error: any) => {
       // Revert optimistic update
@@ -548,11 +602,37 @@
 
   function addToCart() {
     if (!product) return;
-    if (desiredQuantity < 1) {
-      toast.error('Quantity must be at least 1');
-      desiredQuantity = 1;
+    
+    // Validate minimum quantity based on offer type
+    if (selectedPricingOption === 'negotiation' && product?.negMOQ) {
+      if(negotiation.attemptNumber<1){
+toast.info("You can Negotiate the product price")
+return
+      }
+      // For negotiation, check against negMOQ
+      if (desiredQuantity < product.negMOQ) {
+        toast.error(`Minimum quantity for negotiation is ${product.negMOQ}`);
+        desiredQuantity = product.negMOQ;
+        return;
+      }
+    } else {
+      // For other offer types, standard minimum of 1
+      if (desiredQuantity < 1) {
+        toast.error('Quantity must be at least 1');
+        desiredQuantity = 1;
+        return;
+      }
+    }
+    
+    // Validate against stock maximum
+    if (desiredQuantity > product.stock) {
+      toast.error(`Maximum purchase quantity is ${product.stock}`);
+      console.log('quantity: ', desiredQuantity);
+      desiredQuantity = product.stock;
       return;
     }
+    
+    console.log('quantity: ', desiredQuantity);
     $addToCartMutation.mutate(desiredQuantity);
   }
 
@@ -561,9 +641,12 @@
   }
 
   function decrementQuantity() {
-    desiredQuantity = Math.max(1, desiredQuantity - 1);
+    if (selectedPricingOption === 'negotiation' && product?.negMOQ) {
+      desiredQuantity = Math.max(product.negMOQ, desiredQuantity - 1);
+    } else {
+      desiredQuantity = Math.max(1, desiredQuantity - 1);
+    }
   }
-
   $: product = $productQuery.data;
   $: productLoading = $productQuery.isLoading || $productQuery.isFetching;
   $: productError = $productQuery.error ? ($productQuery.error as Error).message : null;
@@ -585,20 +668,24 @@
   }
 
   function toggleComplementaryProduct(prod: Product) {
-    console.log(product)
+    //@ts-ignore
     const index = selectedComplementaryProducts.findIndex(p => p._id === prod._id);
 
-    if (index > -1) {
+    if (index > -1) {//@ts-ignore
       selectedComplementaryProducts = selectedComplementaryProducts.filter(p => p._id !== prod._id);
+      //@ts-ignore
       totalComplementaryValue -= prod.MRP || prod.price || 0;
     } else {
+      //@ts-ignore
       if (totalComplementaryValue + (prod.MRP || prod.price || 0) > product.onMRP) {
+        //@ts-ignore
         complementaryError = `Cannot add - exceeds your complementary limit of ₹${product.onMRP}`;
         toast.error(complementaryError);
         return;
       }
 
       selectedComplementaryProducts = [prod]; // Select only one product
+      //@ts-ignore
       totalComplementaryValue = prod.MRP || prod.price || 0;
       console.log(selectedComplementaryProducts)
     }
@@ -607,7 +694,7 @@
   }
 
   // Function to check if a product is selected
-  function isComplementarySelected(prod: Product) {
+  function isComplementarySelected(prod: Product) {//@ts-ignore
     return selectedComplementaryProducts.some(p => p._id === prod._id);
   }
 
@@ -617,7 +704,7 @@
 </script>
 
 
-<section class="bg-[#F2F4F5] py-4 px-4 md:px-6 lg:px-8">
+<section class="bg-[#F2F4F5] py-1 px-4 md:px-6 lg:px-8 ">
   <Breadcrumb.Root>
     <Breadcrumb.List>
       <Breadcrumb.Item>
@@ -705,6 +792,12 @@
                 alt={product.name}
                 class="lg:h-96 h-52 w-96 object-contain"
               />
+              {#if product.stock === 0}
+              <!-- Overlay for Out of Stock -->
+              <div class="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
+                <span class="text-white text-2xl font-bold">Out of Stock</span>
+              </div>
+            {/if}
             </div>
             <!-- Thumbnail Gallery -->
             {#if product.images.length > 1}
@@ -747,15 +840,16 @@
            </div>
             <div class="lg:flex justify-between  hidden  flex-wrap mt-4 pr-20">
               <div>
-                <p class="md:text-lg text-base text-[#4F585E] mt-2">M.R.P <span class="line-through">₹{product.strikePrice*quantity}</span></p>
+                <!-- <p class="md:text-lg text-base text-[#4F585E] mt-2"><span class="line-through">₹{product.strikePrice*quantity}</span></p> -->
 
                 {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
-                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
+                <p class="text-[#111827] ">M.R.P <span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg lg:px-4 md:px-3 px-0"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium lg:px-4 md:px-3 px-0">(Negotiation Price)</span> </span></p>
 
               {:else}
               <div class="flex gap-2">
-                <p class={`text-[#111827] font-bold md:text-2xl text-lg ${selectedPricingOption==='discount'? 'line-through':''}`}>₹{product.MRP*quantity}</p>
-                {#if selectedPricingOption === 'discount'}
+                <span class=" text-[#111827] md:text-2xl text-lg font-normal pr-1">M.R.P </span>
+                <p class={`text-[#111827] font-bold md:text-2xl text-lg ${selectedPricingOption==='discount'&&discountConfirmed!=false? 'line-through':''}`}>  ₹{product.MRP}</p>
+                {#if selectedPricingOption === 'discount'&& discountConfirmed!=false}
                 <p class="text-[#111827] font-bold md:text-2xl text-lg">
                   ₹{(product?.MRP * quantity * (1 - product?.discount / 100)).toFixed(2)} <span class="text-sm font-medium text-[#C49814]">(Discount Price)</span>
                 </p>
@@ -791,9 +885,9 @@
                   </button>
                 </div>
                 <button
-                  class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                  class={`${product.stock<=0?'bg-[#5a5e5f58]':'bg-[#01A0E2]'} text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full`}
                   on:click={addToCart}
-                  disabled={$addToCartMutation.isPending}
+                  disabled={$addToCartMutation.isPending||product.stock<=0}
                 >
                   {#if $addToCartMutation.isPending}
                     Adding...
@@ -821,48 +915,70 @@
             {/each}
 
             <!-- Negotiation Section for mobile -->
-            <div class="md:hidden block mt-5">
-              <div class={`negotiation-section bg-white lg:p-6 p-2 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
+            <div class="md:hidden block my-4">
+              <div class="my-1 space-x-3 flex">
                 <!-- Negotiation Option -->
-        {#if product?.negotiate}
-        <label class="flex items-center space-x-1">
-          <input
-            type="radio"
-            bind:group={selectedPricingOption}
-            value="negotiation"
-            class="form-radio h-5 w-5 text-blue-600"
-          />
-          <span class="text-sm text-gray-700">Negotiation</span>
-        </label>
-      {/if}
-
-      <!-- On MRP Option -->
-      {#if product?.onMRP > 0}
-        <label class="flex items-center space-x-1">
-          <input
-            type="radio"
-            bind:group={selectedPricingOption}
-            value="onMRP"
-            class="form-radio h-5 w-5 text-blue-600"
-          />
-          <span class="text-sm text-gray-700">On MRP Price</span>
-        </label>
-      {/if}
-
-      <!-- Discount Option -->
-      {#if product?.discount > 0}
-        <label class="flex items-center space-x-1">
-          <input
-            type="radio"
-            bind:group={selectedPricingOption}
-            value="discount"
-            class="form-radio h-5 w-5 text-blue-600"
-          />
-          <span class="text-sm text-gray-700">Discount</span>
-        </label>
-      {/if}
-        </div>
-        <div class={`negotiation-section max-w-lg mt-5 bg-white lg:p-6 p-2 rounded-lg shadow-md border border-gray-200 ${product?.negotiate || product?.onMRP > 0 || product?.discount > 0||product?.flat > 0 ? 'block' : 'hidden'}`}>
+                {#if product?.flat > 0}
+         
+                <label class="flex items-center space-x-1">
+                  <input
+                    type="radio"
+                    bind:group={selectedPricingOption}
+                    value="flatOffer"
+                    class="form-radio h-5 w-5 text-blue-600"
+                    on:click={() => toggleOption('flatOffer')}
+                    disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+                  />
+                  <span class="text-sm text-gray-700">Flat Discount</span>
+                </label>
+      
+                {/if}
+                {#if product?.negotiate}
+                  <label class="flex items-center space-x-1">
+                    <input
+                      type="radio"
+                      bind:group={selectedPricingOption}
+                      value="negotiation"
+                      class="form-radio h-5 w-5 text-blue-600"
+                      on:click={() => toggleOption('negotiation')}
+                      disabled={product.stock<=0||lockedOffer!=''}
+                    />
+                    <span class="text-sm text-gray-700">Negotiation</span>
+                  </label>
+                {/if}
+      
+                <!-- On MRP Option -->
+                {#if product?.onMRP > 0}
+                  <label class="flex items-center space-x-1">
+                    <input
+                      type="radio"
+                      on:change={()=>{$complementaryProductQuery.mutate()}}
+                      bind:group={selectedPricingOption}
+                      value="onMRP"
+                      class="form-radio h-5 w-5 text-blue-600"
+                      on:click={() => toggleOption('onMRP')}
+                      disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+                    />
+                    <span class="text-sm text-gray-700">On MRP Price</span>
+                  </label>
+                {/if}
+      
+                <!-- Discount Option -->
+                {#if product?.discount > 0}
+                  <label class="flex items-center space-x-1">
+                    <input
+                      type="radio"
+                      bind:group={selectedPricingOption}
+                      value="discount"
+                      class="form-radio h-5 w-5 text-blue-600"
+                      on:click={() => toggleOption('discount')}
+                      disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+                    />
+                    <span class="text-sm text-gray-700">Discount</span>
+                  </label>
+                {/if}
+              </div>
+        <div class={`negotiation-section max-w-lg mt-2 bg-white lg:p-6 p-2 rounded-lg shadow-md border border-gray-200 ${product?.negotiate || product?.onMRP > 0 || product?.discount > 0||product?.flat > 0 ? 'block' : 'hidden'}`}>
           <!-- Radio Buttons for Pricing Options -->
       {#if selectedPricingOption===''}
       <p class="text-sm text-yellow-600 flex items-center">
@@ -891,16 +1007,16 @@
                   placeholder="Enter your offer amount"
                   min="1"
                   max={product?.MRP || 0}
-                  disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+                  disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''}
                 />
               </div>
             </div>
 
             <div class="mb-4 space-y-2">
-              <p class="text-sm text-yellow-600 flex items-center">
+              <p class="text-sm text-yellow-600 flex items-start">
                 <span class="mr-1 text-lg">
                   <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-                </span> You can negotiate the product price
+                </span> You can negotiate the product price only for quantities above {product.negMOQ}.
               </p>
             </div>
 
@@ -924,7 +1040,7 @@
             <button
               class="w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-xl mt-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               on:click={handleNegotiate}
-              disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+              disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''||desiredQuantity<product.negMOQ}
             >
               NEGOTIATE
             </button>
@@ -938,7 +1054,7 @@
             {/if}
             {:else if selectedPricingOption === 'onMRP' && product?.onMRP > 0}
             <div class="mb-4">
-              <Select.Root type="single" bind:value={selectedMessageOption}>
+              <Select.Root type="single" disabled={lockedOffer!=''||negotiation.attemptNumber!=0} bind:value={selectedMessageOption}>
                 <Select.Trigger class="text-black  focus:outline-none  focus:ring-0 text-base">
                   {selectedMessageOption}
                 </Select.Trigger>
@@ -980,14 +1096,47 @@
             </div>
           
           {:else if selectedPricingOption === 'discount' && product?.discount > 0}
-            <div class="mb-4">
-              <p class="text-base my-4 text-yellow-600 flex items-center">
-                <span class="mr-1 text-base">
-                  <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-                </span> You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product
-        
-              </p>
-            </div>
+          <div class="mb-1 flex items-start my-1">
+            <span class="mr-1 mt-0.5 text-base">
+              <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
+            </span>
+            <p class="text-base   flex flex-wrap text-yellow-600 items-center">
+             
+             <span>
+              You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product [Offer Price: ₹{product.MRP - (product.MRP * product.discount / 100)} ]
+             </span>  
+      
+            </p>
+          </div>
+       <div>
+<p class="text-center my-2 text-lg">
+Do you need to apply this offer?
+</p>       
+<div class="flex gap-2 justify-center">
+<button
+disabled={lockedOffer!=''||negotiation.attemptNumber!=0}
+class="w-1/3 bg-[#01A0E2] text-white py-1 rounded-lg hover:scale-105 transition-all"
+on:click={() => {
+  selectedPricingOption = 'discount';
+  discountConfirmed = true;
+  toast.success('Discount applied!');
+}}
+>
+Yes
+</button>
+<button
+class="w-1/3 bg-gray-300 text-gray-700 py-1 rounded-lg hover:scale-105 transition-all"
+on:click={() => {
+  selectedPricingOption = '';
+  discountConfirmed = false;
+  toast.info('Discount not applied.');
+}}
+disabled={lockedOffer!=''||negotiation.attemptNumber!=0}
+>
+No
+</button>
+</div>
+</div>
             {:else if selectedPricingOption === 'flatOffer' && product?.flat > 0}
             <div class="mb-1 my-1 flex items-center gap-2 rounded-md  p-1 text-yellow-700">
               <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600 shrink-0" />
@@ -1021,22 +1170,23 @@
             </div> -->
             <div class="flex justify-between  lg:hidden  flex-wrap">
               <div>
-                <p class="md:text-lg text-base text-[#4F585E] mt-2">M.R.P <span class="line-through">₹{product.strikePrice}</span></p>
+                <!-- <p class="md:text-lg text-base text-[#4F585E] mt-2"> <span class="line-through">₹{product.strikePrice}</span></p> -->
 
                 {#if negotiation.negotiatedPrice && selectedPricingOption ==='negotiation'}
-                <p class="text-[#111827] "><span class="line-through font-bold md:text-2xl text-lg">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg px-4"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)} <span class="text-[#C49814] text-sm font-medium px-4">Negotiation Price</span> </span></p>
+                <p class="text-[#111827] ">M.R.P<span class="line-through font-bold md:text-2xl text-lg pl-1">₹{product.MRP} </span> <span class="font-bold md:text-2xl text-lg lg:px-4 md:px-3 px-1"> ₹{(negotiation.negotiatedPrice*quantity).toFixed(2)}  </span></p>
+                <span class="text-[#C49814] text-xs font-medium lg:px-4 md:px-3 px-1">(Negotiation Price)</span>
 
               {:else}
-                <p class={`text-[#111827] font-bold md:text-2xl text-lg ${selectedPricingOption==='discount'? 'line-through':''}`}>₹{product.MRP*quantity}</p>
-                {#if selectedPricingOption === 'discount'}
+                <p class={`text-[#111827] mt-2 font-bold md:text-2xl text-lg ${selectedPricingOption==='discount'&&discountConfirmed? 'line-through':''}`}> <span class="font-normal">M.R.P</span> ₹{product.MRP*desiredQuantity}</p>
+                {#if selectedPricingOption === 'discount'&& discountConfirmed}
                 <p class="text-[#111827] font-bold md:text-2xl text-lg">
                   ₹{(product?.MRP * quantity * (1 - product?.discount / 100)).toFixed(2)}
                 </p>
               {/if}
               {#if selectedPricingOption === 'discount'}
-                <p class=" ">Save - ₹{(product.strikePrice - (product?.MRP * quantity * (1 - product?.discount / 100)))*quantity.toFixed(2)}</p>
+                <!-- <p class=" ">Save - ₹{(product.strikePrice - (product?.MRP * quantity * (1 - product?.discount / 100)))*quantity.toFixed(2)}</p> -->
                {:else}
-                <p class=" ">Save - ₹{(product.strikePrice - product.MRP)*quantity}</p>
+                <!-- <p class=" ">Save - ₹{(product.strikePrice - product.MRP)*quantity}</p> -->
                 {/if}
               {/if}
 
@@ -1087,49 +1237,72 @@
             </button>
           </div>
     
-          <!-- Negotiation Section -->
-          <div class={`negotiation-section bg-white lg:p-6 p-2 max-w-lg flex gap-5 rounded-lg shadow-md border border-gray-200 ${product?.negotiate?'block':'hidden'}`}>
-                  <!-- Negotiation Option -->
-          {#if product?.negotiate}
-          <label class="flex items-center space-x-1">
-            <input
-              type="radio"
-              bind:group={selectedPricingOption}
-              value="negotiation"
-              class="form-radio h-5 w-5 text-blue-600"
-            />
-            <span class="text-sm text-gray-700">Negotiation</span>
-          </label>
-        {/if}
-
-        <!-- On MRP Option -->
-        {#if product?.onMRP > 0}
-          <label class="flex items-center space-x-1">
-            <input
-              type="radio"
-              bind:group={selectedPricingOption}
-              value="onMRP"
-              class="form-radio h-5 w-5 text-blue-600"
-            />
-            <span class="text-sm text-gray-700">On MRP Price</span>
-          </label>
-        {/if}
-
-        <!-- Discount Option -->
-        {#if product?.discount > 0}
-          <label class="flex items-center space-x-1">
-            <input
-              type="radio"
-              bind:group={selectedPricingOption}
-              value="discount"
-              class="form-radio h-5 w-5 text-blue-600"
-            />
-            <span class="text-sm text-gray-700">Discount</span>
-          </label>
-        {/if}
+          <div class="my-4 space-x-3 flex">
+            <!-- Negotiation Option -->
+            {#if product?.flat > 0}
+     
+            <label class="flex items-center space-x-1">
+              <input
+                type="radio"
+                bind:group={selectedPricingOption}
+                value="flatOffer"
+                class="form-radio h-5 w-5 text-blue-600"
+                on:click={() => toggleOption('flatOffer')}
+                disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+              />
+              <span class="text-sm text-gray-700">Flat Discount</span>
+            </label>
+  
+            {/if}
+            {#if product?.negotiate}
+              <label class="flex items-center space-x-1">
+                <input
+                  type="radio"
+                  bind:group={selectedPricingOption}
+                  value="negotiation"
+                  class="form-radio h-5 w-5 text-blue-600"
+                  on:click={() => toggleOption('negotiation')}
+                  disabled={product.stock<=0||lockedOffer!=''}
+                />
+                <span class="text-sm text-gray-700">Negotiation</span>
+              </label>
+            {/if}
+  
+            <!-- On MRP Option -->
+            {#if product?.onMRP > 0}
+              <label class="flex items-center space-x-1">
+                <input
+                  type="radio"
+                  on:change={()=>{$complementaryProductQuery.mutate()}}
+                  bind:group={selectedPricingOption}
+                  value="onMRP"
+                  on:click={() => toggleOption('onMRP')}
+                  class="form-radio h-5 w-5 text-blue-600"
+                  disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+                />
+                <span class="text-sm text-gray-700">On MRP Price</span>
+              </label>
+            {/if}
+  
+            <!-- Discount Option -->
+            {#if product?.discount > 0}
+              <label class="flex items-center space-x-1">
+                <input
+                  type="radio"
+                  bind:group={selectedPricingOption}
+                  value="discount"
+                  class="form-radio h-5 w-5 text-blue-600"
+                  on:click={() => toggleOption('discount')}
+                  disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
+                />
+                <span class="text-sm text-gray-700">Discount</span>
+              </label>
+            {/if}
           </div>
+
+          <!-- desktop screen -->
           <div class={`negotiation-section max-w-lg bg-white p-6 rounded-lg shadow-md border border-gray-200 ${product?.negotiate || product?.onMRP > 0 || product?.discount > 0 ? 'block' : 'hidden'}`}>
-            <!-- Radio Buttons for Pricing Options -->
+           
         {#if selectedPricingOption===''}
         <p class="text-sm text-yellow-600 flex items-center">
           <span class="mr-1 text-lg">
@@ -1157,16 +1330,16 @@
                     placeholder="Enter your offer amount"
                     min="1"
                     max={product?.MRP || 0}
-                    disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+                    disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''}
                   />
                 </div>
               </div>
   
               <div class="mb-4 space-y-2">
-                <p class="text-sm text-yellow-600 flex items-center">
+                <p class="text-sm text-yellow-600 flex items-start">
                   <span class="mr-1 text-lg">
                     <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-                  </span> You can negotiate the product price
+                  </span> You can negotiate the product price only for quantities above {product.negMOQ}.
                 </p>
               </div>
   
@@ -1190,7 +1363,7 @@
               <button
                 class="w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-xl mt-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 on:click={handleNegotiate}
-                disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+                disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''||desiredQuantity<product.negMOQ}
               >
                 NEGOTIATE
               </button>
@@ -1204,7 +1377,7 @@
               {/if}
               {:else if selectedPricingOption === 'onMRP' && product?.onMRP > 0}
               <div class="mb-4">
-                <Select.Root type="single" bind:value={selectedMessageOption}>
+                <Select.Root type="single" disabled={lockedOffer!=''||negotiation.attemptNumber!=0} bind:value={selectedMessageOption}>
                   <Select.Trigger class="text-black  focus:outline-none  focus:ring-0 text-base">
                     {selectedMessageOption}
                   </Select.Trigger>
@@ -1246,14 +1419,47 @@
               </div>
             
             {:else if selectedPricingOption === 'discount' && product?.discount > 0}
-              <div class="mb-4">
-                <p class="text-base my-4 text-yellow-600 flex items-center">
-                  <span class="mr-1 text-base">
-                    <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-                  </span> You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product
+            <div class="mb-1 flex items-start my-1">
+              <span class="mr-1 mt-0.5 text-base">
+                <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
+              </span>
+              <p class="text-base   flex flex-wrap text-yellow-600 items-center">
+               
+               <span>
+                You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product [Offer Price: ₹{product.MRP - (product.MRP * product.discount / 100)} ]
+               </span>  
         
               </p>
             </div>
+         <div>
+<p class="text-center my-2 text-lg">
+  Do you need to apply this offer?
+</p>       
+<div class="flex gap-2 justify-center">
+  <button
+  disabled={lockedOffer!=''||negotiation.attemptNumber!=0}
+  class="w-1/3 bg-[#01A0E2] text-white py-1 rounded-lg hover:scale-105 transition-all"
+  on:click={() => {
+    selectedPricingOption = 'discount';
+    discountConfirmed = true;
+    toast.success('Discount applied!');
+  }}
+>
+  Yes
+</button>
+<button
+disabled={lockedOffer!=''||negotiation.attemptNumber!=0}
+  class="w-1/3 bg-gray-300 text-gray-700 py-1 rounded-lg hover:scale-105 transition-all"
+  on:click={() => {
+    selectedPricingOption = '';
+    discountConfirmed = false;
+    toast.info('Discount not applied.');
+  }}
+>
+  No
+</button>
+</div>
+</div>
           {/if}
         </div>
           
@@ -1265,7 +1471,7 @@
           <div class="p-8">
             <p class="font-bold text-2xl text-[#30363C]">Complementary Products up to ₹{product?.onMRP} value</p>
             <p class="text-[#4B5563] text-base py-2">Choose an additional item with your purchase</p>
-        
+ 
             {#if $complementaryProductQuery.isLoading}
               <div class="flex justify-center items-center py-8">
                 <div>Loading complementary products...</div>
@@ -1283,6 +1489,7 @@
                            ${isComplementarySelected(prod) ? 'ring-1 ring-[#01A0E2]' : ''}`}
                     role="button"
                     tabindex="0"
+                    aria-disabled={lockedOffer!=''||negotiation.attemptNumber!=0}
                     on:click={() => toggleComplementaryProduct(prod)}
                   >
                     <!-- Product Image -->
@@ -1380,7 +1587,6 @@
         </div>
     
 
-        <!-- Negotiation Section -->
         <div class="my-4 space-x-3 flex">
           <!-- Negotiation Option -->
           {#if product?.flat > 0}
@@ -1390,8 +1596,9 @@
               type="radio"
               bind:group={selectedPricingOption}
               value="flatOffer"
-              on:click={()=>{$flatProductQuery.mutate()}}
               class="form-radio h-5 w-5 text-blue-600"
+              on:click={() => toggleOption('flatOffer')}
+              disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
             />
             <span class="text-sm text-gray-700">Flat Discount</span>
           </label>
@@ -1403,7 +1610,9 @@
                 type="radio"
                 bind:group={selectedPricingOption}
                 value="negotiation"
+                on:click={() => toggleOption('negotiation')}
                 class="form-radio h-5 w-5 text-blue-600"
+                disabled={product.stock<=0||lockedOffer!=''}
               />
               <span class="text-sm text-gray-700">Negotiation</span>
             </label>
@@ -1417,7 +1626,9 @@
                 on:change={()=>{$complementaryProductQuery.mutate()}}
                 bind:group={selectedPricingOption}
                 value="onMRP"
+                on:click={() => toggleOption('onMRP')}
                 class="form-radio h-5 w-5 text-blue-600"
+                disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
               />
               <span class="text-sm text-gray-700">On MRP Price</span>
             </label>
@@ -1430,7 +1641,9 @@
                 type="radio"
                 bind:group={selectedPricingOption}
                 value="discount"
+                on:click={() => toggleOption('discount')}
                 class="form-radio h-5 w-5 text-blue-600"
+                disabled={product.stock<=0||lockedOffer!=''||negotiation.attemptNumber!=0}
               />
               <span class="text-sm text-gray-700">Discount</span>
             </label>
@@ -1465,16 +1678,16 @@
                   placeholder="Enter your offer amount"
                   min="1"
                   max={product?.MRP || 0}
-                  disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+                  disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''}
                 />
               </div>
             </div>
 
             <div class="mb-4 space-y-2">
-              <p class="text-sm text-yellow-600 flex items-center">
+              <p class="text-sm text-yellow-600 flex items-start">
                 <span class="mr-1 text-lg">
                   <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
-                </span> You can negotiate the product price
+                </span> You can negotiate the product price only for quantities above {product.negMOQ}.
               </p>
             </div>
 
@@ -1498,7 +1711,7 @@
             <button
               class="w-full bg-[#01A0E2] text-white py-3 rounded-lg hover:scale-105 duration-300 transition-all focus:outline-none focus:ring-0 text-xl mt-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               on:click={handleNegotiate}
-              disabled={negotiation.attemptNumber >= negotiation.maxAttempts}
+              disabled={negotiation.attemptNumber >= negotiation.maxAttempts||lockedOffer!=''||desiredQuantity<product.negMOQ}
             >
               NEGOTIATE
             </button>
@@ -1515,7 +1728,7 @@
           
             {:else if selectedPricingOption === 'onMRP' && product?.onMRP > 0}
             <div class="mb-4">
-              <Select.Root type="single" bind:value={selectedMessageOption}>
+              <Select.Root type="single" disabled={lockedOffer!=''} bind:value={selectedMessageOption}>
                 <Select.Trigger class="text-black  focus:outline-none  focus:ring-0 text-base">
                   {selectedMessageOption}
                 </Select.Trigger>
@@ -1558,19 +1771,47 @@
           
           {:else if selectedPricingOption === 'discount' && product?.discount > 0}
 
-            <div class="mb-4 flex items-start my-4">
+            <div class="mb-1 flex items-start my-1">
               <span class="mr-1 mt-0.5 text-base">
                 <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600" />
               </span>
-              <p class="text-base  flex flex-wrap text-yellow-600 items-center">
+              <p class="text-base   flex flex-wrap text-yellow-600 items-center">
                
                <span>
-                You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product
+                You can avail <span class="text-lg px-2">{product?.discount}%</span> offer  for this product [Offer Price: ₹{product.MRP - (product.MRP * product.discount / 100)} ]
                </span>  
         
               </p>
             </div>
-         
+         <div>
+<p class="text-center my-2 text-lg">
+  Do you need to apply this offer?
+</p>       
+<div class="flex gap-2 justify-center">
+  <button
+  disabled={lockedOffer!=''}
+  class="w-1/3 bg-[#01A0E2] text-white py-1 rounded-lg hover:scale-105 transition-all"
+  on:click={() => {
+    selectedPricingOption = 'discount';
+    discountConfirmed = true;
+    toast.success('Discount applied!');
+  }}
+>
+  Yes
+</button>
+<button
+disabled={lockedOffer!=''}
+  class="w-1/3 bg-gray-300 text-gray-700 py-1 rounded-lg hover:scale-105 transition-all"
+  on:click={() => {
+    selectedPricingOption = '';
+    discountConfirmed = false;
+    toast.info('Discount not applied.');
+  }}
+>
+  No
+</button>
+</div>
+</div>
             {:else if selectedPricingOption === 'flatOffer' && product?.flat > 0}
             <div class="mb-4 my-4 flex items-center gap-2 rounded-md  p-3 text-yellow-700">
               <Icon icon="tabler:info-circle-filled" class="text-xl text-yellow-600 shrink-0" />
@@ -1625,6 +1866,7 @@
               name={product.name}
               MRP={product.MRP}
               strikePrice={product.strikePrice}
+              available={product?.available}
             />
             </div>
             {/each}
@@ -1632,10 +1874,10 @@
         {/if}
       </div>
     {/if}
-    {#if selectedPricingOption==='flatOffer'}
+    {#if selectedPricingOption === 'flatOffer' && $flatProductQuery.data}
     <div class="mt-8 overflow-x-auto">
       <h2 class="text-xl font-bold text-[#30363C] mb-4">More from Flat Offer</h2>
-      {#if $flatProductQuery?.isLoading}
+      {#if $flatProductQuery.isLoading}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {#each Array(4) as _}
             <div class="w-full bg-white rounded-xl shadow-md overflow-hidden">
@@ -1651,21 +1893,24 @@
             </div>
           {/each}
         </div>
-      {:else if $flatProductQuery.error}
-        <p class="text-red-500">Error loading products: {$flatProductQuery.error}</p>
-      {:else}
+      {:else if $flatProductQuery.isError}
+        <p class="text-red-500">Error loading flat offer products: {$flatProductQuery.error?.message}</p>
+      {:else if $flatProductQuery.data.length > 0}
         <div class="flex flex-wrap gap-10">
-          {#each $flatProductQuery?.data?.data as product (product.id)}
+          {#each $flatProductQuery.data as product (product.id)}
             <ProductCard
-              id={product._id}
+              id={product.id}
               image={product.images[0]}
-              name={product.productName}
-              MRP={product.price}
+              name={product.name}
+              MRP={product.MRP}
               favorite={product.favorite}
               strikePrice={product.strikePrice}
+              available={product.stock===0?false:true}
             />
           {/each}
         </div>
+      {:else}
+        <p class="text-gray-500">No flat offer products available.</p>
       {/if}
     </div>
   {/if}

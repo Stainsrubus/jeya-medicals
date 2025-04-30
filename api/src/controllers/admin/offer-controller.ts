@@ -19,6 +19,8 @@ const negotiateSchema = t.Object({
       productId: t.String(),
       successPercentage: t.Number(),
       failurePercentage: t.Number(),
+      MOQ:t.Number(),
+      limit:t.Number()
     })
   ),
 });
@@ -135,6 +137,7 @@ export const offerController = new Elysia({
       percentage: t.Optional(t.Number()),
       failurePercentage: t.Optional(t.Number()),
       successPercentage: t.Optional(t.Number()),
+      MOQ:t.Optional(t.Number()),
       limit:t.Optional(t.Number()),
       minPrd: t.Optional(t.Number()),
       noOfAttempts: t.Optional(t.Number()),
@@ -156,7 +159,7 @@ export const offerController = new Elysia({
   async ({ params, body, set }) => {
     try {
       const { id } = params;
-      const { productId, discount, mrpReduction,successPercentage,failurePercentage,limit } = body;
+      const { productId, discount, mrpReduction,successPercentage,failurePercentage,limit,MOQ } = body;
 
       const offer = await FlatOffer.findById(id) || await DiscountOffer.findById(id) || await MRPOffer.findById(id)|| await NegotiateOffer.findById(id);
       if (!offer) {
@@ -209,7 +212,7 @@ else{
       else if(offer.type ==='negotiate'){
         //@ts-ignore
         offer.items.push({ productId, successPercentage,failurePercentage});
-        await Product.findByIdAndUpdate(productId, { negotiate:true,negotiateLimit:limit }); // Add discount to Product
+        await Product.findByIdAndUpdate(productId, { negotiate:true,negotiateLimit:limit,negMOQ:MOQ}); // Add discount to Product
       }
 
       await offer.save();
@@ -229,6 +232,7 @@ else{
       mrpReduction: t.Optional(t.Number()),
       successPercentage:t.Optional(t.Number()),
       failurePercentage:t.Optional(t.Number()),
+      MOQ:t.Optional(t.Number()),
       limit:t.Optional(t.Number()),
     }),
     detail: { summary: 'Add a product to the offer' },
@@ -282,7 +286,7 @@ else{
      //@ts-ignore
 
         } else if (offer.type === 'negotiate') {
-          await Product.findByIdAndUpdate(productId, { negotiate: false,  $unset: { negotiateLimit: "" } });
+          await Product.findByIdAndUpdate(productId, { negotiate: false,  $unset: { negotiateLimit: "",negMOQ:""} });
         }
       }
 
@@ -333,7 +337,7 @@ else{
       const offerType = offer.type;
 
       for (const product of products) {
-        const { productId, discount, mrpReduction, successPercentage, failurePercentage, limit } = product;
+        const { productId, discount, mrpReduction, successPercentage, failurePercentage, limit,MOQ } = product;
 
         const index = offer.items.findIndex((item) => item.productId.toString() === productId);
         if (index === -1) continue;
@@ -351,11 +355,11 @@ else{
         if (offerType === "negotiate") {
           offer.items[index].successPercentage = successPercentage;
           offer.items[index].failurePercentage = failurePercentage;
-
+          // offer.items[index].MOQ = MOQ;
           // Update the limit in product from the request body
-          await Product.findByIdAndUpdate(productId, { negotiateLimit: limit });
+          await Product.findByIdAndUpdate(productId, { negotiateLimit: limit ,negMOQ:MOQ});
 
-          console.log(`[Negotiate] Updated product ${productId} → success: ${successPercentage}, failure: ${failurePercentage}, limit: ${limit}`);
+          // console.log(`[Negotiate] Updated product ${productId} → success: ${successPercentage}, failure: ${failurePercentage}, limit: ${limit}`);
         }
       }
 
@@ -385,6 +389,7 @@ else{
           successPercentage: t.Optional(t.Number()),
           failurePercentage: t.Optional(t.Number()),
           limit: t.Optional(t.Number()), // Added limit to the schema
+          MOQ:t.Optional(t.Number())
         })
       ),
     }),

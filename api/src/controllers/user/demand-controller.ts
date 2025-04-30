@@ -20,7 +20,7 @@ export const demandController = new Elysia({
             set.status = 400;
             return { message: "Invalid user", status: false };
           }
-        const { productName, message, file } = body; // Expecting a single file
+        const { productName, message, file,quantity,ratePreference,brandName,timePreference } = body; // Expecting a single file
 
         const { ok, filename } = await saveFile(file, "demand");
         if (!ok) {
@@ -32,6 +32,10 @@ export const demandController = new Elysia({
           userId: userId,
           productName,
           message,
+          quantity: Number(quantity),
+          ratePreference,
+          brandName,
+          timePreference,
           file: filename, // Store single filename
         });
 
@@ -52,6 +56,10 @@ export const demandController = new Elysia({
       body: t.Object({
         productName: t.String({ minLength: 3 }),
         message: t.String({ minLength: 3 }),
+        quantity:t.String(),
+        ratePreference:t.String(),
+        timePreference:t.String(),
+        brandName:t.String(),
         file: t.File({ required: true }), // Single file instead of array
       }),
     }

@@ -36,7 +36,7 @@ export const userOrderController = new Elysia({
       const cart = await CartModel.findOne({
         user: new mongoose.Types.ObjectId(userId),
         status: "active",
-      });
+      }).populate('products.productId');
 
       const user = await User.findById(userId);
 
@@ -57,6 +57,52 @@ export const userOrderController = new Elysia({
         return { message: "Address not found", status: false };
       }
 
+      // Step 1: Validate stock for all products in cart
+      const stockValidationErrors = [];
+      const validProducts = [];
+      
+      for (const cartItem of cart.products) {
+        const product = await Product.findById(cartItem.productId);
+        
+        if (!product) {
+          stockValidationErrors.push({
+            productId: cartItem.productId,
+            message: "Product not found"
+          });
+          continue;
+        }
+
+        if (product.stock < cartItem.quantity) {
+          stockValidationErrors.push({
+            productId: cartItem.productId,
+            productName: product.productName,
+            requestedQuantity: cartItem.quantity,
+            availableStock: product.stock,
+            message: `Insufficient stock for ${product.productName}. Available: ${product.stock}, Requested: ${cartItem.quantity}`
+          });
+        } else {
+          validProducts.push({
+            cartItem,
+            product
+          });
+        }
+      }
+
+      // If any products have insufficient stock, return error
+      if (stockValidationErrors.length > 0) {
+        set.status = 400;
+        return {
+          message: "Some products have insufficient stock",
+          status: false,
+          errors: stockValidationErrors,
+          validProducts: validProducts.map(item => ({
+            productId: item.cartItem.productId,
+            productName: item.product.productName,
+            availableStock: item.product.stock
+          }))
+        };
+      }
+
       let Estore = await StoreModel.findOne({});
       let orderId = generateRandomString(6, "JME");
 
@@ -66,7 +112,7 @@ export const userOrderController = new Elysia({
         totalAmount: product.totalAmount,
         price: product.price,
         options: product.options,
-         selectedOffer:product.selectedOffer
+        selectedOffer: product.selectedOffer
       }));
 
       const order = new OrderModel({
@@ -96,7 +142,6 @@ export const userOrderController = new Elysia({
           order.coupon = coupon._id;
           order.couponCode = coupon.code;
           order.totalPrice = cart.totalPrice - discountAmount;
-    
         }
       }
 
@@ -110,44 +155,64 @@ export const userOrderController = new Elysia({
         await address.save();
       }
 
+      // Start a transaction to ensure data consistency
+      const session = await mongoose.startSession();
+      session.startTransaction();
 
-      // Save the order
-      await order.save();
+      try {
+        // Step 2: Reduce stock for all valid products
+        for (const { cartItem, product } of validProducts) {
+          product.stock -= cartItem.quantity;
+          await product.save({ session });
+        }
 
-      // Remove negotiation attempts for products in the cart
-      const productIds = cart.products.map(product => product.productId._id.toString());
-      user.attempts = user.attempts.filter(attempt => !productIds.includes(attempt.productId));
+        // Save the order
+        // await order.save({ session });
 
-      // Broadcast and notify
-      broadcastMessage(
-        `New Order with Order ID: ${orderId} is placed by ${user.username}`
-      );
-      await sendNotification(
-        user.fcmToken,
-        "Order Placed!",
-        `Your order #${orderId} has been placed successfully.`
-      );
+        // Remove negotiation attempts for products in the cart
+        const productIds = cart.products.map(product => product.productId._id.toString());
+        user.attempts = user.attempts.filter(attempt => !productIds.includes(attempt.productId));
 
-      // Clear the cart
-      cart.products = [];
-      cart.subtotal = 0;
-      cart.tax = 0;
-      cart.totalPrice = 0;
-      cart.deliveryFee = 0;
-      cart.deliverySeconds = 0;
-      cart.platformFee = 0;
-      cart.totalDistance = 0;
-      await cart.save();
+        // Clear the cart
+        cart.products = [];
+        cart.subtotal = 0;
+        cart.tax = 0;
+        cart.totalPrice = 0;
+        cart.deliveryFee = 0;
+        cart.deliverySeconds = 0;
+        cart.platformFee = 0;
+        cart.totalDistance = 0;
+        // await cart.save({ session });
 
-      // Save the updated user with attempts removed
-      await user.save();
+        // Save the updated user with attempts removed
+        // await user.save({ session });
 
-      return {
-        message: "Order created successfully",
-        status: true,
-        order,
-        paymentRequired: false
-      };
+        // Commit the transaction
+        // await session.commitTransaction();
+        // session.endSession();
+
+        // Broadcast and notify
+        broadcastMessage(
+          `New Order with Order ID: ${orderId} is placed by ${user.username}`
+        );
+        await sendNotification(
+          user.fcmToken,
+          "Order Placed!",
+          `Your order #${orderId} has been placed successfully.`
+        );
+
+        return {
+          message: "Order created successfully",
+          status: true,
+          order,
+          paymentRequired: false
+        };
+      } catch (error) {
+        // If any error occurs, abort the transaction
+        await session.abortTransaction();
+        session.endSession();
+        throw error; // Re-throw the error to be caught by the outer catch block
+      }
     } catch (error) {
       set.status = 500;
       return {
@@ -166,7 +231,7 @@ export const userOrderController = new Elysia({
     }),
     detail: {
       summary: "Create order (without payment)",
-      description: "Create a new order from the user's cart without payment processing",
+      description: "Create a new order from the user's cart with stock validation and updates",
     },
   }
 )
@@ -736,56 +801,90 @@ export const userOrderController = new Elysia({
     "/cancel/:orderId",
     async ({ params, store, set }) => {
       const userId = (store as StoreType)["id"];
-
+  
       try {
         const { orderId } = params;
-
-        const order = await OrderModel.findOne({ _id: orderId, user: userId });
-
-        if (!order) {
-          set.status = 404;
-          return { message: "Order not found", status: false };
-        }
-
-        const cancelableStatus = ["pending", "accepted"];
-
-        if (!cancelableStatus.includes(order.status)) {
+  
+        // Start a MongoDB session for transaction
+        const session = await mongoose.startSession();
+        session.startTransaction();
+  
+        try {
+          const order = await OrderModel.findOne({ _id: orderId, user: userId })
+            .populate('products.productId')
+            .session(session);
+  
+          if (!order) {
+            set.status = 404;
+            await session.abortTransaction();
+            session.endSession();
+            return { message: "Order not found", status: false };
+          }
+  
+          const cancelableStatus = ["pending", "accepted"];
+  
+          if (!cancelableStatus.includes(order.status)) {
+            await session.abortTransaction();
+            session.endSession();
+            return {
+              message: "Order cannot be cancelled",
+              status: false,
+            };
+          }
+  
+          const user = await User.findById(order?.user).session(session);
+  
+          if (!user) {
+            set.status = 404;
+            await session.abortTransaction();
+            session.endSession();
+            return { message: "User not found", status: false };
+          }
+  
+          // Restore product quantities
+          for (const item of order.products) {
+            const product = await Product.findById(item.productId).session(session);
+            if (product) {
+              product.stock += item.quantity;
+              await product.save({ session });
+            }
+          }
+  
+          // Update order status
+          order.status = "cancelled";
+          await order.save({ session });
+  
+          // Commit the transaction if all operations succeed
+          await session.commitTransaction();
+          session.endSession();
+  
+          // Notifications (commented out as in original)
+          // await sendNotification(
+          //   user.fcmToken,
+          //   "Order Cancelled",
+          //   `Your order ${order.orderId} has been cancelled. Contact support for assistance.`
+          // );
+          // broadcastMessage(
+          //   `A Order with Order ID: ${order.orderId} is cancelled by User, ${user.username}`
+          // );
+  
           return {
-            message: "Order cannot be cancelled",
-            status: false,
+            message: "Order cancelled successfully",
+            status: true,
           };
+        } catch (error) {
+          // If any error occurs, abort the transaction
+          await session.abortTransaction();
+          session.endSession();
+          throw error; // Re-throw to be caught by outer catch
         }
-
-        const user = await User.findById(order?.user);
-
-        if (!user) {
-          set.status = 404;
-          return { message: "User not found", status: false };
-        }
-
-        // await sendNotification(
-        //   user.fcmToken,
-        //   "Order Cancelled",
-        //   `Your order ${order.orderId} has been cancelled. Contact support for assistance.`
-        // );
-
-        // broadcastMessage(
-        //   `A Order with Order ID: ${order.orderId} is cancelled by User, ${user.username}`
-        // );
-
-        order.status = "cancelled";
-
-        await order?.save();
-
-        return {
-          message: "Order cancelled successfully",
-          status: true,
-        };
       } catch (error) {
         console.error(error);
+        set.status = 500;
         return {
-          error,
-          status: "error",
+          message: "Failed to cancel order",
+          error: error instanceof Error ? error.message : "Unknown error",
+          status: false,
         };
       }
     },
@@ -795,6 +894,7 @@ export const userOrderController = new Elysia({
       }),
       detail: {
         summary: "Cancel Order by id",
+        description: "Cancels an order and restores product stock quantities",
       },
     }
   )

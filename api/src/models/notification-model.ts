@@ -4,8 +4,8 @@ interface INotification extends Document {
   title: string;
   description: string;
   type: string;
-//   userId: Schema.Types.ObjectId;
-//   isRead: boolean;
+  userId: Schema.Types.ObjectId;
+  isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,15 +24,15 @@ const notificationSchema = new Schema(
       type: String,
       required: true,
     },
-    // userId: {
-    //   type: Schema.Types.ObjectId,
-    //   ref: "User",
-    //   required: true,
-    // },
-    // isRead: {
-    //   type: Boolean,
-    //   default: false,
-    // },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

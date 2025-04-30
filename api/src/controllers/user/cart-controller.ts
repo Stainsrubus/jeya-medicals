@@ -30,7 +30,7 @@ export const userCartController = new Elysia({
       status: "active",
     }).populate({
       path: "products.productId",
-      select: "productName comboName comboPrice price images gst discount onMRP strikePrice flat",
+      select: "productName comboName comboPrice price images gst stock discount onMRP strikePrice flat negMOQ",
     });
 
     if (!cart) {
