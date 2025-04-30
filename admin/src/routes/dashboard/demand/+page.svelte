@@ -8,7 +8,7 @@
   import Icon from '@iconify/svelte';
   import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import { toast } from 'svelte-sonner';
-
+  import * as Select from "$lib/components/ui/select/index.js";
   // Define the query to fetch demand data
   const demandQuery = createQuery({
     queryKey: ['demand'],
@@ -88,7 +88,7 @@
         userId: selectedUserId,
         title: notificationTitle,
         description: notificationDescription,
-        type:"other"
+        type:"demand"
       });
       
       if (response.status === 200 || response.status === 201) {
@@ -261,7 +261,6 @@
     </Dialog.Header>
     
     <form on:submit|preventDefault={handleNotificationSubmit} class="grid gap-4 py-4">
-      
       <div class="grid grid-cols-4 items-center gap-4">
         <label for="title" class="text-right font-medium">Notification Title:</label>
         <input 
@@ -279,24 +278,37 @@
         <textarea 
           id="description" 
           bind:value={notificationDescription} 
-          class="col-span-3 h-24 rounded-md border bg-white border-gray-300  focus:ring-0 focus:outline-none px-3 py-2"
+          class="col-span-3 h-24 rounded-md border bg-white border-gray-300 focus:ring-0 focus:outline-none px-3 py-2"
           placeholder="Enter notification description"
           required
         ></textarea>
       </div>
       
+      <div class="grid grid-cols-4 items-center gap-4">
+        <!-- <label for="type" class="text-right font-medium">Notification Type:</label>
+        <Select.Root   class="col-span-3">
+          <Select.Trigger  class="w-full h-10 rounded-md border bg-white focus:ring-0 focus:outline-none border-gray-300 px-3 py-2 flex items-center justify-between">
+        Select Type
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="demand">Demand</Select.Item>
+            <Select.Item value="other">Other</Select.Item>
+          </Select.Content>
+        </Select.Root>
+      </div> -->
+      
       <Dialog.Footer>
         <div class="flex justify-end gap-2">
           <button 
             type="button" 
-            class="inline-flex h-10 items-center justify-center rounded-md border  border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            class="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             on:click={closeNotificationDialog}
           >
             Cancel
           </button>
           <button 
             type="submit" 
-            class="inline-flex h-10 items-center justify-center rounded-md  bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            class="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
             disabled={isSubmitting}
           >
             {isSubmitting ? 'Sending...' : 'Notify'}

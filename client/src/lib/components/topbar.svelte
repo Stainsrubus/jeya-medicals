@@ -36,7 +36,7 @@
   interface Notification {
     _id: string;
     userId: string;
-    type: 'order' | 'promotion' | 'wishlist' | 'account' | 'other';
+    type: 'order' | 'promotion' | 'demand' | 'account' | 'other';
     message: string;
     isRead: boolean;
     createdAt: string;
@@ -457,7 +457,7 @@ const markAllReadMutation = createMutation({
   const typeStyles = {
     order: { icon: 'mdi:cart', color: 'bg-blue-100 text-blue-600' },
     promotion: { icon: 'mdi:tag', color: 'bg-green-100 text-green-600' },
-    wishlist: { icon: 'mdi:heart', color: 'bg-red-100 text-red-600' },
+    demand: { icon: 'solar:reorder-linear', color: 'bg-yellow-100 text-yellow-600' },
     account: { icon: 'mdi:account', color: 'bg-purple-100 text-purple-600' },
     other: { icon: 'mdi:bell', color: 'bg-gray-100 text-gray-600' },
   };
