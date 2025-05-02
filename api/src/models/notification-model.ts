@@ -29,6 +29,9 @@ const notificationSchema = new Schema(
       ref: "User",
       required: true,
     },
+    response:{
+      type:String
+    },
     isRead: {
       type: Boolean,
       default: false,

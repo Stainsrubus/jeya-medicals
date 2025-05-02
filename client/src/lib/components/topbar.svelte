@@ -40,6 +40,7 @@
     message: string;
     isRead: boolean;
     createdAt: string;
+    response?: 'yes' | 'no'; // Add response field
   }
 
   interface NotificationResponse {
@@ -51,6 +52,7 @@
       isRead: boolean;
       createdAt: string;
       updatedAt: string;
+      response?: 'yes' | 'no'; // Add response field
       __v: number;
     }>;
     currentPage: number;
@@ -102,168 +104,203 @@
     staleTime: 0,
     enabled: $writableGlobalStore.isLogedIn,
   });
+
   const hasNewNotificationsQuery = createQuery<{ hasNew: boolean }>({
-  queryKey: ['hasNewNotifications'],
-  queryFn: async () => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('userData');
+    queryKey: ['hasNewNotifications'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('userData');
 
-    if (!token || !userData) {
-      throw new Error('No token or user data found. Please log in.');
-    }
-
-    try {
-      const response = await _axios.get('/notification/hasNew', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.data) {
-        throw new Error('Failed to check for new notifications');
+      if (!token || !userData) {
+        throw new Error('No token or user data found. Please log in.');
       }
 
-      return {
-        hasNew: !!response.data.hasNew
-      };
-    } catch (error: any) {
+      try {
+        const response = await _axios.get('/notification/hasNew', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.data) {
+          throw new Error('Failed to check for new notifications');
+        }
+
+        return {
+          hasNew: !!response.data.hasNew
+        };
+      } catch (error: any) {
+        console.error('Check new notifications error:', error.message);
+        throw new Error(error.response?.data?.message || error.message || 'Failed to check for new notifications');
+      }
+    },
+    enabled: $writableGlobalStore.isLogedIn,
+    retry: 1,
+    staleTime: 0,
+    refetchInterval: 2000, // Poll this lightweight endpoint every 2 seconds
+    onError: (error: any) => {
       console.error('Check new notifications error:', error.message);
-      throw new Error(error.response?.data?.message || error.message || 'Failed to check for new notifications');
-    }
-  },
-  enabled: $writableGlobalStore.isLogedIn,
-  retry: 1,
-  staleTime: 0,
-  refetchInterval: 2000, // Poll this lightweight endpoint every 2 seconds
-  onError: (error: any) => {
-    console.error('Check new notifications error:', error.message);
-    if (error.message.includes('token') || error.message.includes('log in')) {
-      writableGlobalStore.update((store) => ({ ...store, isLogedIn: false }));
-      goto('/login');
-    }
-  },
-});
-const notificationsQuery = createInfiniteQuery<NotificationResponse, Error, Notification[]>({
-  queryKey: ['notifications'],
-  queryFn: async ({ pageParam = 1 }) => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('userData');
+      if (error.message.includes('token') || error.message.includes('log in')) {
+        writableGlobalStore.update((store) => ({ ...store, isLogedIn: false }));
+        goto('/login');
+      }
+    },
+  });
 
-    if (!token || !userData) {
-      writableGlobalStore.update((store) => ({
-        ...store,
-        isLogedIn: false,
-        userId: null,
-      }));
-      throw new Error('No token or user data found. Please log in.');
-    }
+  const notificationsQuery = createInfiniteQuery<NotificationResponse, Error, Notification[]>({
+    queryKey: ['notifications'],
+    queryFn: async ({ pageParam = 1 }) => {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('userData');
 
-    try {
-      const userId = JSON.parse(userData)?.userId;
-      if (!userId) throw new Error('User ID not found');
-
-      const response = await _axios.get(`/notification?page=${pageParam}&limit=5`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to fetch notifications');
+      if (!token || !userData) {
+        writableGlobalStore.update((store) => ({
+          ...store,
+          isLogedIn: false,
+          userId: null,
+        }));
+        throw new Error('No token or user data found. Please log in.');
       }
 
-      return {
-        notifications: response.data.notifications,
-        currentPage: response.data.currentPage,
-        totalPages: response.data.totalPages,
-        total: response.data.total,
-      };
-    } catch (error: any) {
+      try {
+        const userId = JSON.parse(userData)?.userId;
+        if (!userId) throw new Error('User ID not found');
+
+        const response = await _axios.get(`/notification?page=${pageParam}&limit=5`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.data.status) {
+          throw new Error(response.data.message || 'Failed to fetch notifications');
+        }
+
+        return {
+          notifications: response.data.notifications,
+          currentPage: response.data.currentPage,
+          totalPages: response.data.totalPages,
+          total: response.data.total,
+        };
+      } catch (error: any) {
+        console.error('Notifications query error:', error.message);
+        throw new Error(error.response?.data?.message || error.message || 'Failed to fetch notifications');
+      }
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.currentPage < lastPage.totalPages) {
+        return lastPage.currentPage + 1;
+      }
+      return undefined;
+    },
+    select: (data) =>
+      data.pages
+        .flatMap((page) => page.notifications)
+        .map((item) => ({
+          _id: item._id,
+          userId: item.userId,
+          type: item.type === 'promotional' ? 'promotion' : item.type,
+          title: item.title || '',
+          message: item.description || item.message || 'No message provided',
+          isRead: item.isRead,
+          createdAt: item.createdAt,
+          response: item.response, // Include response field
+        })),
+    enabled: $writableGlobalStore.isLogedIn,
+    retry: 1,
+    staleTime: 0,
+    refetchInterval: false, // Don't auto-refetch, we'll control this manually
+    onError: (error: any) => {
       console.error('Notifications query error:', error.message);
-      throw new Error(error.response?.data?.message || error.message || 'Failed to fetch notifications');
-    }
-  },
-  getNextPageParam: (lastPage) => {
-    if (lastPage.currentPage < lastPage.totalPages) {
-      return lastPage.currentPage + 1;
-    }
-    return undefined;
-  },
-  select: (data) =>
-    data.pages
-      .flatMap((page) => page.notifications)
-      .map((item) => ({
-        _id: item._id,
-        userId: item.userId,
-        type: item.type === 'promotional' ? 'promotion' : item.type,
-        title:item.title||'',
-        message: item.description || item.message || 'No message provided',
-        isRead: item.isRead,
-        createdAt: item.createdAt,
-      })),
-  enabled: $writableGlobalStore.isLogedIn,
-  retry: 1,
-  staleTime: 0,
-  refetchInterval: false, // Don't auto-refetch, we'll control this manually
-  onError: (error: any) => {
-    console.error('Notifications query error:', error.message);
-    if (error.message.includes('token') || error.message.includes('log in')) {
-      writableGlobalStore.update((store) => ({ ...store, isLogedIn: false }));
-      goto('/login');
-    }
-  },
-});
-$: if ($hasNewNotificationsQuery.data?.hasNew && !$notificationsQuery.isFetching && !isNotificationDrawerOpen) {
-  $notificationsQuery.refetch();
-}
-
-const markAllReadMutation = createMutation({
-  mutationFn: async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No token found.');
-    }
-    const response = await _axios.post(
-      `/notification/mark-read`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      if (error.message.includes('token') || error.message.includes('log in')) {
+        writableGlobalStore.update((store) => ({ ...store, isLogedIn: false }));
+        goto('/login');
       }
-    );
-    if (!response.data.status) {
-      throw new Error(response.data.message || 'Failed to mark all notifications as read');
-    }
-    return response.data;
-  },
-  onSuccess: () => {
+    },
+  });
+
+  $: if ($hasNewNotificationsQuery.data?.hasNew && !$notificationsQuery.isFetching && !isNotificationDrawerOpen) {
     $notificationsQuery.refetch();
-    $hasNewNotificationsQuery.refetch();
-    // toast.success('All notifications marked as read');
-  },
-  onError: (error: any) => {
-    console.error('Mark all read mutation error:', error.message);
-    // toast.error(error.message || 'Failed to mark all notifications as read');
-  },
-});
+  }
+
+  const markAllReadMutation = createMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found.');
+      }
+      const response = await _axios.post(
+        `/notification/mark-read`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!response.data.status) {
+        throw new Error(response.data.message || 'Failed to mark all notifications as read');
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      $notificationsQuery.refetch();
+      $hasNewNotificationsQuery.refetch();
+      // toast.success('All notifications marked as read');
+    },
+    onError: (error: any) => {
+      console.error('Mark all read mutation error:', error.message);
+      // toast.error(error.message || 'Failed to mark all notifications as read');
+    },
+  });
+
+  const respondToDemandMutation = createMutation({
+    mutationFn: async ({ notificationId, response }) => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found.');
+      }
+      const responseData = await _axios.post(
+        `/notification/respond`,
+        { notificationId, response },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!responseData.data.status) {
+        throw new Error(responseData.data.message || 'Failed to respond to demand notification');
+      }
+      return responseData.data;
+    },
+    onSuccess: () => {
+      $notificationsQuery.refetch();
+      toast.success('Response submitted successfully');
+    },
+    onError: (error: any) => {
+      console.error('Respond to demand mutation error:', error.message);
+      toast.error(error.message || 'Failed to respond to demand notification');
+    },
+  });
 
   $: currentPath = $page.url.pathname;
   $: cartCount = $writableGlobalStore.isLogedIn ? ($cartCountQuery.data?.count || 0) : 0;
   $: isLoading = $cartCountQuery.isLoading;
   $: error = $cartCountQuery.error ? ($cartCountQuery.error as Error).message : null;
 
-  $: primaryAddress = $writableGlobalStore.isLogedIn && $addressesQuery.data 
-    ? $addressesQuery.data.find(addr => addr.isPrimary) 
+  $: primaryAddress = $writableGlobalStore.isLogedIn && $addressesQuery.data
+    ? $addressesQuery.data.find(addr => addr.isPrimary)
     : null;
 
-  $: displayAddress = primaryAddress 
-    ? `${primaryAddress.flatorHouseno}, ${primaryAddress.area}` 
-    : ($addressesQuery.data?.length > 0 
-      ? `${$addressesQuery.data[0].flatorHouseno}, ${$addressesQuery.data[0].area}` 
+  $: displayAddress = primaryAddress
+    ? `${primaryAddress.flatorHouseno}, ${primaryAddress.area}`
+    : ($addressesQuery.data?.length > 0
+      ? `${$addressesQuery.data[0].flatorHouseno}, ${$addressesQuery.data[0].area}`
       : '');
 
   function logout() {
@@ -291,31 +328,34 @@ const markAllReadMutation = createMutation({
   let toggleTimeout: number | null = null;
   let fileInput: HTMLInputElement;
   let observerTarget: HTMLDivElement | null = null;
+let userResponse='';
+  // Track responded notifications
+  let respondedNotifications: Set<string> = new Set();
 
   function closeDropdown() {
     isDropdownOpen = false;
   }
 
   function toggleNotificationDrawer() {
-  if (toggleTimeout) return;
-  
-  toggleTimeout = setTimeout(() => {
-    const wasOpen = isNotificationDrawerOpen;
-    isNotificationDrawerOpen = !isNotificationDrawerOpen;
-    
-    // If opening the drawer, refetch notifications and mark as read
-    if (!wasOpen && isNotificationDrawerOpen) {
-      $notificationsQuery.refetch();
-      
-      // Mark all as read automatically when drawer is opened
-      if ($hasNewNotificationsQuery.data?.hasNew) {
-        $markAllReadMutation.mutate();
+    if (toggleTimeout) return;
+
+    toggleTimeout = setTimeout(() => {
+      const wasOpen = isNotificationDrawerOpen;
+      isNotificationDrawerOpen = !isNotificationDrawerOpen;
+
+      // If opening the drawer, refetch notifications and mark as read
+      if (!wasOpen && isNotificationDrawerOpen) {
+        $notificationsQuery.refetch();
+
+        // Mark all as read automatically when drawer is opened
+        if ($hasNewNotificationsQuery.data?.hasNew) {
+          $markAllReadMutation.mutate();
+        }
       }
-    }
-    
-    toggleTimeout = null;
-  }, 100);
-}
+
+      toggleTimeout = null;
+    }, 100);
+  }
 
   onMount(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -461,6 +501,18 @@ const markAllReadMutation = createMutation({
     account: { icon: 'mdi:account', color: 'bg-purple-100 text-purple-600' },
     other: { icon: 'mdi:bell', color: 'bg-gray-100 text-gray-600' },
   };
+
+  function handleDemandResponse(event: Event,notificationId: string, response: 'yes' | 'no') {
+    event.stopPropagation();
+    userResponse=response;
+    if (respondedNotifications.has(notificationId)) {
+      toast.error('You have already responded to this notification.');
+      return;
+    }
+
+    $respondToDemandMutation.mutate({ notificationId, response });
+    respondedNotifications.add(notificationId);
+  }
 </script>
 
 <div class="flex items-center justify-between h-[70px] z-50 w-screen lg:px-10 md:px-5 px-2 bg-white shadow-md">
@@ -494,7 +546,7 @@ const markAllReadMutation = createMutation({
       {:else}
         <div class="flex items-center gap-1">
           <span class="md:text-sm text-xs font-semibold text-gray-700">
-            {primaryAddress 
+            {primaryAddress
               ? `${primaryAddress.flatorHouseno}, ${primaryAddress.area}`
               : `${$addressesQuery.data[0].flatorHouseno}, ${$addressesQuery.data[0].area}`}
           </span>
@@ -525,8 +577,8 @@ const markAllReadMutation = createMutation({
         <div class="relative">
           <img src="/svg/Notification.svg" alt="Notification" />
           {#if $hasNewNotificationsQuery.data?.hasNew}
-          <span class="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full"></span>
-        {/if}
+            <span class="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full"></span>
+          {/if}
         </div>
         <span class="lg:text-xl md:text-lg hidden md:block text-base font-semibold text-[#30363C]">Notification</span>
       </div>
@@ -673,13 +725,6 @@ const markAllReadMutation = createMutation({
     role="dialog"
     aria-label="Notification dropdown"
   >
-    <!-- <button
-      onclick={() => (isNotificationDrawerOpen = false)}
-      class="text-gray-500 hover:text-gray-700 absolute right-2 top-2"
-    >
-      <Icon icon="mdi:close" class="w-5 h-5" />
-    </button> -->
-    
     <!-- Content -->
     <div class="overflow-y-auto">
       {#if $notificationsQuery.isLoading}
@@ -711,19 +756,41 @@ const markAllReadMutation = createMutation({
                 <p class="text-base text-[#30363C] font-medium truncate">
                   {notification.title}
                 </p>
-                <p class="text-sm text-[#30363cd9] {notification.isRead ? '' : 'font-medium'} ">
+                <p class="text-sm text-[#30363Cd9] {notification.isRead ? '' : 'font-medium'} ">
                   {notification.message}
                 </p>
-                <p class="text-xs text-[#4f585ebb] mt-1">
+                <p class="text-xs text-[#4f585Ebb] mt-1">
                   {formatDate(notification.createdAt)}
                 </p>
+                {#if notification.type === 'demand'}
+                  {#if notification.response||userResponse!=''}
+                    <div class="mt-0.5 p-1 text-sm border w-fit border-gray-300 capitalize rounded-md bg-gray-100 text-gray-700">
+                      {notification.response||userResponse}
+                    </div>
+                  {:else}
+                    <div class="flex gap-2 mt-2">
+                      <button
+                        class="px-3 text-sm py-1 bg-green-500 text-white rounded-md hover:bg-green-600"
+                        onclick={(e) => handleDemandResponse(e,notification._id, 'yes')}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        class="px-3 text-sm py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
+                        onclick={(e) => handleDemandResponse(e,notification._id, 'no')}
+                      >
+                        No
+                      </button>
+                    </div>
+                  {/if}
+                {/if}
               </div>
-             
             </div>
           {/each}
           {#if $notificationsQuery.isFetchingNextPage}
-            <div class="p-4">
-              <Skeleton class="h-12 w-full" />
+            <div class="p-4 flex items-center justify-center w-full ">
+              <!-- <Skeleton class="h-12 w-full" /> -->
+              <Icon icon='line-md:loading-twotone-loop' class="w-8 h-8" />
             </div>
           {/if}
           <div bind:this={observerTarget} class="h-1"></div>
@@ -808,8 +875,5 @@ const markAllReadMutation = createMutation({
 <style>
   .translate-x-full {
     transform: translateX(100%);
-  }
-  .max-h-\[70vh\] {
-    max-height: 70vh;
   }
 </style>

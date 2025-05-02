@@ -12,7 +12,6 @@
   import Footer from "$lib/components/footer.svelte";
   import { onMount } from 'svelte';
 
-  // Define interfaces based on actual backend response
   interface ProductDetails {
     strikePrice: any;
     _id: string;
@@ -23,6 +22,8 @@
     gst: number;
     discount: number;
     onMRP: number;
+    flat: number;
+    negMOQ?: number;
   }
 
   interface CartItem {
@@ -61,14 +62,14 @@
     coupons: any[];
     deliverySeconds: number;
     deliveryMinutes: number;
-    couponError?: string; // Add couponError field
+    couponError?: string;
     summary: {
       subtotalBeforeDiscount: number;
       totalDiscount: number;
       subtotal: number;
       tax: number;
       totalPrice: number;
-      couponDiscount: number; // Add couponDiscount field
+      couponDiscount: number;
     };
   }
 
@@ -88,77 +89,136 @@
     isPrimary: boolean;
   }
 
-  let isCouponVisible = false;
-  let couponCode = '';
-  let couponError = ''; // Store coupon error message
-  let couponDiscount = 0; // Store coupon discount
-let isApplying=false;
-  function toggleCoupon() {
-    couponCode=''
-    $cartQuery.refetch()
-    if(cartItems.length!=0){
-      isCouponVisible = !isCouponVisible;
-    }
+  interface Notification {
+    _id: string;
+    title: string;
+    description: string;
+    requiresResponse: boolean;
+    response?: string;
   }
 
-  $: isLoggedIn = $writableGlobalStore.isLogedIn;
+  // State variables
+  let isCouponVisible = false;
+  let couponCode = '';
+  let couponError = '';
+  let couponDiscount = 0;
+  let isApplying = false;
   let isPaying = false;
-
-  // State to control shimmer effect
   let showShimmer = true;
+  let notifications: Notification[] = [];
+  let notificationResponse = {
+    id: '',
+    loading: false,
+    success: false,
+    error: false
+  };
 
-  // Reset shimmer and enforce 1-second delay on page visit
+  // Computed properties
+  $: isLoggedIn = $writableGlobalStore.isLogedIn;
+  $: cartData = $cartQuery.data;
+  $: cartItems = showShimmer ? [] : (cartData?.cart?.products || []);
+  $: isCartLoading = showShimmer || $cartQuery.isLoading;
+  $: isAddressesLoading = showShimmer || $addressesQuery.isLoading;
+  $: error = $cartQuery.error ? ($cartQuery.error as Error).message : null;
+  $: primaryAddress = showShimmer ? null : ($addressesQuery.data?.find((address) => address.isPrimary) || null);
+  $: totalAmount = isCartLoading ? 0 : (cartData?.cart?.subtotal || 0);
+  $: totalDiscount = isCartLoading ? 0 : cartItems.reduce((sum, item) => sum + (item.productId.discount || 0) * item.quantity, 0);
+  $: deliveryFee = isCartLoading ? 0 : (cartData?.deliveryFee || 0);
+  $: platformFee = isCartLoading ? 0 : (cartData?.platformFee || 0);
+  $: tax = isCartLoading ? 0 : (cartData?.cart?.tax || 0);
+  $: totalPrice = isCartLoading ? 0 : (cartData?.cart?.totalPrice || 0);
+  
+  // Show flat offer info only if exactly one product has flat offer
+  $: showFlatOfferInfo = (() => {
+    const flatOfferItems = cartItems.filter(item => 
+      item.productId.flat && !item.productId.onMRP && !item.productId.discount
+    );
+    return flatOfferItems.length === 1;
+  })();
+
   onMount(() => {
     showShimmer = true;
     const timer = setTimeout(() => {
       showShimmer = false;
-    }, 1000); // 1-second delay
-    return () => clearTimeout(timer); // Cleanup on component destroy
+    }, 1000);
+    return () => clearTimeout(timer);
   });
 
+  function toggleCoupon() {
+    couponCode = '';
+    $cartQuery.refetch();
+    if (cartItems.length !== 0) {
+      isCouponVisible = !isCouponVisible;
+    }
+  }
 
+  async function handleNotificationResponse(notificationId: string, response: 'yes' | 'no') {
+    notificationResponse = {
+      id: notificationId,
+      loading: true,
+      success: false,
+      error: false
+    };
+    
+    try {
+      const token = localStorage.getItem('token');
+      await _axios.post('/notification/respond', {
+        notificationId,
+        response
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      notificationResponse = {
+        id: notificationId,
+        loading: false,
+        success: true,
+        error: false
+      };
+      
+      // Remove the notification after successful response
+      notifications = notifications.filter(n => n._id !== notificationId);
+    } catch (error) {
+      notificationResponse = {
+        id: notificationId,
+        loading: false,
+        success: false,
+        error: true
+      };
+    }
+  }
+
+  function closeNotification(notificationId: string) {
+    notifications = notifications.filter(n => n._id !== notificationId);
+  }
 
   const addressesQuery = createQuery<Address[]>({
     queryKey: ['addresses'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
-      try {
-        const response = await _axios.get('/address/all', {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        });
-
-        if (!response.data.status) {
-          throw new Error(response.data.message || 'Failed to fetch addresses');
-        }
-        return response.data.addresses || [];
-      } catch (error) {
-        throw error instanceof Error ? error : new Error('An unexpected error occurred');
-      }
+      if (!token) throw new Error('No token found');
+      
+      const response = await _axios.get('/address/all', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.data.status) throw new Error(response.data.message);
+      return response.data.addresses || [];
     },
     retry: 1,
-    staleTime: 0,
-    enabled: true,
+    staleTime: 0
   });
 
   const cartQuery = createQuery<CartResponse>({
     queryKey: ['cart', couponCode],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
+      if (!token) throw new Error('No token found');
+      
       try {
         const url = couponCode ? `/cart?couponCode=${couponCode}` : '/cart';
         const response = await _axios.get(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (!response.data.status && response.data.message === "No active cart found") {
@@ -192,31 +252,38 @@ let isApplying=false;
         }
 
         if (response.data.status) {
-          couponError = response.data.couponError || ''; // Set coupon error message
-          couponDiscount = response.data.summary.couponDiscount || 0; // Set coupon discount
+          couponError = response.data.couponError || '';
+          couponDiscount = response.data.summary.couponDiscount || 0;
+          
+          // Process flat offers
+          if (response.data.cart?.products) {
+            response.data.cart.products.forEach(item => {
+              if (item.productId.flat && !item.productId.discount && !item.productId.onMRP) {
+                item.price = item.productId.price * (1 - item.productId.flat / 100);
+                item.totalAmount = item.price * item.quantity;
+              }
+            });
+          }
+          
           return response.data;
         }
 
-        throw new Error(response.data.message || 'Failed to fetch cart');
+        throw new Error(response.data.message);
       } catch (error) {
-        throw error instanceof Error ? error : new Error('An unexpected error occurred');
+        throw error;
       }
     },
     retry: 1,
-    staleTime: 0,
-    enabled: true,
+    staleTime: 0
   });
+
   const placeOrderMutation = createMutation({
     mutationFn: async () => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
+      if (!token) throw new Error('No token found');
+      
       const addressId = primaryAddress?._id;
-      if (!addressId) {
-        throw new Error('Please select a delivery address');
-      }
+      if (!addressId) throw new Error('Please select a delivery address');
 
       const outOfStockItems = cartItems.filter(
         item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
@@ -231,7 +298,6 @@ let isApplying=false;
         );
       }
 
-      // Check for insufficient stock
       const insufficientStockItems = cartItems.filter(
         item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
       );
@@ -245,27 +311,21 @@ let isApplying=false;
       }
 
       try {
-        // Proceed with order creation only if stock checks pass
         const response = await _axios.post(
           '/orders/order',
-          { addressId},
+          { addressId },
           {
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${token}` },
           }
         );
+        
         isPaying = false;
-        if (!response.data.status) {
-          throw new Error(response.data.message || 'Failed to place order');
-        }
-
+        if (!response.data.status) throw new Error(response.data.message);
         return response.data;
       } catch (error: any) {
         isPaying = false;
-        // Handle axios errors and extract response data if available
-        if (error.response && error.response.data) {
-          throw new Error(error.response.data.message || 'Server error occurred');
-        }
-        throw error; // Re-throw if it's not an axios error or doesn't have response data
+        if (error.response?.data) throw new Error(error.response.data.message);
+        throw error;
       }
     },
     onSuccess: (data) => {
@@ -275,33 +335,24 @@ let isApplying=false;
       goto(`/order-confirmation/${data.order._id}`);
     },
     onError: (error: any) => {
-      if (error.response && error.response.data && error.response.data.message) {
-        toast.error(error.response.data.message);
-      }
-      // Fall back to error object's message or default message
-      else {
-        toast.error(error.message || 'Failed to place order');
-      }
+      toast.error(error.message || 'Failed to place order');
     },
   });
+
   const updateQuantityMutation = createMutation({
     mutationFn: async ({ productId, quantity }: { productId: string; quantity: number }) => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
+      if (!token) throw new Error('No token found');
+      
       const response = await _axios.post(
         '/cart/updatequantity',
         { productId, quantity },
         {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${token}` },
         }
       );
 
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to update quantity');
-      }
+      if (!response.data.status) throw new Error(response.data.message);
       return response.data;
     },
     onSuccess: () => {
@@ -317,17 +368,13 @@ let isApplying=false;
   const removeProductMutation = createMutation({
     mutationFn: async (productId: string) => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No token found. Please log in.');
-      }
-
+      if (!token) throw new Error('No token found');
+      
       const response = await _axios.delete(`/cart/remove-product/${productId}`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to remove product');
-      }
+      if (!response.data.status) throw new Error(response.data.message);
       return response.data;
     },
     onSuccess: () => {
@@ -341,10 +388,8 @@ let isApplying=false;
   });
 
   async function validateStock() {
-    // Refetch cart to ensure latest stock data
     await $cartQuery.refetch();
 
-    // Check for out-of-stock items (stock <= 0)
     const outOfStockItems = cartItems.filter(
       item => item?.productId && typeof item.productId.stock === 'number' && item.productId.stock <= 0
     );
@@ -358,7 +403,6 @@ let isApplying=false;
       );
     }
 
-    // Check for insufficient stock
     const insufficientStockItems = cartItems.filter(
       item => item?.productId && typeof item.productId.stock === 'number' && item.quantity > item.productId.stock
     );
@@ -384,47 +428,25 @@ let isApplying=false;
       toast.error('Your cart is empty');
       return;
     }
+    
     try {
-      // Validate stock before placing the order
       await validateStock();
-
-      // Proceed with order creation only if stock checks pass
       $placeOrderMutation.mutate();
-      console.log('sdsd')
     } catch (error: any) {
       isPaying = false;
-      // Handle stock validation errors
       toast.error(error.message || 'Failed to place order');
     }
   }
-
-  // Access cart data
-  $: cartData = $cartQuery.data;
-  $: cartItems = showShimmer ? [] : (cartData?.cart?.products || []);
-  $: isCartLoading = showShimmer || $cartQuery.isLoading;
-  $: isAddressesLoading = showShimmer || $addressesQuery.isLoading;
-  $: error = $cartQuery.error ? ($cartQuery.error as Error).message : null;
-  $: primaryAddress = showShimmer ? null : ($addressesQuery.data?.find((address) => address.isPrimary) || null);
-
-  // Calculate totals for bill summary, reset during shimmer/loading
-  $: totalAmount = isCartLoading ? 0 : (cartData?.cart?.subtotal || 0);
-  $: totalDiscount = isCartLoading ? 0 : cartItems.reduce((sum, item) => sum + (item.productId.discount || 0) * item.quantity, 0);
-  $: deliveryFee = isCartLoading ? 0 : (cartData?.deliveryFee || 0);
-  $: platformFee = isCartLoading ? 0 : (cartData?.platformFee || 0);
-  $: tax = isCartLoading ? 0 : (cartData?.cart?.tax || 0);
-  $: totalPrice = isCartLoading ? 0 : (cartData?.cart?.totalPrice || 0);
 
   function updateQuantity(productId: string, change: number, stock: number) {
     const item = cartItems.find((item) => item.productId._id === productId);
 
     if (item) {
       let newQuantity;
-      // Determine the minimum quantity based on offer type
       const minQuantity = item.selectedOffer?.offerType === 'Negotiate'
-        ? (item.productId.negMOQ || 1) // Use negMOQ if available, default to 1
+        ? (item.productId.negMOQ || 1)
         : 1;
 
-      // Calculate new quantity with the appropriate minimum
       newQuantity = item.quantity + change;
       if (newQuantity < minQuantity) {
         toast.error(`Minimum order quantity for ${item.productId.productName} is ${minQuantity}.`);
@@ -435,7 +457,6 @@ let isApplying=false;
         return;
       }
 
-      // Update item quantity and total amount
       item.quantity = newQuantity;
       item.totalAmount = item.price * newQuantity;
       $updateQuantityMutation.mutate({ productId, quantity: newQuantity });
@@ -468,11 +489,53 @@ let isApplying=false;
   </Breadcrumb.Root>
 </section>
 
+<!-- Notification Drawer -->
+<div class="fixed bottom-4 right-4 z-50 max-w-md w-full space-y-2">
+  {#each notifications as notification (notification._id)}
+    <div class="bg-white shadow-lg rounded-lg p-4 border border-gray-200 transition-all duration-300">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="font-semibold">{notification.title}</h3>
+          <p class="text-sm text-gray-600">{notification.description}</p>
+        </div>
+        <button on:click={() => closeNotification(notification._id)} class="text-gray-400 hover:text-gray-600">
+          <Icon icon="mdi:close" class="w-5 h-5" />
+        </button>
+      </div>
+      
+      {#if notification.requiresResponse && !notification.response}
+        <div class="mt-3 flex justify-end space-x-2">
+          {#if notificationResponse.loading && notificationResponse.id === notification._id}
+            <span class="text-sm text-gray-500">Processing...</span>
+          {:else if notificationResponse.success && notificationResponse.id === notification._id}
+            <span class="text-sm text-green-500">Response recorded</span>
+          {:else if notificationResponse.error && notificationResponse.id === notification._id}
+            <span class="text-sm text-red-500">Failed, try again</span>
+          {:else}
+            <button 
+              on:click={() => handleNotificationResponse(notification._id, 'yes')}
+              class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+            >
+              Yes
+            </button>
+            <button 
+              on:click={() => handleNotificationResponse(notification._id, 'no')}
+              class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+            >
+              No
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/each}
+</div>
+
 {#if isLoggedIn}
 <div class="!flex !justify-center !items-center pb-14">
   <div class="flex lg:flex-row flex-col lg:w-full md:w-[65%] w-full justify-between lg:px-20 px-4 md:px-6 gap-5">
     <!-- Mobile Address Section -->
-    <div class="border bg-white  lg:hidden max-w-3xl flex justify-between rounded-lg shadow-lg p-3">
+    <div class="border bg-white lg:hidden max-w-3xl flex justify-between rounded-lg shadow-lg p-3">
       <div>
         <h3 class="text-base text-[#4F585E] font-medium mb-3">Deliver To</h3>
         {#if isAddressesLoading}
@@ -496,6 +559,14 @@ let isApplying=false;
         {primaryAddress && !showShimmer ? 'Edit address' : 'Add address'}
       </button>
     </div>
+
+    <!-- Flat Offer Info Message -->
+    {#if showFlatOfferInfo}
+      <div class="lg:hidden bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
+        <Icon icon="mdi:information" class="w-5 h-5 inline mr-1" />
+        This product has a flat {cartItems.find(item => item.productId.flat)?.productId.flat}% discount applied
+      </div>
+    {/if}
 
     <!-- Mobile Cart Items Section -->
     <div class="cart-items max-w-3xl lg:hidden block bg-white rounded-lg shadow-lg p-2 h-fit border">
@@ -573,7 +644,6 @@ let isApplying=false;
 
               {:else if item.selectedOffer?.offerType === 'Flat'}
                 <div>
-
                   <span class="text-sm">{item.selectedOffer.discount}% OFF</span>
                 </div>
 
@@ -636,6 +706,9 @@ let isApplying=false;
 
     <!-- Desktop Cart Items Section -->
     <div class="cart-items hidden lg:block bg-white rounded-lg shadow-lg p-2 lg:w-[65%] h-fit border">
+      <!-- Flat Offer Info Message -->
+
+
       <div class="cart-header flex items-center justify-between text-sm py-2 text-[#475156] border border-gray-300 bg-[#F2F4F5]">
         <span style="width: 30%; text-align: center;">PRODUCT</span>
         <span style="width: 17%; text-align: center;">PRICE</span>
@@ -788,6 +861,13 @@ let isApplying=false;
           </div>
         {/each}
       {/if}
+
+      {#if showFlatOfferInfo}
+      <div class="  rounded-lg p-1  text-sm text-yellow-600">
+        <Icon icon="mdi:information" class="w-5 h-5 inline mr-1" />
+        To avail {cartItems.find(item => item.productId.flat)?.productId.flat}% Flat discount, Please add one more product from Flat Offer. <span class="text-blue-500 underline mx-1" on:click={()=>{goto("/offers")}}>Visit?</span>
+      </div>
+    {/if}
     </div>
 
     <!-- Billing Section -->
@@ -859,14 +939,11 @@ let isApplying=false;
                     class="absolute right-1 top-1/2 transform -translate-y-1/2 bg-white text-[#009bde] text-sm px-2 py-0.5 rounded-md hover:bg-gray-100"
                   >
                   {#if isApplying}
-    <!-- <span>Applying</span> -->
     <Icon icon="mdi:loading" class="w-5 h-5 animate-spin" />
   {:else if couponDiscount > 0}
     <span>Applied</span>
-    <!-- <Icon icon="mdi:check-circle" class="w-5 h-5" /> -->
   {:else}
     <span>Apply Coupon</span>
-    <!-- <Icon icon="mdi:ticket-percent" class="w-5 h-5" /> -->
   {/if}
                   </button>
                 {/if}
@@ -886,10 +963,6 @@ let isApplying=false;
             <span class="text-[#30363C] font-semibold">Delivery Charge</span>
             <span class="free text-green-600">{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
           </div>
-          <!-- <div class="flex justify-between mb-2.5 text-sm">
-            <span class="text-[#30363C] font-semibold">Platform Fee</span>
-            <span class="text-gray-800">₹{platformFee.toFixed(2)}</span>
-          </div> -->
           <div class="flex justify-between mb-2.5 text-sm">
             <span class="text-[#30363C] font-semibold">Tax</span>
             <span class="text-gray-800">₹{tax.toFixed(2)}</span>
@@ -922,3 +995,23 @@ let isApplying=false;
 {/if}
 
 <Footer />
+
+<style>
+  .notification-enter {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .notification-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.3s ease;
+  }
+  .notification-exit {
+    opacity: 1;
+  }
+  .notification-exit-active {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+  }
+</style>

@@ -71,6 +71,7 @@
   loop
   autoplay
 /> -->
+<img src="/logo.png" alt="">
 </div>
 	</div>
 

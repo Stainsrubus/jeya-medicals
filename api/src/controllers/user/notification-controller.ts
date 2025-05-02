@@ -188,3 +188,52 @@ export const notificationController = new Elysia({
     },
   }
 )
+.post(
+  "/respond",
+  async ({ set, body, store }) => {
+    try {
+      const userId = (store as StoreType)["id"];
+      const { notificationId, response } = body;
+
+      // Validate response
+      if (response !== "yes" && response !== "no") {
+        set.status = 400;
+        return { message: "Response must be either 'yes' or 'no'" };
+      }
+
+      // Update notification with response
+      const updatedNotification = await NotificationModel.findOneAndUpdate(
+        { _id: notificationId, userId }, // Ensure the notification belongs to the user
+        { 
+          response,
+          isRead: true // Mark as read when responded
+        },
+        { new: true }
+      );
+
+      if (!updatedNotification) {
+        set.status = 404;
+        return { message: "Notification not found" };
+      }
+
+      return {
+        message: "Response recorded successfully",
+        notification: updatedNotification,
+      };
+    } catch (error: any) {
+      set.status = 400;
+      return {
+        message: error.message ?? "Failed to record response",
+      };
+    }
+  },
+  {
+    body: t.Object({
+      notificationId: t.String(),
+      response: t.String(), 
+    }),
+    detail: {
+      summary: "Record user response to a notification (yes/no)",
+    },
+  }
+)
