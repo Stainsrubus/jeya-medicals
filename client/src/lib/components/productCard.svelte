@@ -1,8 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores'; // Import page store to access route
   import { imgUrl } from '$lib/config';
-  import { _axios } from '$lib/_axios'; // Import your axios instance
-  import { toast } from 'svelte-sonner'; // Optional: For showing toast notifications
+  import { _axios } from '$lib/_axios';
+  import { toast } from 'svelte-sonner';
   import { writableGlobalStore } from '$lib/stores/global-store';
   import { queryClient } from '$lib/query-client';
   import { createMutation } from '@tanstack/svelte-query';
@@ -15,17 +16,21 @@
   export let MRP: number;
   export let strikePrice: number;
   export let id: string | number;
-  export let favorite: boolean = false; // New prop to track favorite status
-  export let comboOffer: boolean = false; // New prop to track if it's a combo offer
+  export let favorite: boolean = false;
+  export let comboOffer: boolean = false;
   export let offerType: string | null = null;
 
   // Calculate savings
   $: savings = strikePrice > MRP ? strikePrice - MRP : 0;
 
+  // Compute card width class based on route for mobile screens
+  $: cardWidthClass = $page.url.pathname === '/' ||
+                    $page.url.pathname === '/offers' ||
+                    ($page.url.pathname.startsWith('/Products/') &&
+                     $page.url.pathname.split('/').length === 3)
+                    ? 'w-48' : 'w-full';
   // Handle click to navigate to product details page or combo offer page
   function handleClick() {
-    if (!available) return;
-
     if (comboOffer) {
       goto(`/comboOffers/${id}`);
     } else {
@@ -47,7 +52,6 @@
     }
 
     try {
-      // Make API call to toggle favorite status
       const response = await _axios.post(
         '/favorites/favorite',
         { productId: id },
@@ -60,9 +64,7 @@
       );
 
       if (response.data.status) {
-        // Toggle the favorite status in the UI
         favorite = !favorite;
-        // Show success message
         toast.success(response.data.message);
       } else {
         toast.error(response.data.message || 'Failed to toggle favorite');
@@ -71,7 +73,7 @@
       console.error('Failed to toggle favorite:', error);
       if (error.response?.status === 401) {
         toast.error('Session expired. Please log in again.');
-        localStorage.removeItem('token'); // Clear invalid token
+        localStorage.removeItem('token');
         goto('/login');
       } else {
         toast.error(error.response?.data?.message || 'An error occurred while toggling favorite');
@@ -130,8 +132,8 @@
 </script>
 
 <div
-  class="relative group bg-white rounded-xl shadow-md overflow-hidden md:w-64 w-full transition-transform duration-200"
-  style="{available ? 'cursor-pointer' : 'cursor-not-allowed'}"
+  class="relative group bg-white rounded-xl shadow-md overflow-hidden transition-transform duration-200 {cardWidthClass} md:w-64"
+  style="cursor: pointer;"
   on:click={handleClick}
   role="button"
   tabindex="0"
@@ -147,7 +149,7 @@
   {/if}
 
   <!-- Product Image with Overlay and Icons -->
-  <div class="relative md:h-48 h-32 bg-gray-100 flex justify-center items-center ">
+  <div class="relative md:h-48 h-32 bg-gray-100 flex justify-center items-center">
     <img
       class="object-cover max-h-full max-w-full"
       src={imgUrl + image}
@@ -179,35 +181,45 @@
           <img class="p-2" src="/svg/cart.svg" alt="Cart" />
         </button>
       </div>
+      <!-- {:else}
+      <div class="absolute">
+        <p class="text-red-500 text-lg text-semibold  rounded-lg px-2">Out of Stock</p>
+      </div> -->
     {/if}
   </div>
 
   <!-- Product Details -->
-  <div class="md:px-4 px-2">
+  <div class="md:px-4 px-2 py-2">
     <!-- Product Name -->
-    <h3 class="font-medium md:text-base text-sm text-[#222222] py-1 capitalize overflow-hidden text-ellipsis whitespace-nowrap">
+    <h3
+      class="font-medium md:text-base text-sm text-[#222222] py-1 capitalize overflow-hidden text-ellipsis whitespace-nowrap"
+    >
       {name}
     </h3>
 
     <!-- Price Section -->
     <div class="flex items-center gap-2 mt-1">
       <span class="text-[#222222] md:text-base text-sm">₹{MRP}</span>
-      {#if strikePrice > MRP}
+      <!-- {#if strikePrice > MRP}
         <span class="text-[#222222] md:text-base text-sm line-through">₹{strikePrice}</span>
-      {/if}
+      {/if} -->
     </div>
 
     <!-- Savings Section -->
-    {#if savings > 0}
-      <div class="mt-1 py-2 border-t border-[#EDEDED] md:text-base text-sm text-[#249B3E]">
+    <!-- {#if savings > 0}
+      <div
+        class="mt-1 py-2 border-t border-[#EDEDED] md:text-base text-sm text-[#249B3E]"
+      >
         Save - ₹{savings}
       </div>
-    {/if}
+    {/if} -->
   </div>
 
   <!-- Out of Stock Overlay -->
   {#if !available}
-    <div class="absolute inset-0 bg-black/60 flex justify-center items-center text-white text-lg font-medium">
+    <div
+      class="absolute inset-0 bg-black/30 flex justify-center items-center text-white text-lg font-medium"
+    >
       Out of Stock
     </div>
   {/if}

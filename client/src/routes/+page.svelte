@@ -12,6 +12,7 @@
 	import NewProducts from "$lib/components/pages/home/newProducts.svelte";
 	import Footer from "$lib/components/footer.svelte";
 	import DemandBox from "$lib/components/pages/home/demandBox.svelte";
+	import OfferProducts from "$lib/components/pages/home/offerProducts.svelte";
 
 	// Fetch banners from the API
 	const fetchBanners = async () => {
@@ -33,7 +34,8 @@
 <div >
 <Hero />
 <Quote />
-<NewProducts />
+<OfferProducts />
+<!-- <NewProducts /> -->
 <DemandBox />
 <NewProducts />
 <Footer />

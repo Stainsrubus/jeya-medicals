@@ -368,10 +368,10 @@ export const productController = new Elysia({
   )
   .get(
     "/:id",
-    async ({ params, query }) => {
+    async ({ params, query,store }) => {
       try {
         const { id } = params;
-        const { userId } = query;
+        const userId = (store as StoreType)["id"];
 
         const product: any = await Product.findById(id)
           .populate({

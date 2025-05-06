@@ -34,9 +34,9 @@
 			if (data.status) {
 				toast('Banner Created ✅');
 
-				reset();
-				if (elem) elem.value = '';
+				// Reset the image state
 				image = null;
+				if (elem) elem.value = '';
 			} else {
 				toast.error(data.message);
 			}

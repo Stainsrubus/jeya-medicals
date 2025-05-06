@@ -597,7 +597,46 @@ function toggleOption(option: string) {
       }
     },
   });
+  const favoriteMutation = createMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !$writableGlobalStore.isLogedIn) {
+        throw new Error('Please log in to add to favorites');
+      }
 
+      const response = await _axios.post(
+        '/favorites/favorite',
+        { productId: productId },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.data.status) {
+        throw new Error(response.data.message || 'Failed to toggle favorite');
+      }
+      return response.data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries(['favorites']);
+    },
+    onError: (error: any) => {
+      if (error.message === 'Please log in to add to favorites') {
+        toast.error(error.message);
+        goto('/login');
+      } else if (error.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+        localStorage.removeItem('token');
+        goto('/login');
+      } else {
+        toast.error(error.message || 'An error occurred while toggling favorite');
+      }
+    },
+  });
   let desiredQuantity: number = cartQuantity || 1;
 
   function addToCart() {
@@ -634,6 +673,16 @@ return
     
     console.log('quantity: ', desiredQuantity);
     $addToCartMutation.mutate(desiredQuantity);
+  }
+  function addToWishlist() {
+    if (!product) return;
+
+   if(!product.favorite){
+    $favoriteMutation.mutate();
+   }
+   else{
+    toast.info("This product is already in your wishlist.");
+   }
   }
 
   function incrementQuantity() {
@@ -704,22 +753,26 @@ return
 </script>
 
 
-<section class="bg-[#F2F4F5] py-1 px-4 md:px-6 lg:px-8 ">
+<section class="bg-[#F2F4F5] py-1 px-4 md:px-6 lg:px-8">
   <Breadcrumb.Root>
-    <Breadcrumb.List>
+    <Breadcrumb.List class="flex flex-wrap items-center max-w-full">
       <Breadcrumb.Item>
-        <Breadcrumb.Link href="/" class='text-[#4F585E] hover:text-[#01A0E2] text-base'>Home</Breadcrumb.Link>
+        <Breadcrumb.Link href="/" class="text-[#4F585E] hover:text-[#01A0E2] text-base whitespace-nowrap">Home</Breadcrumb.Link>
       </Breadcrumb.Item>
-      <Breadcrumb.Separator />
+      <Breadcrumb.Separator class="flex-shrink-0" />
       <Breadcrumb.Item>
-        <Breadcrumb.Link href="/Products" class='text-[#4F585E] hover:text-[#01A0E2] text-base'>Products</Breadcrumb.Link>
+        <Breadcrumb.Link href="/Products" class="text-[#4F585E] hover:text-[#01A0E2] text-base whitespace-nowrap">Products</Breadcrumb.Link>
       </Breadcrumb.Item>
-      <Breadcrumb.Separator />
-      <Breadcrumb.Item>
+      <Breadcrumb.Separator class="flex-shrink-0" />
+      <Breadcrumb.Item class="max-w-[60%] overflow-hidden">
         {#if isInitialLoad || productLoading || !product}
           <Skeleton class="h-5 w-32 inline-block" />
         {:else}
-          <Breadcrumb.Link href={`/Products/${productId}`} class='text-[#01A0E2] text-base'>
+          <Breadcrumb.Link 
+            href={`/Products/${productId}`} 
+            class="text-[#01A0E2] text-base whitespace-nowrap overflow-hidden text-ellipsis block"
+            title={product?.name} 
+          >
             {product?.name}
           </Breadcrumb.Link>
         {/if}
@@ -786,18 +839,20 @@ return
           
           <div class="flex md:flex-row flex-col gap-5">
             <!-- Main Image Container -->
-            <div class="bg-[#F3F9FB] !max-h-[450px] !md:min-w-96  rounded-xl flex justify-center item-center shadow p-10 relative">
+            <div class="bg-[#F3F9FB] !max-h-[450px] !md:min-w-96   rounded-xl flex justify-center item-center shadow p-10 relative">
               <img
                 src={imgUrl + product.images[selectedImageIndex]}
                 alt={product.name}
                 class="lg:h-96 h-52 w-96 object-contain"
               />
-              {#if product.stock === 0}
-              <!-- Overlay for Out of Stock -->
+                <!-- Overlay for Out of Stock -->
+              <!-- {#if product.stock === 0}
+            
               <div class="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
                 <span class="text-white text-2xl font-bold">Out of Stock</span>
               </div>
-            {/if}
+             
+            {/if} -->
             </div>
             <!-- Thumbnail Gallery -->
             {#if product.images.length > 1}
@@ -861,12 +916,15 @@ return
                 <p class=" text-green-600">Save - ₹{(product.strikePrice - product.MRP)*quantity}</p>
                 {/if} -->
               {/if}
-
+{#if product.stock<=0}
+<p class="text-red-500 text-xl py-2">( Currently Unavailable )</p>
+{/if}
               </div>
               <div class="mt-4 self-end">
-                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
+                <div class="flex items-center justify-between border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
                     on:click={decrementQuantity}
+                    disabled={product.stock<=0}
                     class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     -
@@ -875,26 +933,42 @@ return
                     type="number"
                     bind:value={desiredQuantity}
                     min="1"
+                    disabled={product.stock<=0}
                     class="w-16 h-10 text-center border-none text-lg focus:outline-none"
                   />
                   <button
                     on:click={incrementQuantity}
+                    disabled={product.stock<=0}
                     class="w-10 h-10 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
+                {#if product.stock>0}
                 <button
-                  class={`${product.stock<=0?'bg-[#5a5e5f58]':'bg-[#01A0E2]'} text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full`}
-                  on:click={addToCart}
-                  disabled={$addToCartMutation.isPending||product.stock<=0}
-                >
-                  {#if $addToCartMutation.isPending}
-                    Adding...
-                  {:else}
-                    Add to Cart
-                  {/if}
-                </button>
+                class={`${product.stock<=0?'bg-[#5a5e5f58]':'bg-[#01A0E2]'} text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full`}
+                on:click={addToCart}
+                disabled={$addToCartMutation.isPending||product.stock<=0}
+              >
+                {#if $addToCartMutation.isPending}
+                  Adding...
+                {:else}
+                  Add to Cart
+                {/if}
+              </button>
+              {:else}
+              <button
+              class="bg-[#01A0E2] text-xl text-white px-6 py-3 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+              on:click={addToWishlist}
+              disabled={$favoriteMutation.isPending}
+            >
+              {#if $favoriteMutation.isPending}
+                {product.favorite ? 'Removing...' : 'Adding...'}
+              {:else}
+                {product.favorite ? 'Add to Wishlist' : 'Add to Wishlist'}
+              {/if}
+            </button>
+                {/if}
               </div>
             </div>
 
@@ -1189,11 +1263,14 @@ No
                 <!-- <p class=" ">Save - ₹{(product.strikePrice - product.MRP)*quantity}</p> -->
                 {/if}
               {/if}
-
+              {#if product.stock<=0}
+              <p class="text-red-500 text-base py-0.5">( Currently Unavailable )</p>
+              {/if}
               </div>
               <div class="mt-4 self-end">
-                <div class="flex items-center border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
+                <div class="flex items-center justify-between border border-[#0EA5E9] rounded-lg divide-x divide-[#0EA5E9]">
                   <button
+                  disabled={product.stock<=0}
                     on:click={decrementQuantity}
                     class="w-10 h-8 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
@@ -1203,15 +1280,18 @@ No
                     type="number"
                     bind:value={desiredQuantity}
                     min="1"
+                    disabled={product.stock<=0}
                     class="w-12 h-8 text-center border-none text-base focus:outline-none"
                   />
                   <button
+                  disabled={product.stock<=0}
                     on:click={incrementQuantity}
                     class="w-10 h-8 text-2xl flex items-center justify-center text-[#01A0E2] border-none"
                   >
                     +
                   </button>
                 </div>
+                {#if product.stock>0}
                 <button
                   class="bg-[#01A0E2] text-base text-white px-4 py-2 rounded-lg hover:scale-105 transition-all mt-2 w-full"
                   on:click={addToCart}
@@ -1223,6 +1303,19 @@ No
                     Add to Cart
                   {/if}
                 </button>
+                {:else}
+                <button
+                class="bg-[#01A0E2] text-base text-white px-4 py-2 rounded-lg hover:scale-105 transition-all mt-2 w-full"
+                on:click={addToWishlist}
+                disabled={$favoriteMutation.isPending}
+              >
+                {#if $favoriteMutation.isPending}
+                  {product.favorite ? 'Removing...' : 'Adding...'}
+                {:else}
+                  {product.favorite ? 'Add to Wishlist' : 'Add to Wishlist'}
+                {/if}
+              </button>
+              {/if}
               </div>
             </div>
           </div>
